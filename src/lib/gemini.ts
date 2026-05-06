@@ -14,7 +14,7 @@ export const getAICoachInsight = async (userData: any) => {
     const ai = getAI();
     if (!ai) return "Keep pushing towards your goals. Every small step counts.";
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: [{
         parts: [{
           text: `
@@ -43,7 +43,7 @@ export const getGoalBreakdown = async (goalTitle: string) => {
     if (!ai) return [];
     
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: [{
         parts: [{
           text: `
@@ -69,7 +69,7 @@ export const getReflectionInsight = async (reflectionText: string) => {
     if (!ai) return "Thank you for sharing your reflection.";
     
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: [{
         parts: [{
           text: `
@@ -93,7 +93,7 @@ export const getDailyMotivation = async (mood: string | null) => {
     if (!ai) return "The best way to get started is to quit talking and begin doing.";
     
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: [{
         parts: [{
           text: `
@@ -117,7 +117,7 @@ export const getTaskFocusAdvice = async (tasks: any[]) => {
     if (!ai) return "Review your tasks and tackle the most urgent one.";
     
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: [{
         parts: [{
           text: `
@@ -140,7 +140,7 @@ export const getOverviewFocusAdvice = async (goals: any[], tasks: any[]) => {
     if (!ai) return "Review your goals and tasks and tackle the most urgent ones to build momentum.";
     
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: [{
         parts: [{
           text: `
@@ -164,7 +164,7 @@ export const getGoalFocusAdvice = async (goals: any[]) => {
     if (!ai) return "Review your goals and tackle the most urgent one.";
     
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: [{
         parts: [{
           text: `
@@ -187,7 +187,7 @@ export const getDeepAnalysis = async (userData: any) => {
     if (!ai) return "Analyze your data to see trends.";
     
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: [{
         parts: [{
           text: `
@@ -336,7 +336,7 @@ export const getTrojanChatResponse = async (
     contents.push({ role: "user", parts: [{ text: message }] });
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: contents as any,
       config: {
         systemInstruction: `You are Trojan, an elite AI productivity agent. You help the user manage their tasks and goals (yearly/monthly/weekly). Be concise, militaristic, and professional. Current tasks: ${JSON.stringify(tasks.map((t: any) => ({ id: t.id, title: t.title, priority: t.priority, completed: t.completed }))) }. Current goals: ${JSON.stringify(goals.map((g: any) => ({ id: g.id, title: g.title, type: g.type, priority: g.priority, completed: g.completed }))) }. Use the tools to create, toggle (complete), or delete tasks/goals based on user request. Do not ask for confirmation if the user already gave you enough details.`,
@@ -346,9 +346,9 @@ export const getTrojanChatResponse = async (
     });
 
     return response;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Trojan Error:", error);
-    return { text: "Error communicating with Trojan command." };
+    return { text: `Error communicating with Trojan command: ${error?.message || "Unknown error"}` };
   }
 };
 
@@ -359,7 +359,7 @@ export const smartTaskPrioritization = async (tasks: any[]) => {
     
     const taskList = tasks.map((t: any) =>`[${t.priority}] ${t.title} (${t.energy} energy)`).join('\n');
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: [{
         parts: [{
           text: `

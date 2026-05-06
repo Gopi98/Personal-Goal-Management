@@ -1248,12 +1248,12 @@ const GoalsView = () => {
           </p>
         </div>
 
-        <div className="flex bg-white/[0.03] border border-white/10 rounded-3xl p-1 gap-1">
+        <div className="flex flex-wrap bg-white/[0.03] border border-white/10 rounded-3xl p-1 gap-1">
           {["All", "Yearly", "Monthly", "Weekly"].map((t) => (
             <button
               key={t}
               onClick={() => setFilter(t)}
-              className={`px-6 py-3 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all ${filter === t ? "bg-white text-black shadow-lg" : "text-slate-500 hover:text-white hover:bg-white/5"}`}
+              className={`px-4 py-3 sm:px-6 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all flex-1 text-center min-w-[80px] ${filter === t ? "bg-white text-black shadow-lg" : "text-slate-500 hover:text-white hover:bg-white/5"}`}
             >
               {t}
             </button>
@@ -1268,7 +1268,7 @@ const GoalsView = () => {
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             placeholder="Define your next objective..."
-            className="w-full bg-transparent border-none focus:ring-0 text-white text-3xl placeholder:text-slate-800 font-display font-black text-center"
+            className="w-full bg-transparent border-none focus:ring-0 text-white text-xl sm:text-3xl placeholder:text-slate-800 font-display font-black text-center"
           />
 
           <div className="flex flex-wrap items-center justify-center gap-4">
@@ -1287,22 +1287,22 @@ const GoalsView = () => {
               </select>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full sm:w-auto">
               <button
                 onClick={() => handleAdd("yearly")}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-black uppercase tracking-widest px-6 py-3.5 rounded-2xl transition-all shadow-lg active:scale-95"
+                className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] sm:text-[9px] font-black uppercase tracking-widest px-6 py-4 sm:py-3.5 rounded-2xl transition-all shadow-lg active:scale-95 w-full"
               >
                 Yearly
               </button>
               <button
                 onClick={() => handleAdd("monthly")}
-                className="bg-orange-600 hover:bg-orange-700 text-white text-[9px] font-black uppercase tracking-widest px-6 py-3.5 rounded-2xl transition-all shadow-lg active:scale-95"
+                className="bg-orange-600 hover:bg-orange-700 text-white text-[10px] sm:text-[9px] font-black uppercase tracking-widest px-6 py-4 sm:py-3.5 rounded-2xl transition-all shadow-lg active:scale-95 w-full"
               >
                 Monthly
               </button>
               <button
                 onClick={() => handleAdd("weekly")}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-black uppercase tracking-widest px-6 py-3.5 rounded-2xl transition-all shadow-lg active:scale-95"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] sm:text-[9px] font-black uppercase tracking-widest px-6 py-4 sm:py-3.5 rounded-2xl transition-all shadow-lg active:scale-95 w-full"
               >
                 Weekly
               </button>
@@ -1887,7 +1887,7 @@ const TasksView = () => {
 
             <button
               onClick={handleAdd}
-              className="bg-white text-black font-black text-[10px] uppercase tracking-[0.2em] px-10 py-3.5 rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-xl shadow-white/5"
+              className="w-full sm:w-auto bg-white text-black font-black text-[10px] uppercase tracking-[0.2em] px-10 py-3.5 rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-xl shadow-white/5"
             >
               + Deploy
             </button>
@@ -2839,8 +2839,8 @@ const HabitsView = () => {
       </div>
 
       <GlassCard className="p-1 max-w-4xl mx-auto !rounded-[40px] overflow-hidden group focus-within:border-blue-500/30 transition-all shadow-2xl">
-        <div className="p-8 flex items-center space-x-6">
-          <div className="w-16 h-16 rounded-3xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center">
+        <div className="p-4 sm:p-8 flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-6">
+          <div className="w-16 h-16 rounded-3xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center shrink-0">
             <Plus className="w-8 h-8 text-blue-500" />
           </div>
           <input
@@ -2849,11 +2849,11 @@ const HabitsView = () => {
             onChange={(e) => setNewTitle(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAdd()}
             placeholder="Initialize new behavioral routine..."
-            className="flex-1 bg-transparent border-none focus:ring-0 text-white text-2xl placeholder:text-slate-800 font-display font-black"
+            className="flex-1 w-full sm:w-auto text-center sm:text-left bg-transparent border-none focus:ring-0 text-white text-xl sm:text-2xl placeholder:text-slate-800 font-display font-black"
           />
           <button
             onClick={handleAdd}
-            className="bg-white text-black font-black text-[10px] uppercase tracking-widest px-8 py-4 rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl"
+            className="w-full sm:w-auto bg-white text-black font-black text-[10px] uppercase tracking-widest px-8 py-4 rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl"
           >
             Engage Habit
           </button>
