@@ -1,7 +1,43 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Goal, Task, Habit, Subtask, Reflection, FocusSession } from './types';
+import { db, auth } from './firebase';
+import { collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, query, where, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: any;
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 interface HubContextType {
+  user: User | null;
+  signIn: () => Promise<void>;
+  signOut: () => Promise<void>;
+  
   goals: Goal[];
   tasks: Task[];
   habits: Habit[];
@@ -32,263 +68,287 @@ interface HubContextType {
   deleteTask: (id: string) => void;
   postponeTask: (id: string) => void;
   deleteHabit: (id: string) => void;
+  reorderTasks: (startIndex: number, endIndex: number) => void;
 }
 
 const HubContext = createContext<HubContextType | undefined>(undefined);
 
 export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [goals, setGoals] = useState<Goal[]>(() => {
-    const saved = localStorage.getItem('hub_goals');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return parsed.map((g: any) => ({
-        ...g,
-        subtasks: g.subtasks || []
-      }));
-    }
-    return [
-      { id: '1', title: 'Land Data Engineer Role', type: 'yearly', priority: 'A', completed: false, progress: 33, subtasks: [], createdAt: new Date().toISOString() },
-      { id: '2', title: 'Assess skills & update resume/portfolio.', type: 'monthly', priority: 'A', completed: false, progress: 33, subtasks: [], createdAt: new Date().toISOString() },
-      { id: '3', title: 'Review one core skill and note recent achievements.', type: 'weekly', priority: 'A', completed: true, progress: 100, subtasks: [], createdAt: new Date().toISOString() },
-    ];
-  });
-
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    const saved = localStorage.getItem('hub_tasks');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return parsed.map((t: any) => ({
-        ...t,
-        subtasks: t.subtasks || [],
-        tags: t.tags || []
-      }));
-    }
-    return [
-      { id: '1', title: 'Study PySpark', date: '2026-05-05', priority: 'A', duration: '60m', energy: 'High', type: 'daily', completed: false, tags: ['#study'], subtasks: [] },
-    ];
-  });
-
-  const [habits, setHabits] = useState<Habit[]>(() => {
-    const saved = localStorage.getItem('hub_habits');
-    return saved ? JSON.parse(saved) : [
-      { id: '1', title: 'Morning workout', streak: 0, completedHistory: {} },
-    ];
-  });
-
+  const [user, setUser] = useState<User | null>(null);
+  
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [habits, setHabits] = useState<Habit[]>([]);
+  const [reflections, setReflections] = useState<Reflection[]>([]);
+  const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
   const [selectedMood, setSelectedMood] = useState<string | null>(() => localStorage.getItem('hub_mood'));
   const [focusTaskId, setFocusTaskId] = useState<string | null>(null);
-  const [focusSessions, setFocusSessions] = useState<FocusSession[]>(() => {
-    const saved = localStorage.getItem('hub_focus_sessions');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [reflections, setReflections] = useState<Reflection[]>(() => {
-    const saved = localStorage.getItem('hub_reflections');
-    return saved ? JSON.parse(saved) : [];
-  });
-  
+
   useEffect(() => {
-    localStorage.setItem('hub_goals', JSON.stringify(goals));
-    localStorage.setItem('hub_tasks', JSON.stringify(tasks));
-    localStorage.setItem('hub_habits', JSON.stringify(habits));
-    localStorage.setItem('hub_reflections', JSON.stringify(reflections));
-    localStorage.setItem('hub_focus_sessions', JSON.stringify(focusSessions));
+    const unsub = onAuthStateChanged(auth, u => {
+      setUser(u);
+    });
+    return () => unsub();
+  }, []);
+
+  const signIn = async () => {
+    const provider = new GoogleAuthProvider();
+    await signInWithPopup(auth, provider);
+  };
+  
+  const signOutUser = async () => {
+    await auth.signOut();
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    
+    const paths = {
+      goals: `users/${user.uid}/goals`,
+      tasks: `users/${user.uid}/tasks`,
+      habits: `users/${user.uid}/habits`,
+      reflections: `users/${user.uid}/reflections`,
+      focusSessions: `users/${user.uid}/focusSessions`,
+    };
+
+    const unsubGoals = onSnapshot(query(collection(db, paths.goals), where('ownerId', '==', user.uid)), snap => {
+      setGoals(snap.docs.map(d => ({ ...d.data(), id: d.id } as Goal)));
+    }, err => handleFirestoreError(err, OperationType.LIST, paths.goals));
+
+    const unsubTasks = onSnapshot(query(collection(db, paths.tasks), where('ownerId', '==', user.uid)), snap => {
+      setTasks(snap.docs.map(d => ({ ...d.data(), id: d.id } as Task)));
+    }, err => handleFirestoreError(err, OperationType.LIST, paths.tasks));
+
+    const unsubHabits = onSnapshot(query(collection(db, paths.habits), where('ownerId', '==', user.uid)), snap => {
+      setHabits(snap.docs.map(d => ({ ...d.data(), id: d.id } as Habit)));
+    }, err => handleFirestoreError(err, OperationType.LIST, paths.habits));
+
+    const unsubReflections = onSnapshot(query(collection(db, paths.reflections), where('ownerId', '==', user.uid)), snap => {
+      setReflections(snap.docs.map(d => ({ ...d.data(), id: d.id } as Reflection)));
+    }, err => handleFirestoreError(err, OperationType.LIST, paths.reflections));
+
+    const unsubFocusSessions = onSnapshot(query(collection(db, paths.focusSessions), where('ownerId', '==', user.uid)), snap => {
+      setFocusSessions(snap.docs.map(d => ({ ...d.data(), id: d.id } as FocusSession)));
+    }, err => handleFirestoreError(err, OperationType.LIST, paths.focusSessions));
+
+    return () => {
+      unsubGoals(); unsubTasks(); unsubHabits(); unsubReflections(); unsubFocusSessions();
+    };
+  }, [user]);
+
+  useEffect(() => {
     if (selectedMood) localStorage.setItem('hub_mood', selectedMood);
     else localStorage.removeItem('hub_mood');
-  }, [goals, tasks, habits, reflections, selectedMood, focusSessions]);
+  }, [selectedMood]);
 
-  const addFocusSession = (duration: number, type: 'work' | 'break', taskId?: string) => {
-    const session: FocusSession = {
-      id: Math.random().toString(36).substr(2, 9),
-      duration,
-      type,
-      taskId,
-      date: new Date().toISOString()
-    };
-    setFocusSessions(prev => [session, ...prev]);
+  const addFocusSession = async (duration: number, type: 'work' | 'break', taskId?: string) => {
+    if (!user) return;
+    const id = Math.random().toString(36).substr(2, 9);
+    const docRef = doc(db, `users/${user.uid}/focusSessions`, id);
+    const data: any = { duration, type, date: new Date().toISOString(), ownerId: user.uid };
+    if (taskId) data.taskId = taskId;
+    try {
+      await setDoc(docRef, data);
+    } catch(e) { handleFirestoreError(e, OperationType.CREATE, docRef.path); }
   };
-  const addGoal = (g: any) => {
-    const newGoal: Goal = {
+
+  const addGoal = async (g: any) => {
+    if (!user) return;
+    const id = Math.random().toString(36).substr(2, 9);
+    const docRef = doc(db, `users/${user.uid}/goals`, id);
+    const data: any = {
       ...g,
-      id: Math.random().toString(36).substr(2, 9),
       createdAt: new Date().toISOString(),
       progress: 0,
       subtasks: [],
-      parentGoalId: g.parentGoalId
+      ownerId: user.uid
     };
-    setGoals([...goals, newGoal]);
+    if (data.parentGoalId === undefined) {
+      delete data.parentGoalId;
+    }
+    
+    // Also remove any other undefined fields just in case
+    Object.keys(data).forEach(key => data[key] === undefined && delete data[key]);
+    
+    try { await setDoc(docRef, data); } catch(e) { handleFirestoreError(e, OperationType.CREATE, docRef.path); }
   };
 
-  const addSubtask = (goalId: string, title: string) => {
-    setGoals(goals.map(g => {
-      if (g.id === goalId) {
-        const newSub: Subtask = {
-          id: Math.random().toString(36).substr(2, 9),
-          title,
-          completed: false
-        };
-        const updatedSubtasks = [...g.subtasks, newSub];
-        const progress = Math.round((updatedSubtasks.filter(s => s.completed).length / updatedSubtasks.length) * 100);
-        return { ...g, subtasks: updatedSubtasks, progress };
-      }
-      return g;
-    }));
+  const addSubtask = async (goalId: string, title: string) => {
+    if (!user) return;
+    const g = goals.find(x => x.id === goalId);
+    if (!g) return;
+    const newSub: Subtask = { id: Math.random().toString(36).substr(2, 9), title, completed: false };
+    const subtasks = [...g.subtasks, newSub];
+    const progress = Math.round((subtasks.filter(s => s.completed).length / subtasks.length) * 100);
+    const docRef = doc(db, `users/${user.uid}/goals`, goalId);
+    try { await updateDoc(docRef, { subtasks, progress }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
   
-  const bulkAddGoalSubtasks = (goalId: string, subtaskTitles: string[]) => {
-    setGoals(goals.map(g => {
-      if (g.id === goalId) {
-        const newSubs = subtaskTitles.map(title => ({
-          id: Math.random().toString(36).substr(2, 9),
-          title,
-          completed: false
-        }));
-        const updatedSubtasks = [...g.subtasks, ...newSubs];
-        const progress = Math.round((updatedSubtasks.filter(s => s.completed).length / updatedSubtasks.length) * 100);
-        return { ...g, subtasks: updatedSubtasks, progress };
-      }
-      return g;
-    }));
+  const bulkAddGoalSubtasks = async (goalId: string, subtaskTitles: string[]) => {
+    if (!user) return;
+    const g = goals.find(x => x.id === goalId);
+    if (!g) return;
+    const newSubs = subtaskTitles.map(title => ({ id: Math.random().toString(36).substr(2, 9), title, completed: false }));
+    const subtasks = [...g.subtasks, ...newSubs];
+    const progress = Math.round((subtasks.filter(s => s.completed).length / subtasks.length) * 100);
+    const docRef = doc(db, `users/${user.uid}/goals`, goalId);
+    try { await updateDoc(docRef, { subtasks, progress }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
-  const toggleSubtask = (goalId: string, subtaskId: string) => {
-    setGoals(goals.map(g => {
-      if (g.id === goalId) {
-        const updatedSubtasks = g.subtasks.map(s => s.id === subtaskId ? { ...s, completed: !s.completed } : s);
-        const progress = Math.round((updatedSubtasks.filter(s => s.completed).length / updatedSubtasks.length) * 100);
-        return { ...g, subtasks: updatedSubtasks, progress, completed: progress === 100 };
-      }
-      return g;
-    }));
+  const toggleSubtask = async (goalId: string, subtaskId: string) => {
+    if (!user) return;
+    const g = goals.find(x => x.id === goalId);
+    if (!g) return;
+    const subtasks = g.subtasks.map(s => s.id === subtaskId ? { ...s, completed: !s.completed } : s);
+    const progress = Math.round((subtasks.filter(s => s.completed).length / subtasks.length) * 100);
+    const docRef = doc(db, `users/${user.uid}/goals`, goalId);
+    try { await updateDoc(docRef, { subtasks, progress, completed: progress === 100 }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
-  const deleteSubtask = (goalId: string, subtaskId: string) => {
-    setGoals(goals.map(g => {
-      if (g.id === goalId) {
-        const updatedSubtasks = g.subtasks.filter(s => s.id !== subtaskId);
-        const progress = updatedSubtasks.length === 0 ? g.progress : Math.round((updatedSubtasks.filter(s => s.completed).length / updatedSubtasks.length) * 100);
-        return { ...g, subtasks: updatedSubtasks, progress };
-      }
-      return g;
-    }));
+  const deleteSubtask = async (goalId: string, subtaskId: string) => {
+    if (!user) return;
+    const g = goals.find(x => x.id === goalId);
+    if (!g) return;
+    const subtasks = g.subtasks.filter(s => s.id !== subtaskId);
+    const progress = subtasks.length === 0 ? g.progress : Math.round((subtasks.filter(s => s.completed).length / subtasks.length) * 100);
+    const docRef = doc(db, `users/${user.uid}/goals`, goalId);
+    try { await updateDoc(docRef, { subtasks, progress }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
-  const addTask = (t: any) => {
-    const newTask: Task = {
-      ...t,
-      id: Math.random().toString(36).substr(2, 9),
+  const addTask = async (t: any) => {
+    if (!user) return;
+    const id = Math.random().toString(36).substr(2, 9);
+    const docRef = doc(db, `users/${user.uid}/tasks`, id);
+    const data: any = {
+      title: t.title,
+      date: t.date,
+      priority: t.priority,
       completed: false,
-      subtasks: []
+      subtasks: [],
+      ownerId: user.uid
     };
-    setTasks([...tasks, newTask]);
+    if (t.duration) data.duration = t.duration;
+    if (t.energy) data.energy = t.energy;
+    if (t.type) data.type = t.type;
+    if (t.tags) data.tags = t.tags;
+    if (t.startTime) data.startTime = t.startTime;
+    if (t.endTime) data.endTime = t.endTime;
+    
+    Object.keys(data).forEach(key => data[key] === undefined && delete data[key]);
+    
+    try { await setDoc(docRef, data); } catch(e) { handleFirestoreError(e, OperationType.CREATE, docRef.path); }
   };
 
-  const addTaskSubtask = (taskId: string, title: string) => {
-    setTasks(tasks.map(t => {
-      if (t.id === taskId) {
-        const newSub = {
-          id: Math.random().toString(36).substr(2, 9),
-          title,
-          completed: false
-        };
-        return { ...t, subtasks: [...t.subtasks, newSub] };
-      }
-      return t;
-    }));
+  const addTaskSubtask = async (taskId: string, title: string) => {
+    if (!user) return;
+    const t = tasks.find(x => x.id === taskId);
+    if (!t) return;
+    const newSub = { id: Math.random().toString(36).substr(2, 9), title, completed: false };
+    const docRef = doc(db, `users/${user.uid}/tasks`, taskId);
+    try { await updateDoc(docRef, { subtasks: [...t.subtasks, newSub] }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
-  const bulkAddTaskSubtasks = (taskId: string, subtaskTitles: string[]) => {
-    setTasks(tasks.map(t => {
-      if (t.id === taskId) {
-        const newSubs = subtaskTitles.map(title => ({
-          id: Math.random().toString(36).substr(2, 9),
-          title,
-          completed: false
-        }));
-        return { ...t, subtasks: [...t.subtasks, ...newSubs] };
-      }
-      return t;
-    }));
+  const bulkAddTaskSubtasks = async (taskId: string, subtaskTitles: string[]) => {
+    if (!user) return;
+    const t = tasks.find(x => x.id === taskId);
+    if (!t) return;
+    const newSubs = subtaskTitles.map(title => ({ id: Math.random().toString(36).substr(2, 9), title, completed: false }));
+    const docRef = doc(db, `users/${user.uid}/tasks`, taskId);
+    try { await updateDoc(docRef, { subtasks: [...t.subtasks, ...newSubs] }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
-  const toggleTaskSubtask = (taskId: string, subtaskId: string) => {
-    setTasks(tasks.map(t => {
-      if (t.id === taskId) {
-        const updatedSubtasks = t.subtasks.map(s => s.id === subtaskId ? { ...s, completed: !s.completed } : s);
-        return { ...t, subtasks: updatedSubtasks };
-      }
-      return t;
-    }));
+  const toggleTaskSubtask = async (taskId: string, subtaskId: string) => {
+    if (!user) return;
+    const t = tasks.find(x => x.id === taskId);
+    if (!t) return;
+    const subtasks = t.subtasks.map(s => s.id === subtaskId ? { ...s, completed: !s.completed } : s);
+    const docRef = doc(db, `users/${user.uid}/tasks`, taskId);
+    try { await updateDoc(docRef, { subtasks }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
-  const deleteTaskSubtask = (taskId: string, subtaskId: string) => {
-    setTasks(tasks.map(t => {
-      if (t.id === taskId) {
-        return { ...t, subtasks: t.subtasks.filter(s => s.id !== subtaskId) };
-      }
-      return t;
-    }));
+  const deleteTaskSubtask = async (taskId: string, subtaskId: string) => {
+    if (!user) return;
+    const t = tasks.find(x => x.id === taskId);
+    if (!t) return;
+    const subtasks = t.subtasks.filter(s => s.id !== subtaskId);
+    const docRef = doc(db, `users/${user.uid}/tasks`, taskId);
+    try { await updateDoc(docRef, { subtasks }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
-  const addHabit = (title: string) => {
-    const newHabit: Habit = {
-      id: Math.random().toString(36).substr(2, 9),
-      title,
-      streak: 0,
-      completedHistory: {}
-    };
-    setHabits([...habits, newHabit]);
+  const addHabit = async (title: string) => {
+    if (!user) return;
+    const id = Math.random().toString(36).substr(2, 9);
+    const docRef = doc(db, `users/${user.uid}/habits`, id);
+    try { await setDoc(docRef, { title, streak: 0, completedHistory: {}, ownerId: user.uid }); } catch(e) { handleFirestoreError(e, OperationType.CREATE, docRef.path); }
   };
 
-  const toggleGoal = (id: string) => {
-    setGoals(goals.map(g => g.id === id ? { ...g, completed: !g.completed, progress: !g.completed ? 100 : 0 } : g));
+  const toggleGoal = async (id: string) => {
+    if (!user) return;
+    const g = goals.find(x => x.id === id);
+    if (!g) return;
+    const docRef = doc(db, `users/${user.uid}/goals`, id);
+    try { await updateDoc(docRef, { completed: !g.completed, progress: !g.completed ? 100 : 0 }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
-  const toggleTask = (id: string) => {
-    setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  const toggleTask = async (id: string) => {
+    if (!user) return;
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    const docRef = doc(db, `users/${user.uid}/tasks`, id);
+    try { await updateDoc(docRef, { completed: !t.completed }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
-  const toggleHabit = (id: string, date: string) => {
-    setHabits(habits.map(h => {
-      if (h.id === id) {
-        const newHistory = { ...h.completedHistory, [date]: !h.completedHistory[date] };
-        return { ...h, completedHistory: newHistory };
-      }
-      return h;
-    }));
+  const toggleHabit = async (id: string, date: string) => {
+    if (!user) return;
+    const h = habits.find(x => x.id === id);
+    if (!h) return;
+    const docRef = doc(db, `users/${user.uid}/habits`, id);
+    try { await updateDoc(docRef, { completedHistory: { ...h.completedHistory, [date]: !h.completedHistory[date] } }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
-  const deleteGoal = (id: string) => setGoals(goals.filter(g => g.id !== id));
-  const deleteTask = (id: string) => setTasks(tasks.filter(t => t.id !== id));
+  const deleteGoal = async (id: string) => {
+    if (!user) return;
+    const docRef = doc(db, `users/${user.uid}/goals`, id);
+    try { await deleteDoc(docRef); } catch(e) { handleFirestoreError(e, OperationType.DELETE, docRef.path); }
+  };
+
+  const deleteTask = async (id: string) => {
+    if (!user) return;
+    const docRef = doc(db, `users/${user.uid}/tasks`, id);
+    try { await deleteDoc(docRef); } catch(e) { handleFirestoreError(e, OperationType.DELETE, docRef.path); }
+  };
   
-  const postponeTask = (id: string) => {
-    setTasks(tasks.map(t => {
-      if (t.id === id) {
-        const d = new Date(t.date);
-        d.setDate(d.getDate() + 1);
-        return { ...t, date: d.toISOString().split('T')[0] };
-      }
-      return t;
-    }));
+  const postponeTask = async (id: string) => {
+    if (!user) return;
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    const d = new Date(t.date);
+    d.setDate(d.getDate() + 1);
+    const docRef = doc(db, `users/${user.uid}/tasks`, id);
+    try { await updateDoc(docRef, { date: d.toISOString().split('T')[0] }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
-  const deleteHabit = (id: string) => setHabits(habits.filter(h => h.id !== id));
+  const deleteHabit = async (id: string) => {
+    if (!user) return;
+    const docRef = doc(db, `users/${user.uid}/habits`, id);
+    try { await deleteDoc(docRef); } catch(e) { handleFirestoreError(e, OperationType.DELETE, docRef.path); }
+  };
 
   const addReflection = async (text: string) => {
+    if (!user) return;
     const id = Math.random().toString(36).substr(2, 9);
-    const newRef: Reflection = { id, text, date: new Date().toISOString() };
-    
-    setReflections(prev => [newRef, ...prev]);
-
+    const date = new Date().toISOString();
+    const docRef = doc(db, `users/${user.uid}/reflections`, id);
     try {
+      await setDoc(docRef, { text, date, ownerId: user.uid });
       const { getReflectionInsight } = await import('./gemini');
       const aiInsight = await getReflectionInsight(text);
-      setReflections(prev => prev.map(r => r.id === id ? { ...r, aiInsight } : r));
-    } catch (e) {
-      console.error("AI Reflection error:", e);
-    }
+      await updateDoc(docRef, { aiInsight });
+    } catch(e) { handleFirestoreError(e, OperationType.CREATE, docRef.path); }
   };
 
   const smartPrioritizeTasks = async () => {
+    if (!user) return;
     try {
       const today = new Date().toISOString().split('T')[0];
       const todayTasksList = tasks.filter(t => t.date === today && !t.completed);
@@ -298,38 +358,56 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const rankedTitles = await smartTaskPrioritization(todayTasksList);
       
       if (rankedTitles.length > 0) {
-        const sortedTasks = [...tasks].sort((a, b) => {
-          // If neither is today/pending, keep original order relative to each other
-          if ((a.date !== today || a.completed) && (b.date !== today || b.completed)) return 0;
-          
-          // Move non-today/completed to the end
-          if (a.date !== today || a.completed) return 1;
-          if (b.date !== today || b.completed) return -1;
-          
+        const sortedTasks = [...todayTasksList].sort((a, b) => {
           const aIndex = rankedTitles.indexOf(a.title);
           const bIndex = rankedTitles.indexOf(b.title);
-          
           if (aIndex === -1 && bIndex === -1) return 0;
           if (aIndex === -1) return 1;
           if (bIndex === -1) return -1;
           return aIndex - bIndex;
         });
-        setTasks(sortedTasks);
+        
+        const batch = writeBatch(db);
+        sortedTasks.forEach((t, i) => {
+          const docRef = doc(db, `users/${user.uid}/tasks`, t.id!);
+          batch.update(docRef, { order: i });
+        });
+        await batch.commit();
       }
     } catch (e) {
       console.error("Smart Prioritize Error:", e);
     }
   };
 
+  const reorderTasks = async (startIndex: number, endIndex: number) => {
+    if (!user) return;
+    const today = new Date().toISOString().split('T')[0];
+    const todayTasks = tasks.filter(t => t.date === today && !t.completed).sort((a, b) => (a.order || 0) - (b.order || 0));
+    
+    if (startIndex < 0 || startIndex >= todayTasks.length || endIndex < 0 || endIndex >= todayTasks.length) return;
+    
+    const result = Array.from(todayTasks);
+    const [removed] = result.splice(startIndex, 1);
+    result.splice(endIndex, 0, removed);
+    
+    const batch = writeBatch(db);
+    result.forEach((t, i) => {
+      const docRef = doc(db, `users/${user.uid}/tasks`, t.id!);
+      batch.update(docRef, { order: i });
+    });
+    try { await batch.commit(); } catch(e) { console.error('Reorder update failed', e); }
+  };
+
   return (
     <HubContext.Provider value={{ 
+      user, signIn, signOut: signOutUser,
       goals, tasks, habits, selectedMood, setSelectedMood, reflections, addReflection,
       focusTaskId, setFocusTaskId, focusSessions, addFocusSession, smartPrioritizeTasks,
       addGoal, addSubtask, bulkAddGoalSubtasks, toggleSubtask, deleteSubtask,
       addTask, addTaskSubtask, bulkAddTaskSubtasks, toggleTaskSubtask, deleteTaskSubtask,
       addHabit,
       toggleGoal, toggleTask, toggleHabit,
-      deleteGoal, deleteTask, postponeTask, deleteHabit
+      deleteGoal, deleteTask, postponeTask, deleteHabit, reorderTasks
     }}>
       {children}
     </HubContext.Provider>
@@ -341,3 +419,4 @@ export const useHub = () => {
   if (!context) throw new Error('useHub must be used within HubProvider');
   return context;
 };
+

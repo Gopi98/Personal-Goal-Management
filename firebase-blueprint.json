@@ -9,13 +9,16 @@
         "type": { "type": "string", "enum": ["yearly", "monthly", "weekly"] },
         "priority": { "type": "string", "enum": ["A", "B", "C", "D"] },
         "completed": { "type": "boolean" },
-        "createdAt": { "type": "string", "format": "date-time" },
+        "progress": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "parentGoalId": { "type": "string" },
         "subtasks": {
           "type": "array",
           "items": { "$ref": "#/entities/subtask" }
         }
       },
-      "required": ["title", "type", "priority", "completed"]
+      "required": ["title", "type", "priority", "completed", "progress", "createdAt", "ownerId", "subtasks"]
     },
     "subtask": {
       "title": "Subtask",
@@ -39,15 +42,18 @@
         "endTime": { "type": "string" },
         "priority": { "type": "string", "enum": ["A", "B", "C", "D"] },
         "completed": { "type": "boolean" },
-        "duration": { "type": "number" },
+        "duration": { "type": "string" },
         "energy": { "type": "string", "enum": ["High", "Medium", "Low"] },
+        "type": { "type": "string", "enum": ["one-off", "daily", "break"] },
+        "ownerId": { "type": "string" },
         "subtasks": {
           "type": "array",
           "items": { "$ref": "#/entities/subtask" }
         },
-        "tags": { "type": "array", "items": { "type": "string" } }
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "order": { "type": "number" }
       },
-      "required": ["title", "date", "priority", "completed"]
+      "required": ["title", "date", "priority", "completed", "ownerId", "subtasks"]
     },
     "habit": {
       "title": "Habit",
@@ -56,21 +62,35 @@
       "properties": {
         "title": { "type": "string" },
         "streak": { "type": "number" },
-        "lastCompleted": { "type": "string", "format": "date" },
-        "completedHistory": { "type": "array", "items": { "type": "string" } }
+        "ownerId": { "type": "string" },
+        "completedHistory": { "type": "object" }
       },
-      "required": ["title", "streak"]
+      "required": ["title", "streak", "ownerId", "completedHistory"]
     },
-    "investment": {
-      "title": "Investment",
-      "description": "Financial asset tracking",
+    "reflection": {
+      "title": "Reflection",
+      "description": "Daily reflection entry",
       "type": "object",
       "properties": {
-        "name": { "type": "string" },
-        "amount": { "type": "number" },
-        "category": { "type": "string" }
+        "text": { "type": "string" },
+        "date": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "aiInsight": { "type": "string" }
       },
-      "required": ["name", "amount"]
+      "required": ["text", "date", "ownerId"]
+    },
+    "focusSession": {
+      "title": "Focus Session",
+      "description": "Pomodoro tracking session",
+      "type": "object",
+      "properties": {
+        "duration": { "type": "number" },
+        "type": { "type": "string", "enum": ["work", "break"] },
+        "date": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "taskId": { "type": "string" }
+      },
+      "required": ["duration", "type", "date", "ownerId"]
     }
   },
   "firestore": {
@@ -86,9 +106,13 @@
       "schema": "habit",
       "description": "User's habits"
     },
-    "users/{userId}/investments": {
-      "schema": "investment",
-      "description": "User's financial data"
+    "users/{userId}/reflections": {
+      "schema": "reflection",
+      "description": "User's string"
+    },
+    "users/{userId}/focusSessions": {
+      "schema": "focusSession",
+      "description": "User's focus records"
     }
   }
 }

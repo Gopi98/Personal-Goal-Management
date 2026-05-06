@@ -10,6 +10,8 @@ import {
   CheckCircle2, ChevronLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { GoogleGenAI, Modality } from '@google/genai';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip as ReTooltip, ResponsiveContainer, 
@@ -77,14 +79,104 @@ const Tooltip = ({ children, text }: { children: React.ReactNode, text: string }
   );
 };
 
+let ambientAudio: HTMLAudioElement | null = null;
+
+const playAILoop = (type: 'rain' | 'birds') => {
+  if (ambientAudio) {
+    ambientAudio.pause();
+    ambientAudio.src = '';
+  }
+  
+  const url = type === 'rain' 
+    ? 'https://cdn.pixabay.com/download/audio/2021/08/09/audio_1e59df95b3.mp3?filename=rain-and-thunder-16705.mp3'
+    : 'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=birds-morning-13357.mp3';
+    
+  ambientAudio = new Audio(url);
+  ambientAudio.loop = true;
+  ambientAudio.volume = 0.5;
+  ambientAudio.play().catch(e => console.error("Audio playback blocked", e));
+};
+
+const stopAILoop = () => {
+  if (ambientAudio) {
+    ambientAudio.pause();
+    ambientAudio.src = '';
+  }
+};
+
+const sendNotification = (title: string, body: string) => {
+  if (Notification.permission === 'granted') {
+    new Notification(title, { body, icon: '/favicon.ico' });
+  }
+};
+const playAIAudio = async (text: string) => {
+  try {
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const response = await ai.models.generateContent({
+      model: "gemini-3.1-flash-tts-preview",
+      contents: [{ parts: [{ text }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: "Puck" },
+            },
+        },
+      },
+    });
+
+    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (base64Audio) {
+      const binaryString = window.atob(base64Audio);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      
+      const int16Array = new Int16Array(bytes.buffer);
+      const float32Array = new Float32Array(int16Array.length);
+      for (let i = 0; i < int16Array.length; i++) {
+        float32Array[i] = int16Array[i] / 32768.0;
+      }
+      
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const buffer = audioContext.createBuffer(1, float32Array.length, 24000);
+      buffer.getChannelData(0).set(float32Array);
+      
+      const source = audioContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioContext.destination);
+      source.start();
+    }
+  } catch (error) {
+    console.error("AI Audio playback failed:", error);
+  }
+};
+
 const PomodoroTimer = ({ onComplete, length = 25 }: { onComplete: () => void, length?: number }) => {
   const [timeLeft, setTimeLeft] = useState(length * 60);
   const [isActive, setIsActive] = useState(false);
   const [mode, setMode] = useState<'work' | 'break'>('work');
+  const { addFocusSession } = useHub();
+
+  useEffect(() => {
+    if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+      Notification.requestPermission();
+    }
+  }, []);
 
   useEffect(() => {
     setTimeLeft(mode === 'work' ? length * 60 : 5 * 60);
   }, [length, mode]);
+
+  useEffect(() => {
+    if (isActive) {
+      if (mode === 'work') playAILoop('rain');
+      else playAILoop('birds');
+    } else {
+      stopAILoop();
+    }
+  }, [isActive, mode]);
 
   useEffect(() => {
     let interval: any = null;
@@ -92,20 +184,30 @@ const PomodoroTimer = ({ onComplete, length = 25 }: { onComplete: () => void, le
       interval = setInterval(() => {
         setTimeLeft(prev => prev - 1);
       }, 1000);
-    } else if (timeLeft === 0) {
+    } else if (timeLeft === 0 && isActive) {
       clearInterval(interval);
       setIsActive(false);
+      stopAILoop();
       
       const nextMode = mode === 'work' ? 'break' : 'work';
       setMode(nextMode);
       setTimeLeft(nextMode === 'work' ? 25 * 60 : 5 * 60);
       
-      const { addFocusSession } = useHub();
       addFocusSession(length, mode);
+      
+      if (mode === 'work') {
+        sendNotification("Deep Work Complete", "Mission accomplished. Time for a refuel break.");
+        playAIAudio("Mission accomplished. Deep work cycle complete. Initializing refuel break.");
+      } else {
+        sendNotification("Break Over", "Refuel complete. Ready for high performance operations.");
+        playAIAudio("Refuel break complete. Ready to resume high performance operations.");
+      }
       
       onComplete();
     }
-    return () => clearInterval(interval);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [isActive, timeLeft, mode, onComplete]);
 
   const toggle = () => {
@@ -518,7 +620,7 @@ const GoalsView = () => {
     setNewSubtask({ ...newSubtask, [goalId]: '' });
   };
 
-  const handlePromote = (goal: any, item: { title: string }) => {
+  const handlePromote = (goal: any, item: { title: string, id?: string }, isSubtask: boolean = false) => {
     let nextType = '';
     if (goal.type === 'yearly') {
       addGoal({ title: item.title, type: 'monthly', priority: goal.priority, completed: false });
@@ -531,7 +633,13 @@ const GoalsView = () => {
       nextType = 'Daily Task';
     }
     
-    setPromotionFeedback(`Promoted to ${nextType}!`);
+    if (isSubtask && item.id) {
+       deleteSubtask(goal.id, item.id);
+    } else if (!isSubtask) {
+       deleteGoal(goal.id);
+    }
+    
+    setPromotionFeedback(`Moved to ${nextType}!`);
     setTimeout(() => setPromotionFeedback(null), 3000);
   };
 
@@ -626,7 +734,7 @@ const GoalsView = () => {
                   {goal.completed ? <CheckSquare className="w-6 h-6" /> : <div className="w-3 h-3 rounded-full bg-white/10" />}
                 </button>
                 <div className="flex items-center space-x-1">
-                   {goal.type !== 'weekly' && !goal.completed && (
+                   {!goal.completed && (
                       <button 
                         onClick={() => handlePromote(goal, { title: goal.title })}
                         className="p-3 bg-white/5 rounded-xl text-blue-400 hover:bg-blue-500/10 transition-colors"
@@ -708,9 +816,16 @@ const GoalsView = () => {
                             </button>
                             <span className={`text-sm font-bold ${sub.completed ? 'text-slate-600 line-through' : 'text-slate-300'}`}>{sub.title}</span>
                           </div>
-                          <button onClick={() => deleteSubtask(goal.id, sub.id)} className="opacity-0 group-hover/sub:opacity-100 transition-all text-slate-700 hover:text-red-500">
-                             <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center space-x-2 opacity-0 group-hover/sub:opacity-100 transition-all">
+                            {!sub.completed && (
+                              <button onClick={() => handlePromote(goal, sub, true)} className="text-slate-500 hover:text-blue-400 p-1">
+                                <ArrowUpRight className="w-4 h-4" />
+                              </button>
+                            )}
+                            <button onClick={() => deleteSubtask(goal.id, sub.id)} className="text-slate-700 hover:text-red-500 p-1">
+                               <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -731,7 +846,7 @@ const GoalsView = () => {
 };
 
 const TasksView = () => {
-  const { tasks, addTask, toggleTask, deleteTask, postponeTask, goals, addTaskSubtask, toggleTaskSubtask, deleteTaskSubtask, bulkAddTaskSubtasks, focusTaskId, setFocusTaskId, smartPrioritizeTasks } = useHub();
+  const { tasks, addTask, toggleTask, deleteTask, postponeTask, goals, addTaskSubtask, toggleTaskSubtask, deleteTaskSubtask, bulkAddTaskSubtasks, focusTaskId, setFocusTaskId, smartPrioritizeTasks, reorderTasks } = useHub();
   const [newTitle, setNewTitle] = useState('');
   const [newSubtask, setNewSubtask] = useState<{ [key: string]: string }>({});
   const [priority, setPriority] = useState<'A' | 'B' | 'C' | 'D'>('B');
@@ -771,6 +886,11 @@ const TasksView = () => {
     setIsSplitting({ ...isSplitting, [task.id]: false });
   };
 
+  const handleDragEnd = (result: DropResult) => {
+    if (!result.destination) return;
+    reorderTasks(result.source.index, result.destination.index);
+  };
+
   const handleAdd = () => {
     if (!newTitle.trim()) return;
     addTask({
@@ -786,6 +906,26 @@ const TasksView = () => {
     });
     setNewTitle('');
     setTags('');
+  };
+
+  const exportCalendar = () => {
+    const today = new Date().toISOString().split('T')[0];
+    let icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Drive Productivity OS//EN\n";
+    tasks.filter(t => t.date === today && !t.completed).forEach(task => {
+      if (!task.startTime || !task.endTime) return;
+      const startDateTime = today.replace(/-/g, '') + 'T' + task.startTime.replace(':', '') + '00';
+      const endDateTime = today.replace(/-/g, '') + 'T' + task.endTime.replace(':', '') + '00';
+      icsContent += `BEGIN:VEVENT\nSUMMARY:${task.title}\nDTSTART:${startDateTime}\nDTEND:${endDateTime}\nDESCRIPTION:Energy: ${task.energy}\nEND:VEVENT\n`;
+    });
+    icsContent += "END:VCALENDAR";
+    
+    const element = document.createElement('a');
+    const file = new Blob([icsContent], { type: 'text/calendar' });
+    element.href = URL.createObjectURL(file);
+    element.download = 'drive_missions.ics';
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
   };
 
   const handlePostpone = (task: any) => {
@@ -821,7 +961,14 @@ const TasksView = () => {
           <p className="text-slate-500 font-medium max-w-md">Synchronize your daily operations. Execute with precision.</p>
         </div>
         
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-3">
+           <button 
+             onClick={exportCalendar}
+             className="px-6 py-4 bg-white/[0.03] border border-white/10 rounded-[24px] text-white hover:bg-white/[0.08] transition-all flex items-center space-x-3 group"
+           >
+             <Calendar className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
+             <span className="text-[10px] font-black uppercase tracking-widest">Export Tasks</span>
+           </button>
            <button 
              onClick={() => setShowAutoSchedule(true)}
              className="px-6 py-4 bg-white/[0.03] border border-white/10 rounded-[24px] text-white hover:bg-white/[0.08] transition-all flex items-center space-x-3 group"
@@ -930,15 +1077,29 @@ const TasksView = () => {
         </div>
       </GlassCard>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {tasks.map((task) => (
-          <motion.div 
-            layout
-            key={task.id} 
-            className={`glass-card group hover:border-white/20 transition-all h-full flex flex-col p-6 rounded-[32px] ${focusTaskId === task.id ? 'border-blue-500/50 bg-blue-600/[0.03] ring-1 ring-blue-500/20' : ''}`}
-          >
-            <div className="flex items-start justify-between mb-6">
-              <button 
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <Droppable droppableId="tasks-list" direction="horizontal">
+          {(provided) => (
+            <div 
+              ref={provided.innerRef} 
+              {...provided.droppableProps}
+              className="grid grid-cols-1 md:grid-cols-2 gap-4"
+            >
+              {tasks.map((task, index) => (
+                <Draggable key={task.id} draggableId={task.id} index={index}>
+                  {(provided) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.draggableProps}
+                      {...provided.dragHandleProps}
+                      style={{ ...provided.draggableProps.style }}
+                    >
+                      <motion.div 
+                        layout
+                        className={`glass-card group hover:border-white/20 transition-all h-full flex flex-col p-6 rounded-[32px] ${focusTaskId === task.id ? 'border-blue-500/50 bg-blue-600/[0.03] ring-1 ring-blue-500/20' : ''}`}
+                      >
+                        <div className="flex items-start justify-between mb-6">
+                <button 
                 onClick={() => toggleTask(task.id)}
                 className={`w-8 h-8 border-2 rounded-xl flex-shrink-0 transition-all flex items-center justify-center ${task.completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-white/10 hover:border-white/30'}`}
               >
@@ -1063,14 +1224,21 @@ const TasksView = () => {
                 </motion.div>
               )}
             </AnimatePresence>
-          </motion.div>
-        ))}
+                    </motion.div>
+                  </div>
+                  )}
+                </Draggable>
+              ))}
+              {provided.placeholder}
+            </div>
+          )}
+        </Droppable>
+      </DragDropContext>
         {tasks.length === 0 && (
           <div className="text-center py-20 bg-white/5 border border-dashed border-white/10 rounded-2xl">
             <p className="text-slate-500 font-medium">Your schedule is clear! Add your first task above.</p>
           </div>
         )}
-      </div>
     </div>
   );
 };
@@ -1561,8 +1729,32 @@ export default function App() {
 }
 
 const AppContent = ({ activeView, setActiveView, isSidebarOpen, setIsSidebarOpen, isZenMode, setIsZenMode }: any) => {
-  const { focusTaskId, setFocusTaskId, selectedMood, setSelectedMood } = useHub();
+  const { user, signIn, signOut, focusTaskId, setFocusTaskId, selectedMood, setSelectedMood } = useHub();
   const themeClasses = getMoodTheme(selectedMood);
+
+  if (!user) {
+    return (
+      <div className={`min-h-screen ${getMoodTheme(selectedMood)} flex items-center justify-center p-6 selection:bg-blue-500/30 selection:text-white relative overflow-hidden`}>
+        <div className="mesh-bg" />
+        <div className="noise" />
+        <div className="relative z-10 glass-card p-12 max-w-md w-full text-center space-y-8 rounded-[40px] border border-white/10 bg-white/[0.02]">
+          <div className="w-20 h-20 bg-blue-600 rounded-3xl mx-auto flex items-center justify-center shadow-[0_0_50px_rgba(37,99,235,0.4)]">
+            <Zap className="w-10 h-10 text-white" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-black text-white tracking-widest uppercase mb-2">Drive OS</h1>
+            <p className="text-slate-400 font-medium text-sm">Synchronize your life and achieve deep focus.</p>
+          </div>
+          <button
+            onClick={signIn}
+            className="w-full py-4 bg-white text-black font-bold tracking-widest uppercase rounded-2xl hover:bg-slate-200 transition-colors"
+          >
+            Sign In to Continue
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen ${getMoodTheme(selectedMood)} transition-colors duration-1000 relative selection:bg-blue-500/30 selection:text-white overflow-x-hidden`}>
@@ -1571,17 +1763,7 @@ const AppContent = ({ activeView, setActiveView, isSidebarOpen, setIsSidebarOpen
 
       {/* Navigation Layer */}
       <nav className="fixed top-0 left-0 right-0 z-[60] px-6 lg:px-12 py-6 flex items-center justify-between pointer-events-none">
-        <div className="flex items-center space-x-3 pointer-events-auto">
-          <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-[0_0_30px_rgba(37,99,235,0.3)]">
-            <Zap className="w-7 h-7 text-white" />
-          </div>
-          <div className="hidden sm:block">
-            <h1 className="text-lg font-black text-white tracking-[0.2em] uppercase leading-none">Drive</h1>
-            <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mt-1">Productivity OS</p>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-3 pointer-events-auto">
+        <div className="flex items-center space-x-6 pointer-events-auto">
           <button 
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             className="p-4 bg-white/[0.03] backdrop-blur-3xl border border-white/[0.08] rounded-2xl text-white hover:bg-white/[0.08] transition-all shadow-2xl relative group overflow-hidden"
@@ -1589,6 +1771,20 @@ const AppContent = ({ activeView, setActiveView, isSidebarOpen, setIsSidebarOpen
             <div className="absolute inset-0 bg-gradient-to-br from-white/[0.05] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             {isSidebarOpen ? <Plus className="w-6 h-6 rotate-45" /> : <Menu className="w-6 h-6" />}
           </button>
+          
+          <div className="flex items-center space-x-3">
+            <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-[0_0_30px_rgba(37,99,235,0.3)]">
+              <Zap className="w-7 h-7 text-white" />
+            </div>
+            <div className="hidden sm:block">
+              <h1 className="text-lg font-black text-white tracking-[0.2em] uppercase leading-none">Drive</h1>
+              <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mt-1">Productivity OS</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-3 pointer-events-auto">
+          <button onClick={signOut} className="text-xs font-bold text-slate-500 hover:text-white px-4 py-2 border border-white/10 rounded-xl bg-white/[0.02]">SIGN OUT</button>
         </div>
       </nav>
 

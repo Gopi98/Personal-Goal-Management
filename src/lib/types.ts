@@ -25,10 +25,11 @@ export interface Task {
   duration?: string;
   energy?: 'High' | 'Medium' | 'Low';
   priority: 'A' | 'B' | 'C' | 'D';
-  type: 'one-off' | 'daily' | 'break';
+  type?: 'one-off' | 'daily' | 'break';
   completed: boolean;
-  tags: string[];
+  tags?: string[];
   subtasks: Subtask[];
+  order?: number;
 }
 
 export interface Habit {

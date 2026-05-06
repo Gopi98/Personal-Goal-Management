@@ -1,0 +1,128 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidSubtaskList(list) {
+      return list is list && list.size() <= 100;
+    }
+    
+    function isValidTagList(list) {
+      return list is list && list.size() <= 50;
+    }
+
+    function isValidGoal(data) {
+      return data.keys().hasAll(['title', 'type', 'priority', 'completed', 'progress', 'subtasks', 'createdAt', 'ownerId']) &&
+             data.keys().size() in [8, 9] &&
+             data.title is string && data.title.size() <= 500 &&
+             data.type is string && data.type in ['yearly', 'monthly', 'weekly'] &&
+             data.priority is string && data.priority in ['A', 'B', 'C', 'D'] &&
+             data.completed is bool &&
+             data.progress is number && data.progress >= 0 && data.progress <= 100 &&
+             isValidSubtaskList(data.subtasks) &&
+             data.createdAt is string && data.createdAt.size() <= 50 &&
+             data.ownerId == request.auth.uid &&
+             (data.keys().hasAll(['parentGoalId']) ? (data.parentGoalId is string && data.parentGoalId.size() <= 128) : true);
+    }
+
+    function isValidTask(data) {
+      return data.keys().hasAll(['title', 'date', 'priority', 'completed', 'subtasks', 'ownerId']) &&
+             data.title is string && data.title.size() <= 500 &&
+             data.date is string && data.date.size() <= 20 &&
+             data.priority is string && data.priority in ['A', 'B', 'C', 'D'] &&
+             data.completed is bool &&
+             isValidSubtaskList(data.subtasks) &&
+             data.ownerId == request.auth.uid &&
+             (data.keys().hasAny(['duration']) ? data.duration is string && data.duration.size() <= 100 : true) &&
+             (data.keys().hasAny(['energy']) ? data.energy is string && data.energy in ['High', 'Medium', 'Low'] : true) &&
+             (data.keys().hasAny(['type']) ? data.type is string && data.type in ['one-off', 'daily', 'break'] : true) &&
+             (data.keys().hasAny(['tags']) ? isValidTagList(data.tags) : true) &&
+             (data.keys().hasAny(['startTime']) ? data.startTime is string && data.startTime.size() <= 10 : true) &&
+             (data.keys().hasAny(['endTime']) ? data.endTime is string && data.endTime.size() <= 10 : true) &&
+             (data.keys().hasAny(['order']) ? data.order is number : true);
+    }
+
+    function isValidHabit(data) {
+      return data.keys().hasAll(['title', 'streak', 'completedHistory', 'ownerId']) &&
+             data.title is string && data.title.size() <= 500 &&
+             data.streak is number && data.streak >= 0 &&
+             data.completedHistory is map && data.completedHistory.size() <= 1000 &&
+             data.ownerId == request.auth.uid;
+    }
+    
+    function isValidReflection(data) {
+      return data.keys().hasAll(['text', 'date', 'ownerId']) &&
+             data.text is string && data.text.size() <= 5000 &&
+             data.date is string && data.date.size() <= 50 &&
+             data.ownerId == request.auth.uid &&
+             (data.keys().hasAny(['aiInsight']) ? data.aiInsight is string && data.aiInsight.size() <= 5000 : true);
+    }
+
+    function isValidFocusSession(data) {
+      return data.keys().hasAll(['duration', 'type', 'date', 'ownerId']) &&
+             data.duration is number && data.duration >= 0 &&
+             data.type is string && data.type in ['work', 'break'] &&
+             data.date is string && data.date.size() <= 50 &&
+             data.ownerId == request.auth.uid &&
+             (data.keys().hasAny(['taskId']) ? data.taskId is string && data.taskId.size() <= 128 : true);
+    }
+
+    match /users/{userId}/goals/{goalId} {
+      allow read, list: if isOwner(userId) && resource.data.ownerId == userId;
+      allow create: if isOwner(userId) && isValidId(goalId) && isValidGoal(incoming());
+      allow update: if isOwner(userId) && isValidId(goalId) && isValidGoal(incoming()) && incoming().ownerId == existing().ownerId && incoming().createdAt == existing().createdAt;
+      allow delete: if isOwner(userId);
+    }
+
+    match /users/{userId}/tasks/{taskId} {
+      allow read, list: if isOwner(userId) && resource.data.ownerId == userId;
+      allow create: if isOwner(userId) && isValidId(taskId) && isValidTask(incoming());
+      allow update: if isOwner(userId) && isValidId(taskId) && isValidTask(incoming()) && incoming().ownerId == existing().ownerId;
+      allow delete: if isOwner(userId);
+    }
+
+    match /users/{userId}/habits/{habitId} {
+      allow read, list: if isOwner(userId) && resource.data.ownerId == userId;
+      allow create: if isOwner(userId) && isValidId(habitId) && isValidHabit(incoming());
+      allow update: if isOwner(userId) && isValidId(habitId) && isValidHabit(incoming()) && incoming().ownerId == existing().ownerId;
+      allow delete: if isOwner(userId);
+    }
+    
+    match /users/{userId}/reflections/{reflectionId} {
+      allow read, list: if isOwner(userId) && resource.data.ownerId == userId;
+      allow create: if isOwner(userId) && isValidId(reflectionId) && isValidReflection(incoming());
+      allow update: if isOwner(userId) && isValidId(reflectionId) && isValidReflection(incoming()) && incoming().ownerId == existing().ownerId && incoming().date == existing().date;
+      allow delete: if isOwner(userId);
+    }
+
+    match /users/{userId}/focusSessions/{sessionId} {
+      allow read, list: if isOwner(userId) && resource.data.ownerId == userId;
+      allow create: if isOwner(userId) && isValidId(sessionId) && isValidFocusSession(incoming());
+      allow update: if isOwner(userId) && isValidId(sessionId) && isValidFocusSession(incoming()) && incoming().ownerId == existing().ownerId && incoming().date == existing().date;
+      allow delete: if isOwner(userId);
+    }
+  }
+}
