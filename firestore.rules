@@ -27,28 +27,43 @@ service cloud.firestore {
     }
 
     function isValidSubtaskList(list) {
-      return list is list && list.size() <= 100;
+      return list is list && list.size() <= 100 && (list.size() == 0 || (
+        list[0] is map && 
+        list[0].keys().hasAll(['id', 'title', 'completed']) &&
+        list[0].id is string && list[0].title is string && list[0].completed is bool
+      ));
     }
     
     function isValidTagList(list) {
-      return list is list && list.size() <= 50;
+      return list is list && list.size() <= 50 && (list.size() == 0 || list[0] is string);
     }
 
-    function isValidGoal(data) {
+    function isValidGoalCreate(data) {
       return data.keys().hasAll(['title', 'type', 'priority', 'completed', 'progress', 'subtasks', 'createdAt', 'ownerId']) &&
-             data.keys().size() in [8, 9] &&
              data.title is string && data.title.size() <= 500 &&
              data.type is string && data.type in ['yearly', 'monthly', 'weekly'] &&
              data.priority is string && data.priority in ['A', 'B', 'C', 'D'] &&
              data.completed is bool &&
              data.progress is number && data.progress >= 0 && data.progress <= 100 &&
              isValidSubtaskList(data.subtasks) &&
-             data.createdAt is string && data.createdAt.size() <= 50 &&
+             data.createdAt is string && data.createdAt.size() <= 60 &&
              data.ownerId == request.auth.uid &&
              (data.keys().hasAll(['parentGoalId']) ? (data.parentGoalId is string && data.parentGoalId.size() <= 128) : true);
     }
 
-    function isValidTask(data) {
+    function isValidGoalUpdate(data) {
+      return data.title is string && data.title.size() <= 500 &&
+             data.type is string && data.type in ['yearly', 'monthly', 'weekly'] &&
+             data.priority is string && data.priority in ['A', 'B', 'C', 'D'] &&
+             data.completed is bool &&
+             data.progress is number && data.progress >= 0 && data.progress <= 100 &&
+             isValidSubtaskList(data.subtasks) &&
+             (data.keys().hasAll(['createdAt']) ? data.createdAt is string && data.createdAt.size() <= 60 : true) &&
+             (data.keys().hasAll(['ownerId']) ? data.ownerId == request.auth.uid : true) &&
+             (data.keys().hasAll(['parentGoalId']) ? (data.parentGoalId is string && data.parentGoalId.size() <= 128) : true);
+    }
+
+    function isValidTaskCreate(data) {
       return data.keys().hasAll(['title', 'date', 'priority', 'completed', 'subtasks', 'ownerId']) &&
              data.title is string && data.title.size() <= 500 &&
              data.date is string && data.date.size() <= 20 &&
@@ -56,16 +71,32 @@ service cloud.firestore {
              data.completed is bool &&
              isValidSubtaskList(data.subtasks) &&
              data.ownerId == request.auth.uid &&
-             (data.keys().hasAny(['duration']) ? data.duration is string && data.duration.size() <= 100 : true) &&
-             (data.keys().hasAny(['energy']) ? data.energy is string && data.energy in ['High', 'Medium', 'Low'] : true) &&
-             (data.keys().hasAny(['type']) ? data.type is string && data.type in ['one-off', 'daily', 'break'] : true) &&
-             (data.keys().hasAny(['tags']) ? isValidTagList(data.tags) : true) &&
-             (data.keys().hasAny(['startTime']) ? data.startTime is string && data.startTime.size() <= 10 : true) &&
-             (data.keys().hasAny(['endTime']) ? data.endTime is string && data.endTime.size() <= 10 : true) &&
-             (data.keys().hasAny(['order']) ? data.order is number : true);
+             (data.keys().hasAll(['duration']) ? data.duration is string && data.duration.size() <= 100 : true) &&
+             (data.keys().hasAll(['energy']) ? data.energy is string && data.energy in ['High', 'Medium', 'Low'] : true) &&
+             (data.keys().hasAll(['type']) ? data.type is string && data.type in ['one-off', 'daily', 'break'] : true) &&
+             (data.keys().hasAll(['tags']) ? isValidTagList(data.tags) : true) &&
+             (data.keys().hasAll(['startTime']) ? data.startTime is string && data.startTime.size() <= 10 : true) &&
+             (data.keys().hasAll(['endTime']) ? data.endTime is string && data.endTime.size() <= 10 : true) &&
+             (data.keys().hasAll(['order']) ? data.order is number : true);
+    }
+    
+    function isValidTaskUpdate(data) {
+      return data.title is string && data.title.size() <= 500 &&
+             data.date is string && data.date.size() <= 20 &&
+             data.priority is string && data.priority in ['A', 'B', 'C', 'D'] &&
+             data.completed is bool &&
+             isValidSubtaskList(data.subtasks) &&
+             (data.keys().hasAll(['ownerId']) ? data.ownerId == request.auth.uid : true) &&
+             (data.keys().hasAll(['duration']) ? data.duration is string && data.duration.size() <= 100 : true) &&
+             (data.keys().hasAll(['energy']) ? data.energy is string && data.energy in ['High', 'Medium', 'Low'] : true) &&
+             (data.keys().hasAll(['type']) ? data.type is string && data.type in ['one-off', 'daily', 'break'] : true) &&
+             (data.keys().hasAll(['tags']) ? isValidTagList(data.tags) : true) &&
+             (data.keys().hasAll(['startTime']) ? data.startTime is string && data.startTime.size() <= 10 : true) &&
+             (data.keys().hasAll(['endTime']) ? data.endTime is string && data.endTime.size() <= 10 : true) &&
+             (data.keys().hasAll(['order']) ? data.order is number : true);
     }
 
-    function isValidHabit(data) {
+    function isValidHabitCreate(data) {
       return data.keys().hasAll(['title', 'streak', 'completedHistory', 'ownerId']) &&
              data.title is string && data.title.size() <= 500 &&
              data.streak is number && data.streak >= 0 &&
@@ -73,56 +104,103 @@ service cloud.firestore {
              data.ownerId == request.auth.uid;
     }
     
-    function isValidReflection(data) {
+    function isValidHabitUpdate(data) {
+      return data.title is string && data.title.size() <= 500 &&
+             data.streak is number && data.streak >= 0 &&
+             data.completedHistory is map && data.completedHistory.size() <= 1000 &&
+             (data.keys().hasAll(['ownerId']) ? data.ownerId == request.auth.uid : true);
+    }
+    
+    function isValidReflectionCreate(data) {
       return data.keys().hasAll(['text', 'date', 'ownerId']) &&
              data.text is string && data.text.size() <= 5000 &&
              data.date is string && data.date.size() <= 50 &&
              data.ownerId == request.auth.uid &&
-             (data.keys().hasAny(['aiInsight']) ? data.aiInsight is string && data.aiInsight.size() <= 5000 : true);
+             (data.keys().hasAll(['aiInsight']) ? data.aiInsight is string && data.aiInsight.size() <= 5000 : true);
+    }
+    
+    function isValidReflectionUpdate(data) {
+      return data.text is string && data.text.size() <= 5000 &&
+             data.date is string && data.date.size() <= 50 &&
+             (data.keys().hasAll(['ownerId']) ? data.ownerId == request.auth.uid : true) &&
+             (data.keys().hasAll(['aiInsight']) ? data.aiInsight is string && data.aiInsight.size() <= 5000 : true);
     }
 
-    function isValidFocusSession(data) {
+    function isValidFocusSessionCreate(data) {
       return data.keys().hasAll(['duration', 'type', 'date', 'ownerId']) &&
              data.duration is number && data.duration >= 0 &&
              data.type is string && data.type in ['work', 'break'] &&
              data.date is string && data.date.size() <= 50 &&
              data.ownerId == request.auth.uid &&
-             (data.keys().hasAny(['taskId']) ? data.taskId is string && data.taskId.size() <= 128 : true);
+             (data.keys().hasAll(['taskId']) ? data.taskId is string && data.taskId.size() <= 128 : true);
+    }
+    
+    function isValidFocusSessionUpdate(data) {
+      return data.duration is number && data.duration >= 0 &&
+             data.type is string && data.type in ['work', 'break'] &&
+             data.date is string && data.date.size() <= 50 &&
+             (data.keys().hasAll(['ownerId']) ? data.ownerId == request.auth.uid : true) &&
+             (data.keys().hasAll(['taskId']) ? data.taskId is string && data.taskId.size() <= 128 : true);
     }
 
     match /users/{userId}/goals/{goalId} {
-      allow read, list: if isOwner(userId) && resource.data.ownerId == userId;
-      allow create: if isOwner(userId) && isValidId(goalId) && isValidGoal(incoming());
-      allow update: if isOwner(userId) && isValidId(goalId) && isValidGoal(incoming()) && incoming().ownerId == existing().ownerId && incoming().createdAt == existing().createdAt;
+      allow read: if isOwner(userId) && resource.data.ownerId == userId;
+      allow create: if isOwner(userId) && isValidId(goalId) && isValidGoalCreate(incoming());
+      allow update: if isOwner(userId) && isValidId(goalId) && isValidGoalUpdate(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['completed', 'progress']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['subtasks', 'progress']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['subtasks', 'progress', 'completed']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['title', 'type', 'priority']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly([])
+      );
       allow delete: if isOwner(userId);
     }
 
     match /users/{userId}/tasks/{taskId} {
-      allow read, list: if isOwner(userId) && resource.data.ownerId == userId;
-      allow create: if isOwner(userId) && isValidId(taskId) && isValidTask(incoming());
-      allow update: if isOwner(userId) && isValidId(taskId) && isValidTask(incoming()) && incoming().ownerId == existing().ownerId;
+      allow read: if isOwner(userId) && resource.data.ownerId == userId;
+      allow create: if isOwner(userId) && isValidId(taskId) && isValidTaskCreate(incoming());
+      allow update: if isOwner(userId) && isValidId(taskId) && isValidTaskUpdate(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['completed']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['subtasks']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['order']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['date']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['title', 'priority', 'duration', 'energy', 'type', 'tags', 'startTime', 'endTime', 'date']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly([])
+      );
       allow delete: if isOwner(userId);
     }
 
     match /users/{userId}/habits/{habitId} {
-      allow read, list: if isOwner(userId) && resource.data.ownerId == userId;
-      allow create: if isOwner(userId) && isValidId(habitId) && isValidHabit(incoming());
-      allow update: if isOwner(userId) && isValidId(habitId) && isValidHabit(incoming()) && incoming().ownerId == existing().ownerId;
+      allow read: if isOwner(userId) && resource.data.ownerId == userId;
+      allow create: if isOwner(userId) && isValidId(habitId) && isValidHabitCreate(incoming());
+      allow update: if isOwner(userId) && isValidId(habitId) && isValidHabitUpdate(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['completedHistory']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['title', 'streak']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly([])
+      );
       allow delete: if isOwner(userId);
     }
     
     match /users/{userId}/reflections/{reflectionId} {
-      allow read, list: if isOwner(userId) && resource.data.ownerId == userId;
-      allow create: if isOwner(userId) && isValidId(reflectionId) && isValidReflection(incoming());
-      allow update: if isOwner(userId) && isValidId(reflectionId) && isValidReflection(incoming()) && incoming().ownerId == existing().ownerId && incoming().date == existing().date;
+      allow read: if isOwner(userId) && resource.data.ownerId == userId;
+      allow create: if isOwner(userId) && isValidId(reflectionId) && isValidReflectionCreate(incoming());
+      allow update: if isOwner(userId) && isValidId(reflectionId) && isValidReflectionUpdate(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['aiInsight']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['text']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly([])
+      );
       allow delete: if isOwner(userId);
     }
 
     match /users/{userId}/focusSessions/{sessionId} {
-      allow read, list: if isOwner(userId) && resource.data.ownerId == userId;
-      allow create: if isOwner(userId) && isValidId(sessionId) && isValidFocusSession(incoming());
-      allow update: if isOwner(userId) && isValidId(sessionId) && isValidFocusSession(incoming()) && incoming().ownerId == existing().ownerId && incoming().date == existing().date;
+      allow read: if isOwner(userId) && resource.data.ownerId == userId;
+      allow create: if isOwner(userId) && isValidId(sessionId) && isValidFocusSessionCreate(incoming());
+      allow update: if isOwner(userId) && isValidId(sessionId) && isValidFocusSessionUpdate(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['taskId']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly([])
+      );
       allow delete: if isOwner(userId);
     }
   }
 }
+

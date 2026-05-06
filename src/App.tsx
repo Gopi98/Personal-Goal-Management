@@ -79,29 +79,12 @@ const Tooltip = ({ children, text }: { children: React.ReactNode, text: string }
   );
 };
 
-let ambientAudio: HTMLAudioElement | null = null;
-
 const playAILoop = (type: 'rain' | 'birds') => {
-  if (ambientAudio) {
-    ambientAudio.pause();
-    ambientAudio.src = '';
-  }
-  
-  const url = type === 'rain' 
-    ? 'https://cdn.pixabay.com/download/audio/2021/08/09/audio_1e59df95b3.mp3?filename=rain-and-thunder-16705.mp3'
-    : 'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=birds-morning-13357.mp3';
-    
-  ambientAudio = new Audio(url);
-  ambientAudio.loop = true;
-  ambientAudio.volume = 0.5;
-  ambientAudio.play().catch(e => console.error("Audio playback blocked", e));
+  // Ambient audio completely removed as it was unstable
 };
 
 const stopAILoop = () => {
-  if (ambientAudio) {
-    ambientAudio.pause();
-    ambientAudio.src = '';
-  }
+  // Ambient audio removed
 };
 
 const sendNotification = (title: string, body: string) => {
@@ -304,9 +287,11 @@ const HomeView = () => {
     d.setDate(d.getDate() - (6 - i));
     const dateStr = d.toISOString().split('T')[0];
     const dayTasks = tasks.filter(t => t.date === dateStr);
+    const completed = dayTasks.filter(t => t.completed).length;
     return {
       name: d.toLocaleDateString('en-US', { weekday: 'narrow' }),
-      completed: dayTasks.filter(t => t.completed).length,
+      completed: completed,
+      backlog: dayTasks.length - completed,
       total: dayTasks.length
     };
   });
@@ -553,7 +538,8 @@ const HomeView = () => {
                             <div className="bg-[#0c0c0e] border border-white/10 px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-xl">
                               <p className="text-[10px] font-black text-blue-400 uppercase mb-1 tracking-widest">{payload[0].payload.name} Statistics</p>
                               <div className="space-y-1">
-                                <p className="text-sm font-bold text-white">{payload[0].value} Tasks Finished</p>
+                                <p className="text-sm font-bold text-white">{payload[0].payload.completed} Tasks Finished</p>
+                                <p className="text-sm font-bold text-slate-400">{payload[0].payload.backlog} Backlog Tasks</p>
                                 <p className="text-[9px] text-slate-500 uppercase">Total Capacity: {payload[0].payload.total}</p>
                               </div>
                             </div>
@@ -562,11 +548,8 @@ const HomeView = () => {
                         return null;
                       }}
                     />
-                    <Bar dataKey="completed" radius={[6, 6, 6, 6]} barSize={24}>
-                      {chartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={index === 6 ? '#2563eb' : 'rgba(255,255,255,0.1)'} strokeWidth={0} />
-                      ))}
-                    </Bar>
+                    <Bar dataKey="completed" stackId="a" radius={[0, 0, 4, 4]} barSize={24} fill="#2563eb" />
+                    <Bar dataKey="backlog" stackId="a" radius={[4, 4, 0, 0]} barSize={24} fill="rgba(255,255,255,0.1)" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
