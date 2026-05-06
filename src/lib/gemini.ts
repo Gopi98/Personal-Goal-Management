@@ -266,7 +266,7 @@ export const getTrojanChatResponse = async (
     contents.push({ role: "user", parts: [{ text: message }] });
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.1-flash-preview",
+      model: "gemini-3-flash-preview",
       contents: contents as any,
       config: {
         systemInstruction: `You are Trojan, an elite AI productivity agent. You help the user manage their tasks and goals (yearly/monthly/weekly). Be concise, militaristic, and professional. Current tasks: ${JSON.stringify(tasks.map((t: any) => ({ id: t.id, title: t.title, priority: t.priority, completed: t.completed }))) }. Current goals: ${JSON.stringify(goals.map((g: any) => ({ id: g.id, title: g.title, type: g.type, priority: g.priority, completed: g.completed }))) }. Use the tools to create, toggle (complete), or delete tasks/goals based on user request. Do not ask for confirmation if the user already gave you enough details.`,
