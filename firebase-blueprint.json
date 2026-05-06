@@ -1,0 +1,94 @@
+{
+  "entities": {
+    "goal": {
+      "title": "Goal",
+      "description": "A long-term or short-term objective",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "type": { "type": "string", "enum": ["yearly", "monthly", "weekly"] },
+        "priority": { "type": "string", "enum": ["A", "B", "C", "D"] },
+        "completed": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "subtasks": {
+          "type": "array",
+          "items": { "$ref": "#/entities/subtask" }
+        }
+      },
+      "required": ["title", "type", "priority", "completed"]
+    },
+    "subtask": {
+      "title": "Subtask",
+      "description": "A smaller step for a goal or task",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "completed": { "type": "boolean" }
+      },
+      "required": ["id", "title", "completed"]
+    },
+    "task": {
+      "title": "Task",
+      "description": "A daily actionable item",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "priority": { "type": "string", "enum": ["A", "B", "C", "D"] },
+        "completed": { "type": "boolean" },
+        "duration": { "type": "number" },
+        "energy": { "type": "string", "enum": ["High", "Medium", "Low"] },
+        "subtasks": {
+          "type": "array",
+          "items": { "$ref": "#/entities/subtask" }
+        },
+        "tags": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["title", "date", "priority", "completed"]
+    },
+    "habit": {
+      "title": "Habit",
+      "description": "A recurring behavior to track",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "streak": { "type": "number" },
+        "lastCompleted": { "type": "string", "format": "date" },
+        "completedHistory": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["title", "streak"]
+    },
+    "investment": {
+      "title": "Investment",
+      "description": "Financial asset tracking",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "amount": { "type": "number" },
+        "category": { "type": "string" }
+      },
+      "required": ["name", "amount"]
+    }
+  },
+  "firestore": {
+    "users/{userId}/goals": {
+      "schema": "goal",
+      "description": "User's goals"
+    },
+    "users/{userId}/tasks": {
+      "schema": "task",
+      "description": "User's daily tasks"
+    },
+    "users/{userId}/habits": {
+      "schema": "habit",
+      "description": "User's habits"
+    },
+    "users/{userId}/investments": {
+      "schema": "investment",
+      "description": "User's financial data"
+    }
+  }
+}
