@@ -27,13 +27,15 @@ jobs:
       - name: Install dependencies
         run: npm install
       - name: Build with Vite
-        run: npx vite build
+        run: npm run build
         env:
           VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
+      - name: Debug Output
+        run: ls -la dist/ || echo "dist folder not found"
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist'
+          path: dist
 
   deploy:
     environment:
