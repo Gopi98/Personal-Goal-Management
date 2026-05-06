@@ -10,8 +10,8 @@ import {
   CheckCircle2, ChevronLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { GoogleGenAI, Modality } from '@google/genai';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
+import { GoogleGenAI, Modality } from '@google/genai';
 
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip as ReTooltip, ResponsiveContainer, 
@@ -94,7 +94,7 @@ const sendNotification = (title: string, body: string) => {
 };
 const playAIAudio = async (text: string) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
     const response = await ai.models.generateContent({
       model: "gemini-3.1-flash-tts-preview",
       contents: [{ parts: [{ text }] }],
