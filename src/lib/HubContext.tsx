@@ -3,6 +3,7 @@ import { Goal, Task, Habit, Subtask, Reflection, FocusSession } from './types';
 import { db, auth } from './firebase';
 import { collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, query, where, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { getReflectionInsight, smartTaskPrioritization } from './gemini';
 
 enum OperationType {
   CREATE = 'create',
@@ -50,12 +51,12 @@ interface HubContextType {
   focusTaskId: string | null;
   setFocusTaskId: (id: string | null) => void;
   smartPrioritizeTasks: () => Promise<void>;
-  addGoal: (goal: Omit<Goal, 'id' | 'createdAt' | 'progress' | 'subtasks'> & { parentGoalId?: string }) => void;
+  addGoal: (goal: Omit<Goal, 'id' | 'createdAt' | 'progress' | 'subtasks'> & { parentGoalId?: string, subtasks?: any[] }) => Promise<string | undefined>;
   addSubtask: (goalId: string, title: string) => void;
   bulkAddGoalSubtasks: (goalId: string, subtasks: string[]) => void;
   toggleSubtask: (goalId: string, subtaskId: string) => void;
   deleteSubtask: (goalId: string, subtaskId: string) => void;
-  addTask: (task: Omit<Task, 'id' | 'completed' | 'subtasks'>) => void;
+  addTask: (task: Omit<Task, 'id' | 'completed' | 'subtasks'> & { subtasks?: any[] }) => Promise<string | undefined>;
   addTaskSubtask: (taskId: string, title: string) => void;
   bulkAddTaskSubtasks: (taskId: string, subtasks: string[]) => void;
   toggleTaskSubtask: (taskId: string, subtaskId: string) => void;
@@ -152,15 +153,15 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch(e) { handleFirestoreError(e, OperationType.CREATE, docRef.path); }
   };
 
-  const addGoal = async (g: any) => {
-    if (!user) return;
+  const addGoal = async (g: any): Promise<string | undefined> => {
+    if (!user) return undefined;
     const id = Math.random().toString(36).substr(2, 9);
     const docRef = doc(db, `users/${user.uid}/goals`, id);
     const data: any = {
       ...g,
       createdAt: new Date().toISOString(),
       progress: 0,
-      subtasks: [],
+      subtasks: g.subtasks || [],
       ownerId: user.uid
     };
     if (data.parentGoalId === undefined) {
@@ -171,6 +172,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     Object.keys(data).forEach(key => data[key] === undefined && delete data[key]);
     
     try { await setDoc(docRef, data); } catch(e) { handleFirestoreError(e, OperationType.CREATE, docRef.path); }
+    return id;
   };
 
   const addSubtask = async (goalId: string, title: string) => {
@@ -215,8 +217,8 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try { await updateDoc(docRef, { subtasks, progress }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
-  const addTask = async (t: any) => {
-    if (!user) return;
+  const addTask = async (t: any): Promise<string | undefined> => {
+    if (!user) return undefined;
     const id = Math.random().toString(36).substr(2, 9);
     const docRef = doc(db, `users/${user.uid}/tasks`, id);
     const data: any = {
@@ -224,7 +226,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       date: t.date,
       priority: t.priority,
       completed: false,
-      subtasks: [],
+      subtasks: t.subtasks || [],
       ownerId: user.uid
     };
     if (t.duration) data.duration = t.duration;
@@ -237,6 +239,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     Object.keys(data).forEach(key => data[key] === undefined && delete data[key]);
     
     try { await setDoc(docRef, data); } catch(e) { handleFirestoreError(e, OperationType.CREATE, docRef.path); }
+    return id;
   };
 
   const addTaskSubtask = async (taskId: string, title: string) => {
@@ -341,7 +344,6 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const docRef = doc(db, `users/${user.uid}/reflections`, id);
     try {
       await setDoc(docRef, { text, date, ownerId: user.uid });
-      const { getReflectionInsight } = await import('./gemini');
       const aiInsight = await getReflectionInsight(text);
       await updateDoc(docRef, { aiInsight });
     } catch(e) { handleFirestoreError(e, OperationType.CREATE, docRef.path); }
@@ -354,7 +356,6 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const todayTasksList = tasks.filter(t => t.date === today && !t.completed);
       if (todayTasksList.length < 2) return;
 
-      const { smartTaskPrioritization } = await import('./gemini');
       const rankedTitles = await smartTaskPrioritization(todayTasksList);
       
       if (rankedTitles.length > 0) {

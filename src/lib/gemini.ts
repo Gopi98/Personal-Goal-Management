@@ -134,6 +134,154 @@ export const getDeepAnalysis = async (userData: any) => {
   }
 };
 
+export const createGoalDeclaration = {
+  name: "createGoal",
+  description: "Creates a new goal (yearly, monthly, or weekly). Use this when the user asks to set long-term objectives or weekly sprints.",
+  parameters: {
+    type: "OBJECT",
+    properties: {
+      title: {
+        type: "STRING",
+        description: "The title of the goal.",
+      },
+      type: {
+        type: "STRING",
+        description: "The timeframe of the goal. Allowed values are 'yearly', 'monthly', 'weekly'.",
+      },
+      priority: {
+        type: "STRING",
+        description: "The priority of the goal from 'A' to 'D' (A is highest, D is lowest).",
+      },
+      subtasks: {
+        type: "ARRAY",
+        items: {
+          type: "STRING"
+        },
+        description: "Optional list of subtasks (or key results) required to achieve this goal."
+      }
+    },
+    required: ["title", "type", "priority"]
+  }
+};
+
+export const createTaskDeclaration = {
+  name: "createTask",
+  description: "Creates a new task in the user's task list. Use this when the user asks to add or plan something.",
+  parameters: {
+    type: "OBJECT",
+    properties: {
+      title: {
+        type: "STRING",
+        description: "The name of the task.",
+      },
+      priority: {
+        type: "STRING",
+        description: "Priority level: 'A' for highest/urgent, 'B' for important, 'C' for nice to have.",
+      },
+      energy: {
+        type: "STRING",
+        description: "Energy required: 'High', 'Medium', or 'Low'.",
+      },
+      subtasks: {
+        type: "ARRAY",
+        items: { type: "STRING" },
+        description: "Optional list of sub-steps to break down this task.",
+      }
+    },
+    required: ["title", "priority", "energy"],
+  },
+};
+
+export const toggleTaskDeclaration = {
+  name: "toggleTask",
+  description: "Marks an existing task as completed. The user gives you the task title. You must find its id from the context and pass it.",
+  parameters: {
+    type: "OBJECT",
+    properties: {
+      id: {
+        type: "STRING",
+        description: "The id of the task to complete.",
+      }
+    },
+    required: ["id"],
+  },
+};
+
+export const deleteTaskDeclaration = {
+  name: "deleteTask",
+  description: "Deletes a task from the user's task list. The user gives you the task title. You must find its id from the context and pass it.",
+  parameters: {
+    type: "OBJECT",
+    properties: {
+      id: {
+        type: "STRING",
+        description: "The id of the task to delete.",
+      }
+    },
+    required: ["id"],
+  },
+};
+
+export const toggleGoalDeclaration = {
+  name: "toggleGoal",
+  description: "Marks an existing goal as completed (or incomplete). The user gives you the goal title. You must find its id from the context and pass it.",
+  parameters: {
+    type: "OBJECT",
+    properties: {
+      id: {
+        type: "STRING",
+        description: "The id of the goal to toggle.",
+      }
+    },
+    required: ["id"],
+  },
+};
+
+export const deleteGoalDeclaration = {
+  name: "deleteGoal",
+  description: "Deletes a goal from the user's goal list. The user gives you the goal title. You must find its id from the context and pass it.",
+  parameters: {
+    type: "OBJECT",
+    properties: {
+      id: {
+        type: "STRING",
+        description: "The id of the goal to delete.",
+      }
+    },
+    required: ["id"],
+  },
+};
+
+export const getTrojanChatResponse = async (
+  message: string,
+  history: { role: "user" | "model"; parts: { text: string }[] }[],
+  tasks: any[],
+  goals: any[] = []
+): Promise<any> => {
+  try {
+    const ai = getAI();
+    if (!ai) return { text: "API key is missing. Cannot initialize Trojan." };
+    
+    const contents = history.map(h => ({ role: h.role, parts: h.parts }));
+    contents.push({ role: "user", parts: [{ text: message }] });
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.1-flash-preview",
+      contents: contents as any,
+      config: {
+        systemInstruction: `You are Trojan, an elite AI productivity agent. You help the user manage their tasks and goals (yearly/monthly/weekly). Be concise, militaristic, and professional. Current tasks: ${JSON.stringify(tasks.map((t: any) => ({ id: t.id, title: t.title, priority: t.priority, completed: t.completed }))) }. Current goals: ${JSON.stringify(goals.map((g: any) => ({ id: g.id, title: g.title, type: g.type, priority: g.priority, completed: g.completed }))) }. Use the tools to create, toggle (complete), or delete tasks/goals based on user request. Do not ask for confirmation if the user already gave you enough details.`,
+        tools: [{ functionDeclarations: [createTaskDeclaration as any, createGoalDeclaration as any, toggleTaskDeclaration as any, deleteTaskDeclaration as any, toggleGoalDeclaration as any, deleteGoalDeclaration as any] }],
+        temperature: 0.7
+      }
+    });
+
+    return response;
+  } catch (error) {
+    console.error("Trojan Error:", error);
+    return { text: "Error communicating with Trojan command." };
+  }
+};
+
 export const smartTaskPrioritization = async (tasks: any[]) => {
   try {
     const ai = getAI();
