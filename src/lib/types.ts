@@ -8,6 +8,7 @@ export interface Goal {
   subtasks: Subtask[];
   createdAt: string;
   parentGoalId?: string;
+  parentGoalTitle?: string;
 }
 
 export interface Subtask {
@@ -30,6 +31,7 @@ export interface Task {
   tags?: string[];
   subtasks: Subtask[];
   order?: number;
+  parentGoalTitle?: string;
 }
 
 export interface Habit {

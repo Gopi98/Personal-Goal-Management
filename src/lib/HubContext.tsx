@@ -55,6 +55,7 @@ interface HubContextType {
   addSubtask: (goalId: string, title: string) => void;
   bulkAddGoalSubtasks: (goalId: string, subtasks: string[]) => void;
   toggleSubtask: (goalId: string, subtaskId: string) => void;
+  updateGoal: (goalId: string, updates: any) => void;
   deleteSubtask: (goalId: string, subtaskId: string) => void;
   addTask: (task: Omit<Task, 'id' | 'completed' | 'subtasks'> & { subtasks?: any[] }) => Promise<string | undefined>;
   addTaskSubtask: (taskId: string, title: string) => void;
@@ -207,6 +208,12 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try { await updateDoc(docRef, { subtasks, progress, completed: progress === 100 }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
+  const updateGoal = async (goalId: string, updates: any) => {
+    if (!user) return;
+    const docRef = doc(db, `users/${user.uid}/goals`, goalId);
+    try { await updateDoc(docRef, updates); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
+  };
+
   const deleteSubtask = async (goalId: string, subtaskId: string) => {
     if (!user) return;
     const g = goals.find(x => x.id === goalId);
@@ -235,6 +242,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (t.tags) data.tags = t.tags;
     if (t.startTime) data.startTime = t.startTime;
     if (t.endTime) data.endTime = t.endTime;
+    if (t.parentGoalTitle) data.parentGoalTitle = t.parentGoalTitle;
     
     Object.keys(data).forEach(key => data[key] === undefined && delete data[key]);
     
@@ -404,7 +412,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       user, signIn, signOut: signOutUser,
       goals, tasks, habits, selectedMood, setSelectedMood, reflections, addReflection,
       focusTaskId, setFocusTaskId, focusSessions, addFocusSession, smartPrioritizeTasks,
-      addGoal, addSubtask, bulkAddGoalSubtasks, toggleSubtask, deleteSubtask,
+      addGoal, addSubtask, bulkAddGoalSubtasks, toggleSubtask, updateGoal, deleteSubtask,
       addTask, addTaskSubtask, bulkAddTaskSubtasks, toggleTaskSubtask, deleteTaskSubtask,
       addHabit,
       toggleGoal, toggleTask, toggleHabit,

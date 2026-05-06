@@ -1111,6 +1111,7 @@ const GoalsView = () => {
     addGoal,
     toggleGoal,
     deleteGoal,
+    updateGoal,
     addTask,
     addSubtask,
     toggleSubtask,
@@ -1166,6 +1167,221 @@ const GoalsView = () => {
     setParentGoalId(undefined);
   };
 
+  const handleDragEnd = (result: DropResult) => {
+    if (!result.destination) return;
+    const { source, destination, draggableId } = result;
+
+    if (source.droppableId !== destination.droppableId) {
+      updateGoal(draggableId, { type: destination.droppableId.toLowerCase() });
+    }
+  };
+
+  const renderGoal = (goal: any, index: number, isDraggable = false) => {
+    const cardContent = (
+      <div className="p-8 space-y-6">
+        <div className="flex items-start justify-between">
+          <Tooltip text={goal.completed ? "Mark incomplete" : "Mark complete"}>
+            <button
+              onClick={() => toggleGoal(goal.id)}
+              className={`w-10 h-10 rounded-2xl border-2 flex items-center justify-center transition-all ${goal.completed ? "bg-blue-600 border-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]" : "border-white/10 hover:border-white/30 text-white"}`}
+            >
+              {goal.completed ? (
+                <CheckSquare className="w-6 h-6" />
+              ) : (
+                <div className="w-3 h-3 rounded-full bg-white/10" />
+              )}
+            </button>
+          </Tooltip>
+          <div className="flex items-center space-x-1">
+            {!goal.completed && (
+              <Tooltip text="Promote to task">
+                <button
+                  onClick={() => handlePromote(goal, { title: goal.title })}
+                  className="p-3 bg-white/5 rounded-xl text-blue-400 hover:bg-blue-500/10 transition-colors"
+                >
+                  <ArrowUpRight className="w-5 h-5" />
+                </button>
+              </Tooltip>
+            )}
+            <Tooltip text="Toggle sub-tasks">
+              <button
+                onClick={() =>
+                  setExpandedId(expandedId === goal.id ? null : goal.id)
+                }
+                className={`p-3 bg-white/5 rounded-xl text-slate-500 hover:text-white transition-all ${expandedId === goal.id ? "rotate-180 bg-white/10" : ""}`}
+              >
+                <ChevronDown className="w-5 h-5" />
+              </button>
+            </Tooltip>
+            <Tooltip text="Delete goal">
+              <button
+                onClick={() => deleteGoal(goal.id)}
+                className="p-3 hover:text-red-500 transition-colors text-slate-700"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            </Tooltip>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <h4
+            className={`text-2xl font-display font-black tracking-tight ${goal.completed ? "line-through text-slate-600" : "text-white"}`}
+          >
+            {goal.title}
+          </h4>
+          <div className="flex items-center space-x-3">
+            <span className="text-[9px] font-black bg-blue-600/20 text-blue-400 px-3 py-1 rounded-full uppercase tracking-widest">
+              {goal.type}
+            </span>
+            <span className="text-[9px] font-black bg-white/10 text-slate-500 px-3 py-1 rounded-full uppercase tracking-widest">
+              Priority {goal.priority}
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
+              Progress
+            </span>
+            <span className="text-[10px] font-black text-white font-mono">
+              {goal.progress}% COMPLETE
+            </span>
+          </div>
+          <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${goal.progress}%` }}
+              className={`h-full transition-all duration-1000 ${
+                goal.completed
+                  ? "bg-blue-600"
+                  : "bg-gradient-to-r from-blue-600 to-indigo-500"
+              }`}
+            />
+          </div>
+        </div>
+
+        <AnimatePresence>
+          {expandedId === goal.id && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="pt-6 border-t border-white/5 space-y-6"
+            >
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  value={newSubtask[goal.id] || ""}
+                  onChange={(e) =>
+                    setNewSubtask({
+                      ...newSubtask,
+                      [goal.id]: e.target.value,
+                    })
+                  }
+                  onKeyDown={(e) =>
+                    e.key === "Enter" && handleAddSub(goal.id)
+                  }
+                  placeholder="Add sub-mission..."
+                  className="flex-1 bg-white/5 border border-white/5 rounded-[20px] px-6 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500/20"
+                />
+                <Tooltip text="Auto-split with AI">
+                  <button
+                    onClick={() => handleAutoSplit(goal)}
+                    disabled={isSplitting[goal.id]}
+                    className="p-3 bg-blue-600/10 text-blue-400 rounded-2xl hover:bg-blue-600/20 transition-all border border-blue-500/10 disabled:opacity-50"
+                  >
+                    {isSplitting[goal.id] ? (
+                      <Clock className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-5 h-5" />
+                    )}
+                  </button>
+                </Tooltip>
+              </div>
+
+              <div className="space-y-3">
+                {(goal.subtasks || []).map((sub: any) => (
+                  <div
+                    key={sub.id}
+                    className="flex items-center justify-between p-4 bg-white/[0.02] border border-white/[0.04] rounded-2xl group/sub hover:bg-white/[0.04] transition-all gap-4"
+                  >
+                    <div className="flex items-start space-x-4 min-w-0 flex-1">
+                      <Tooltip text="Toggle completion">
+                        <button
+                          onClick={() => toggleSubtask(goal.id, sub.id)}
+                          className={`w-5 h-5 shrink-0 mt-0.5 rounded-lg border transition-all flex items-center justify-center ${sub.completed ? "bg-blue-600 border-blue-600 text-white" : "border-white/10"}`}
+                        >
+                          {sub.completed && (
+                            <CheckSquare className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </Tooltip>
+                      <span
+                        className={`text-sm font-bold flex-1 min-w-0 break-words text-left ${sub.completed ? "text-slate-600 line-through" : "text-slate-300"}`}
+                      >
+                        {sub.title}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2 shrink-0 opacity-100 sm:opacity-0 sm:group-hover/sub:opacity-100 transition-all">
+                      {!sub.completed && (
+                        <Tooltip text="Promote to individual task">
+                          <button
+                            onClick={() => handlePromote(goal, sub, true)}
+                            className="text-slate-500 hover:text-blue-400 p-1"
+                          >
+                            <ArrowUpRight className="w-4 h-4" />
+                          </button>
+                        </Tooltip>
+                      )}
+                      <Tooltip text="Delete sub-mission">
+                        <button
+                          onClick={() => deleteSubtask(goal.id, sub.id)}
+                          className="text-slate-700 hover:text-red-500 p-1"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </Tooltip>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+
+    if (!isDraggable) {
+      return (
+        <motion.div
+           layout
+           key={goal.id}
+           className={`glass-card group hover:border-white/20 transition-all ${goal.completed ? "opacity-60 grayscale-[0.5]" : ""} p-1 rounded-[32px]`}
+         >
+           {cardContent}
+         </motion.div>
+      );
+    }
+
+    return (
+      <Draggable key={goal.id} draggableId={goal.id} index={index}>
+        {(provided, snapshot) => (
+          <div
+            ref={provided.innerRef}
+            {...provided.draggableProps}
+            {...provided.dragHandleProps}
+            className={`glass-card group hover:border-white/20 transition-all ${goal.completed ? "opacity-60 grayscale-[0.5]" : ""} p-1 rounded-[32px] mb-6 ${snapshot.isDragging ? "shadow-2xl ring-2 ring-blue-500" : ""}`}
+            style={provided.draggableProps.style}
+          >
+            {cardContent}
+          </div>
+        )}
+      </Draggable>
+    );
+  };
+
   const handleAddSub = (goalId: string) => {
     const title = newSubtask[goalId];
     if (!title?.trim()) return;
@@ -1185,6 +1401,8 @@ const GoalsView = () => {
         type: "monthly",
         priority: goal.priority,
         completed: false,
+        subtasks: !isSubtask ? goal.subtasks : [],
+        parentGoalTitle: !isSubtask ? undefined : goal.title,
       });
       nextType = "Monthly Goal";
     } else if (goal.type === "monthly") {
@@ -1193,6 +1411,8 @@ const GoalsView = () => {
         type: "weekly",
         priority: goal.priority,
         completed: false,
+        subtasks: !isSubtask ? goal.subtasks : [],
+        parentGoalTitle: !isSubtask ? undefined : goal.title,
       });
       nextType = "Weekly Goal";
     } else if (goal.type === "weekly") {
@@ -1202,6 +1422,8 @@ const GoalsView = () => {
         priority: goal.priority,
         type: "one-off",
         tags: ["#from-goals"],
+        subtasks: !isSubtask ? goal.subtasks : [],
+        parentGoalTitle: !isSubtask ? undefined : goal.title,
       });
       nextType = "Daily Task";
     }
@@ -1347,200 +1569,50 @@ const GoalsView = () => {
         </AnimatePresence>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {filteredGoals.map((goal) => (
-          <motion.div
-            layout
-            key={goal.id}
-            className={`glass-card group hover:border-white/20 transition-all ${goal.completed ? "opacity-60 grayscale-[0.5]" : ""} p-1 rounded-[32px]`}
-          >
-            <div className="p-8 space-y-6">
-              <div className="flex items-start justify-between">
-                <Tooltip text={goal.completed ? "Mark incomplete" : "Mark complete"}>
-                  <button
-                    onClick={() => toggleGoal(goal.id)}
-                    className={`w-10 h-10 rounded-2xl border-2 flex items-center justify-center transition-all ${goal.completed ? "bg-blue-600 border-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]" : "border-white/10 hover:border-white/30 text-white"}`}
-                  >
-                    {goal.completed ? (
-                      <CheckSquare className="w-6 h-6" />
-                    ) : (
-                      <div className="w-3 h-3 rounded-full bg-white/10" />
-                    )}
-                  </button>
-                </Tooltip>
-                <div className="flex items-center space-x-1">
-                  {!goal.completed && (
-                    <Tooltip text="Promote to task">
-                      <button
-                        onClick={() => handlePromote(goal, { title: goal.title })}
-                        className="p-3 bg-white/5 rounded-xl text-blue-400 hover:bg-blue-500/10 transition-colors"
+      {filter === "All" ? (
+        <DragDropContext onDragEnd={handleDragEnd}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-x-auto pb-8">
+            {["Yearly", "Monthly", "Weekly"].map((colType) => {
+              const colGoals = goals.filter((g) => g.type === colType.toLowerCase());
+              return (
+                <div key={colType} className="flex flex-col space-y-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-display font-black text-white px-2 uppercase tracking-widest">{colType}</h3>
+                    <span className="text-xs bg-white/10 text-white font-mono px-2 py-0.5 rounded-full">{colGoals.length}</span>
+                  </div>
+                  <Droppable droppableId={colType}>
+                    {(provided, snapshot) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                        className={`flex-1 min-h-[400px] bg-white/[0.02] border border-white/5 rounded-[40px] p-2 transition-colors ${snapshot.isDraggingOver ? "bg-white/[0.05] border-blue-500/50" : ""}`}
                       >
-                        <ArrowUpRight className="w-5 h-5" />
-                      </button>
-                    </Tooltip>
-                  )}
-                  <Tooltip text="Toggle sub-tasks">
-                    <button
-                      onClick={() =>
-                        setExpandedId(expandedId === goal.id ? null : goal.id)
-                      }
-                      className={`p-3 bg-white/5 rounded-xl text-slate-500 hover:text-white transition-all ${expandedId === goal.id ? "rotate-180 bg-white/10" : ""}`}
-                    >
-                      <ChevronDown className="w-5 h-5" />
-                    </button>
-                  </Tooltip>
-                  <Tooltip text="Delete goal">
-                    <button
-                      onClick={() => deleteGoal(goal.id)}
-                      className="p-3 hover:text-red-500 transition-colors text-slate-700"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </Tooltip>
+                        {colGoals.map((goal, index) => renderGoal(goal, index, true))}
+                        {provided.placeholder}
+                      </div>
+                    )}
+                  </Droppable>
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <h4
-                  className={`text-2xl font-display font-black tracking-tight ${goal.completed ? "line-through text-slate-600" : "text-white"}`}
-                >
-                  {goal.title}
-                </h4>
-                <div className="flex items-center space-x-3">
-                  <span className="text-[9px] font-black bg-blue-600/20 text-blue-400 px-3 py-1 rounded-full uppercase tracking-widest">
-                    {goal.type}
-                  </span>
-                  <span className="text-[9px] font-black bg-white/10 text-slate-500 px-3 py-1 rounded-full uppercase tracking-widest">
-                    Priority {goal.priority}
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
-                    Progress
-                  </span>
-                  <span className="text-[10px] font-black text-white font-mono">
-                    {goal.progress}% COMPLETE
-                  </span>
-                </div>
-                <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${goal.progress}%` }}
-                    className={`h-full transition-all duration-1000 ${
-                      goal.completed
-                        ? "bg-blue-600"
-                        : "bg-gradient-to-r from-blue-600 to-indigo-500"
-                    }`}
-                  />
-                </div>
-              </div>
-
-              <AnimatePresence>
-                {expandedId === goal.id && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="pt-6 border-t border-white/5 space-y-6"
-                  >
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="text"
-                        value={newSubtask[goal.id] || ""}
-                        onChange={(e) =>
-                          setNewSubtask({
-                            ...newSubtask,
-                            [goal.id]: e.target.value,
-                          })
-                        }
-                        onKeyDown={(e) =>
-                          e.key === "Enter" && handleAddSub(goal.id)
-                        }
-                        placeholder="Add sub-mission..."
-                        className="flex-1 bg-white/5 border border-white/5 rounded-[20px] px-6 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500/20"
-                      />
-                      <Tooltip text="Auto-split with AI">
-                        <button
-                          onClick={() => handleAutoSplit(goal)}
-                          disabled={isSplitting[goal.id]}
-                          className="p-3 bg-blue-600/10 text-blue-400 rounded-2xl hover:bg-blue-600/20 transition-all border border-blue-500/10 disabled:opacity-50"
-                        >
-                          {isSplitting[goal.id] ? (
-                            <Clock className="w-5 h-5 animate-spin" />
-                          ) : (
-                            <Sparkles className="w-5 h-5" />
-                          )}
-                        </button>
-                      </Tooltip>
-                    </div>
-
-                    <div className="space-y-3">
-                      {(goal.subtasks || []).map((sub: any) => (
-                        <div
-                          key={sub.id}
-                          className="flex items-center justify-between p-4 bg-white/[0.02] border border-white/[0.04] rounded-2xl group/sub hover:bg-white/[0.04] transition-all"
-                        >
-                          <div className="flex items-center space-x-4">
-                            <Tooltip text="Toggle completion">
-                              <button
-                                onClick={() => toggleSubtask(goal.id, sub.id)}
-                                className={`w-5 h-5 rounded-lg border transition-all flex items-center justify-center ${sub.completed ? "bg-blue-600 border-blue-600 text-white" : "border-white/10"}`}
-                              >
-                                {sub.completed && (
-                                  <CheckSquare className="w-3.5 h-3.5" />
-                                )}
-                              </button>
-                            </Tooltip>
-                            <span
-                              className={`text-sm font-bold ${sub.completed ? "text-slate-600 line-through" : "text-slate-300"}`}
-                            >
-                              {sub.title}
-                            </span>
-                          </div>
-                          <div className="flex items-center space-x-2 opacity-0 group-hover/sub:opacity-100 transition-all">
-                            {!sub.completed && (
-                              <Tooltip text="Promote to individual task">
-                                <button
-                                  onClick={() => handlePromote(goal, sub, true)}
-                                  className="text-slate-500 hover:text-blue-400 p-1"
-                                >
-                                  <ArrowUpRight className="w-4 h-4" />
-                                </button>
-                              </Tooltip>
-                            )}
-                            <Tooltip text="Delete sub-mission">
-                              <button
-                                onClick={() => deleteSubtask(goal.id, sub.id)}
-                                className="text-slate-700 hover:text-red-500 p-1"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </Tooltip>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </motion.div>
-        ))}
-        {filteredGoals.length === 0 && (
-          <div className="text-center py-24 bg-white/[0.02] border border-dashed border-white/10 rounded-[40px] md:col-span-2 space-y-4 px-6">
-            <div className="w-16 h-16 rounded-full bg-blue-600/10 flex items-center justify-center mx-auto mb-6">
-              <Target className="w-8 h-8 text-blue-500" />
-            </div>
-            <h3 className="text-xl sm:text-2xl font-display font-black text-slate-300">Set Your First Goal</h3>
-            <p className="text-slate-500 max-w-xl mx-auto text-sm leading-relaxed">
-              Goals act as strategic containers for your daily actions. Create a high-level objective you want to achieve, then use the AI or manual input to break it down into a sequence of actionable steps. Drop a goal title in the input above and press Enter.
-            </p>
+              );
+            })}
           </div>
-        )}
-      </div>
+        </DragDropContext>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {filteredGoals.map((goal, index) => renderGoal(goal, index, false))}
+          {filteredGoals.length === 0 && (
+            <div className="text-center py-24 bg-white/[0.02] border border-dashed border-white/10 rounded-[40px] md:col-span-2 space-y-4 px-6">
+              <div className="w-16 h-16 rounded-full bg-blue-600/10 flex items-center justify-center mx-auto mb-6">
+                <Target className="w-8 h-8 text-blue-500" />
+              </div>
+              <h3 className="text-xl sm:text-2xl font-display font-black text-slate-300">Set Your First Goal</h3>
+              <p className="text-slate-500 max-w-xl mx-auto text-sm leading-relaxed">
+                Goals act as strategic containers for your daily actions. Create a high-level objective you want to achieve, then use the AI or manual input to break it down into a sequence of actionable steps. Drop a goal title in the input above and press Enter.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -2003,7 +2075,13 @@ const TasksView = () => {
                           >
                             {task.title}
                           </h5>
-                          <div className="flex flex-wrap gap-2">
+                          {task.parentGoalTitle && (
+                            <p className="text-xs text-blue-400/80 font-bold uppercase tracking-wider flex items-center gap-1 mt-1">
+                              <Target className="w-3 h-3" />
+                              From: {task.parentGoalTitle}
+                            </p>
+                          )}
+                          <div className="flex flex-wrap gap-2 mt-4">
                             {task.startTime && (
                               <span className="text-[9px] font-black bg-blue-600/20 text-blue-400 px-3 py-1 rounded-full uppercase">
                                 {task.startTime} - {task.endTime || "??:??"}
@@ -2111,9 +2189,9 @@ const TasksView = () => {
                                 {(task.subtasks || []).map((sub: any) => (
                                   <div
                                     key={sub.id}
-                                    className="flex items-center justify-between group/sub"
+                                    className="flex items-center justify-between group/sub gap-3"
                                   >
-                                    <div className="flex items-center space-x-3">
+                                    <div className="flex items-start space-x-3 min-w-0 flex-1">
                                       <Tooltip
                                         text={
                                           sub.completed
@@ -2125,7 +2203,7 @@ const TasksView = () => {
                                           onClick={() =>
                                             toggleTaskSubtask(task.id, sub.id)
                                           }
-                                          className={`w-4 h-4 rounded border transition-all ${sub.completed ? "bg-blue-600 border-blue-600 text-white" : "border-white/20"}`}
+                                          className={`w-4 h-4 mt-0.5 shrink-0 rounded border transition-all ${sub.completed ? "bg-blue-600 border-blue-600 text-white" : "border-white/20"}`}
                                         >
                                           {sub.completed && (
                                             <CheckSquare className="w-3 h-3 mx-auto" />
@@ -2133,7 +2211,7 @@ const TasksView = () => {
                                         </button>
                                       </Tooltip>
                                       <span
-                                        className={`text-sm ${sub.completed ? "text-slate-600 line-through" : "text-slate-300"}`}
+                                        className={`text-sm flex-1 min-w-0 break-words text-left ${sub.completed ? "text-slate-600 line-through" : "text-slate-300"}`}
                                       >
                                         {sub.title}
                                       </span>
@@ -2143,7 +2221,7 @@ const TasksView = () => {
                                         onClick={() =>
                                           deleteTaskSubtask(task.id, sub.id)
                                         }
-                                        className="lg:opacity-0 lg:group-hover/sub:opacity-100 transition-opacity text-slate-700 hover:text-red-400"
+                                        className="shrink-0 opacity-100 lg:opacity-0 lg:group-hover/sub:opacity-100 transition-opacity text-slate-700 hover:text-red-400"
                                       >
                                         <Trash2 className="w-3.5 h-3.5" />
                                       </button>
