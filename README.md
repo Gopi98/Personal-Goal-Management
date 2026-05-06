@@ -2,17 +2,15 @@
 
 A modern, highly-interactive productivity hub with a Firebase backend and Gemini AI integration.
 
+## 🌐 Live App Link
+
+Once deployed, **[Click here to open the app (Desktop & Mobile)](https://gurpreetsinghsaini94221.github.io/YOUR_REPOSITORY_NAME/)**
+
+*(Note: Replace `YOUR_REPOSITORY_NAME` in the URL above with the actual name of your GitHub repository)*
+
 ## Configuration & Deployment
 
 This project is built using React, Vite, Tailwind CSS, Firebase, and Gemini AI.
-
-### Setting up Environment Variables
-
-When deploying this project to Netlify, Vercel, or GitHub Pages, you **must** configure the following environment variables in your hosting provider's dashboard:
-
-- \`VITE_GEMINI_API_KEY\`: Your Gemini API Key from [Google AI Studio](https://aistudio.google.com/app/apikey)
-
-**(Firebase config is automatically included via \`firebase-applet-config.json\`)**
 
 ### Deployment via GitHub Pages (Free & Automatic)
 
@@ -33,21 +31,8 @@ This repository includes a GitHub Actions workflow that automatically builds and
    - Go to your repository **Settings**.
    - Select **Pages** from the left sidebar.
    - Under **Build and deployment** > **Source**, change from "Deploy from a branch" to **GitHub Actions**.
-5. Trigger your first deployment:
-   - Go to the **Actions** tab at the top of your GitHub repository.
-   - Click on the **"Deploy to GitHub Pages"** workflow.
-   - Click the **"Run workflow"** button on the right side.
-6. Once the workflow finishes successfully, your site will be live! GitHub will provide the link to your deployed app on the right sidebar of the repo home page (under "Environments" -> "github-pages").
-
-## Running Locally
-
-1. Clone the repository.
-2. Run \`npm install\` to install dependencies.
-3. Create a \`.env\` file in the root directory and add:
-   \`\`\`env
-   VITE_GEMINI_API_KEY=your_gemini_api_key_here
-   \`\`\`
-4. Run \`npm run dev\` to start the development server.
+   - *If your workflow failed previously, re-run it in the **Actions** tab.*
+5. Once the workflow finishes successfully, your site will be live at the link above!
 
 ## Features
 
