@@ -368,35 +368,40 @@ const PomodoroTimer = ({
       </div>
       <div className="flex gap-2">
         {[15, 25, 50, 90].map((mins) => (
-          <button
-            key={mins}
-            onClick={() => setTimerLength(mins)}
-            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${currentLength === mins && mode === "work" ? "bg-blue-600 text-white shadow-md" : "bg-white/5 text-slate-400 hover:text-white"}`}
-          >
-            {mins}m
-          </button>
+          <Tooltip key={mins} text={`Set duration to ${mins}m`}>
+            <button
+              onClick={() => setTimerLength(mins)}
+              className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${currentLength === mins && mode === "work" ? "bg-blue-600 text-white shadow-md" : "bg-white/5 text-slate-400 hover:text-white"}`}
+            >
+              {mins}m
+            </button>
+          </Tooltip>
         ))}
       </div>
       <div className="text-6xl font-display font-black text-white tabular-nums tracking-tighter">
         {formatTime(timeLeft)}
       </div>
       <div className="flex items-center space-x-4">
-        <button
-          onClick={toggle}
-          className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${isActive ? "bg-orange-600 text-white" : "bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]"}`}
-        >
-          {isActive ? (
-            <Pause className="w-6 h-6 fill-white" />
-          ) : (
-            <Play className="w-6 h-6 fill-white translate-x-0.5" />
-          )}
-        </button>
-        <button
-          onClick={reset}
-          className="p-3 text-slate-500 hover:text-white transition-colors"
-        >
-          <RotateCcw className="w-5 h-5" />
-        </button>
+        <Tooltip text={isActive ? "Pause timer" : "Start timer"}>
+          <button
+            onClick={toggle}
+            className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${isActive ? "bg-orange-600 text-white" : "bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]"}`}
+          >
+            {isActive ? (
+              <Pause className="w-6 h-6 fill-white" />
+            ) : (
+              <Play className="w-6 h-6 fill-white translate-x-0.5" />
+            )}
+          </button>
+        </Tooltip>
+        <Tooltip text="Reset timer">
+          <button
+            onClick={reset}
+            className="p-3 text-slate-500 hover:text-white transition-colors"
+          >
+            <RotateCcw className="w-5 h-5" />
+          </button>
+        </Tooltip>
       </div>
     </div>
   );
@@ -677,34 +682,35 @@ const HomeView = () => {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
           {["Focus", "Calm", "Energized", "Stress", "Tired"].map((m, i) => (
-            <button
-              key={m}
-              onClick={() => setSelectedMood(m)}
-              className={`group p-4 sm:p-6 rounded-[32px] border transition-all duration-300 relative overflow-hidden ${selectedMood === m ? "bg-blue-600 border-blue-500 shadow-[0_20px_40px_rgba(37,99,235,0.4)]" : "bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.05] hover:border-white/10"}`}
-            >
-              {selectedMood === m && (
-                <motion.div
-                  layoutId="activeMoodHome"
-                  className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent pointer-events-none"
-                />
-              )}
-              <div className="relative z-10 flex flex-col items-center space-y-3">
-                <span
-                  className={`text-2xl sm:text-3xl transition-transform duration-500 ${selectedMood === m ? "scale-110" : "group-hover:scale-125"}`}
-                >
-                  {m === "Focus" && "🎯"}
-                  {m === "Calm" && "🧘"}
-                  {m === "Energized" && "⚡"}
-                  {m === "Stress" && "🌪️"}
-                  {m === "Tired" && "☕"}
-                </span>
-                <span
-                  className={`text-[10px] font-black uppercase tracking-widest ${selectedMood === m ? "text-white" : "text-slate-500"}`}
-                >
-                  {m}
-                </span>
-              </div>
-            </button>
+            <Tooltip key={m} text={`Set state to ${m}`}>
+              <button
+                onClick={() => setSelectedMood(m)}
+                className={`group p-4 sm:p-6 rounded-[32px] border transition-all duration-300 relative overflow-hidden w-full ${selectedMood === m ? "bg-blue-600 border-blue-500 shadow-[0_20px_40px_rgba(37,99,235,0.4)]" : "bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.05] hover:border-white/10"}`}
+              >
+                {selectedMood === m && (
+                  <motion.div
+                    layoutId="activeMoodHome"
+                    className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent pointer-events-none"
+                  />
+                )}
+                <div className="relative z-10 flex flex-col items-center space-y-3">
+                  <span
+                    className={`text-2xl sm:text-3xl transition-transform duration-500 ${selectedMood === m ? "scale-110" : "group-hover:scale-125"}`}
+                  >
+                    {m === "Focus" && "🎯"}
+                    {m === "Calm" && "🧘"}
+                    {m === "Energized" && "⚡"}
+                    {m === "Stress" && "🌪️"}
+                    {m === "Tired" && "☕"}
+                  </span>
+                  <span
+                    className={`text-[10px] font-black uppercase tracking-widest ${selectedMood === m ? "text-white" : "text-slate-500"}`}
+                  >
+                    {m}
+                  </span>
+                </div>
+              </button>
+            </Tooltip>
           ))}
         </div>
 
@@ -829,18 +835,20 @@ const HomeView = () => {
                       "Synthesize your task velocity and goal trajectories into a personalized coaching plan."}
                   </p>
                 </div>
-                <button
-                  onClick={handleGetInsight}
-                  disabled={loading}
-                  className="flex items-center space-x-4 bg-white text-black px-8 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-50 transition-all shadow-[0_10px_30px_rgba(255,255,255,0.1)] active:scale-95 disabled:opacity-50"
-                >
-                  {loading ? (
-                    <RotateCcw className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Play className="w-4 h-4" />
-                  )}
-                  <span>{loading ? "Processing..." : "Run Audit"}</span>
-                </button>
+                <Tooltip text="Generate personalized strategic audit">
+                  <button
+                    onClick={handleGetInsight}
+                    disabled={loading}
+                    className="flex items-center space-x-4 bg-white text-black px-8 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-50 transition-all shadow-[0_10px_30px_rgba(255,255,255,0.1)] active:scale-95 disabled:opacity-50"
+                  >
+                    {loading ? (
+                      <RotateCcw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Play className="w-4 h-4" />
+                    )}
+                    <span>{loading ? "Processing..." : "Run Audit"}</span>
+                  </button>
+                </Tooltip>
               </div>
               {insight && (
                 <motion.div
@@ -1254,39 +1262,47 @@ const GoalsView = () => {
           >
             <div className="p-8 space-y-6">
               <div className="flex items-start justify-between">
-                <button
-                  onClick={() => toggleGoal(goal.id)}
-                  className={`w-10 h-10 rounded-2xl border-2 flex items-center justify-center transition-all ${goal.completed ? "bg-blue-600 border-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]" : "border-white/10 hover:border-white/30 text-white"}`}
-                >
-                  {goal.completed ? (
-                    <CheckSquare className="w-6 h-6" />
-                  ) : (
-                    <div className="w-3 h-3 rounded-full bg-white/10" />
-                  )}
-                </button>
+                <Tooltip text={goal.completed ? "Mark incomplete" : "Mark complete"}>
+                  <button
+                    onClick={() => toggleGoal(goal.id)}
+                    className={`w-10 h-10 rounded-2xl border-2 flex items-center justify-center transition-all ${goal.completed ? "bg-blue-600 border-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]" : "border-white/10 hover:border-white/30 text-white"}`}
+                  >
+                    {goal.completed ? (
+                      <CheckSquare className="w-6 h-6" />
+                    ) : (
+                      <div className="w-3 h-3 rounded-full bg-white/10" />
+                    )}
+                  </button>
+                </Tooltip>
                 <div className="flex items-center space-x-1">
                   {!goal.completed && (
-                    <button
-                      onClick={() => handlePromote(goal, { title: goal.title })}
-                      className="p-3 bg-white/5 rounded-xl text-blue-400 hover:bg-blue-500/10 transition-colors"
-                    >
-                      <ArrowUpRight className="w-5 h-5" />
-                    </button>
+                    <Tooltip text="Promote to task">
+                      <button
+                        onClick={() => handlePromote(goal, { title: goal.title })}
+                        className="p-3 bg-white/5 rounded-xl text-blue-400 hover:bg-blue-500/10 transition-colors"
+                      >
+                        <ArrowUpRight className="w-5 h-5" />
+                      </button>
+                    </Tooltip>
                   )}
-                  <button
-                    onClick={() =>
-                      setExpandedId(expandedId === goal.id ? null : goal.id)
-                    }
-                    className={`p-3 bg-white/5 rounded-xl text-slate-500 hover:text-white transition-all ${expandedId === goal.id ? "rotate-180 bg-white/10" : ""}`}
-                  >
-                    <ChevronDown className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={() => deleteGoal(goal.id)}
-                    className="p-3 hover:text-red-500 transition-colors text-slate-700"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
+                  <Tooltip text="Toggle sub-tasks">
+                    <button
+                      onClick={() =>
+                        setExpandedId(expandedId === goal.id ? null : goal.id)
+                      }
+                      className={`p-3 bg-white/5 rounded-xl text-slate-500 hover:text-white transition-all ${expandedId === goal.id ? "rotate-180 bg-white/10" : ""}`}
+                    >
+                      <ChevronDown className="w-5 h-5" />
+                    </button>
+                  </Tooltip>
+                  <Tooltip text="Delete goal">
+                    <button
+                      onClick={() => deleteGoal(goal.id)}
+                      className="p-3 hover:text-red-500 transition-colors text-slate-700"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </Tooltip>
                 </div>
               </div>
 
@@ -1352,17 +1368,19 @@ const GoalsView = () => {
                         placeholder="Add sub-mission..."
                         className="flex-1 bg-white/5 border border-white/5 rounded-[20px] px-6 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500/20"
                       />
-                      <button
-                        onClick={() => handleAutoSplit(goal)}
-                        disabled={isSplitting[goal.id]}
-                        className="p-3 bg-blue-600/10 text-blue-400 rounded-2xl hover:bg-blue-600/20 transition-all border border-blue-500/10 disabled:opacity-50"
-                      >
-                        {isSplitting[goal.id] ? (
-                          <Clock className="w-5 h-5 animate-spin" />
-                        ) : (
-                          <Sparkles className="w-5 h-5" />
-                        )}
-                      </button>
+                      <Tooltip text="Auto-split with AI">
+                        <button
+                          onClick={() => handleAutoSplit(goal)}
+                          disabled={isSplitting[goal.id]}
+                          className="p-3 bg-blue-600/10 text-blue-400 rounded-2xl hover:bg-blue-600/20 transition-all border border-blue-500/10 disabled:opacity-50"
+                        >
+                          {isSplitting[goal.id] ? (
+                            <Clock className="w-5 h-5 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-5 h-5" />
+                          )}
+                        </button>
+                      </Tooltip>
                     </div>
 
                     <div className="space-y-3">
@@ -1372,14 +1390,16 @@ const GoalsView = () => {
                           className="flex items-center justify-between p-4 bg-white/[0.02] border border-white/[0.04] rounded-2xl group/sub hover:bg-white/[0.04] transition-all"
                         >
                           <div className="flex items-center space-x-4">
-                            <button
-                              onClick={() => toggleSubtask(goal.id, sub.id)}
-                              className={`w-5 h-5 rounded-lg border transition-all flex items-center justify-center ${sub.completed ? "bg-blue-600 border-blue-600 text-white" : "border-white/10"}`}
-                            >
-                              {sub.completed && (
-                                <CheckSquare className="w-3.5 h-3.5" />
-                              )}
-                            </button>
+                            <Tooltip text="Toggle completion">
+                              <button
+                                onClick={() => toggleSubtask(goal.id, sub.id)}
+                                className={`w-5 h-5 rounded-lg border transition-all flex items-center justify-center ${sub.completed ? "bg-blue-600 border-blue-600 text-white" : "border-white/10"}`}
+                              >
+                                {sub.completed && (
+                                  <CheckSquare className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </Tooltip>
                             <span
                               className={`text-sm font-bold ${sub.completed ? "text-slate-600 line-through" : "text-slate-300"}`}
                             >
@@ -1388,19 +1408,23 @@ const GoalsView = () => {
                           </div>
                           <div className="flex items-center space-x-2 opacity-0 group-hover/sub:opacity-100 transition-all">
                             {!sub.completed && (
-                              <button
-                                onClick={() => handlePromote(goal, sub, true)}
-                                className="text-slate-500 hover:text-blue-400 p-1"
-                              >
-                                <ArrowUpRight className="w-4 h-4" />
-                              </button>
+                              <Tooltip text="Promote to individual task">
+                                <button
+                                  onClick={() => handlePromote(goal, sub, true)}
+                                  className="text-slate-500 hover:text-blue-400 p-1"
+                                >
+                                  <ArrowUpRight className="w-4 h-4" />
+                                </button>
+                              </Tooltip>
                             )}
-                            <button
-                              onClick={() => deleteSubtask(goal.id, sub.id)}
-                              className="text-slate-700 hover:text-red-500 p-1"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <Tooltip text="Delete sub-mission">
+                              <button
+                                onClick={() => deleteSubtask(goal.id, sub.id)}
+                                className="text-slate-700 hover:text-red-500 p-1"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </Tooltip>
                           </div>
                         </div>
                       ))}
@@ -1798,33 +1822,39 @@ const TasksView = () => {
                         className={`glass-card group hover:border-white/20 transition-all h-full flex flex-col p-6 rounded-[32px] ${focusTaskId === task.id ? "border-blue-500/50 bg-blue-600/[0.03] ring-1 ring-blue-500/20" : ""}`}
                       >
                         <div className="flex items-start justify-between mb-6">
-                          <button
-                            onClick={() => toggleTask(task.id)}
-                            className={`w-8 h-8 border-2 rounded-xl flex-shrink-0 transition-all flex items-center justify-center ${task.completed ? "bg-blue-600 border-blue-600 text-white" : "border-white/10 hover:border-white/30"}`}
-                          >
-                            {task.completed && (
-                              <CheckCircle2 className="w-5 h-5" />
-                            )}
-                          </button>
+                          <Tooltip text={task.completed ? "Mark pending" : "Complete task"}>
+                            <button
+                              onClick={() => toggleTask(task.id)}
+                              className={`w-8 h-8 border-2 rounded-xl flex-shrink-0 transition-all flex items-center justify-center ${task.completed ? "bg-blue-600 border-blue-600 text-white" : "border-white/10 hover:border-white/30"}`}
+                            >
+                              {task.completed && (
+                                <CheckCircle2 className="w-5 h-5" />
+                              )}
+                            </button>
+                          </Tooltip>
                           <div className="flex items-center space-x-1">
                             {!task.completed && (
-                              <button
-                                onClick={() =>
-                                  setFocusTaskId(
-                                    focusTaskId === task.id ? null : task.id,
-                                  )
-                                }
-                                className={`p-3 rounded-xl transition-all ${focusTaskId === task.id ? "bg-blue-600 text-white shadow-lg" : "text-slate-500 hover:text-white bg-white/5 hover:bg-white/10"}`}
-                              >
-                                <Zap className="w-4 h-4 fill-current" />
-                              </button>
+                              <Tooltip text="Enter Focus Mode">
+                                <button
+                                  onClick={() =>
+                                    setFocusTaskId(
+                                      focusTaskId === task.id ? null : task.id,
+                                    )
+                                  }
+                                  className={`p-3 rounded-xl transition-all ${focusTaskId === task.id ? "bg-blue-600 text-white shadow-lg" : "text-slate-500 hover:text-white bg-white/5 hover:bg-white/10"}`}
+                                >
+                                  <Zap className="w-4 h-4 fill-current" />
+                                </button>
+                              </Tooltip>
                             )}
-                            <button
-                              onClick={() => handlePostpone(task)}
-                              className="p-3 text-slate-500 hover:text-orange-500 bg-white/5 hover:bg-orange-500/10 rounded-xl transition-all"
-                            >
-                              <CalendarRange className="w-4 h-4" />
-                            </button>
+                            <Tooltip text="Postpone task">
+                              <button
+                                onClick={() => handlePostpone(task)}
+                                className="p-3 text-slate-500 hover:text-orange-500 bg-white/5 hover:bg-orange-500/10 rounded-xl transition-all"
+                              >
+                                <CalendarRange className="w-4 h-4" />
+                              </button>
+                            </Tooltip>
                           </div>
                         </div>
 
@@ -1861,22 +1891,26 @@ const TasksView = () => {
                             ))}
                           </div>
                           <div className="flex items-center space-x-2">
-                            <button
-                              onClick={() =>
-                                setExpandedId(
-                                  expandedId === task.id ? null : task.id,
-                                )
-                              }
-                              className={`p-2 text-slate-600 hover:text-white transition-transform ${expandedId === task.id ? "rotate-180" : ""}`}
-                            >
-                              <ChevronDown className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => deleteTask(task.id)}
-                              className="p-2 text-slate-700 hover:text-red-500 transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <Tooltip text="Toggle details">
+                              <button
+                                onClick={() =>
+                                  setExpandedId(
+                                    expandedId === task.id ? null : task.id,
+                                  )
+                                }
+                                className={`p-2 text-slate-600 hover:text-white transition-transform ${expandedId === task.id ? "rotate-180" : ""}`}
+                              >
+                                <ChevronDown className="w-4 h-4" />
+                              </button>
+                            </Tooltip>
+                            <Tooltip text="Delete task">
+                              <button
+                                onClick={() => deleteTask(task.id)}
+                                className="p-2 text-slate-700 hover:text-red-500 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </Tooltip>
                           </div>
                         </div>
 
@@ -2014,12 +2048,14 @@ const TasksView = () => {
               <div className="space-y-2 flex-1">
                 {tasks.filter(t => t.priority === quad.priority).map((task) => (
                   <div key={task.id} className={`flex items-center space-x-3 p-3 bg-white/[0.03] border border-white/5 rounded-xl ${task.completed ? "opacity-50 line-through" : ""}`}>
-                    <button
-                      onClick={() => toggleTask(task.id)}
-                      className={`w-5 h-5 border rounded flex-shrink-0 transition-all flex items-center justify-center ${task.completed ? "bg-blue-600 border-blue-600 text-white" : "border-white/20"}`}
-                    >
-                      {task.completed && <CheckSquare className="w-3 h-3" />}
-                    </button>
+                    <Tooltip text={task.completed ? "Mark pending" : "Complete task"}>
+                      <button
+                        onClick={() => toggleTask(task.id)}
+                        className={`w-5 h-5 border rounded flex-shrink-0 transition-all flex items-center justify-center ${task.completed ? "bg-blue-600 border-blue-600 text-white" : "border-white/20"}`}
+                      >
+                        {task.completed && <CheckSquare className="w-3 h-3" />}
+                      </button>
+                    </Tooltip>
                     <span className="text-sm font-medium text-white line-clamp-1">{task.title}</span>
                   </div>
                 ))}
@@ -2225,13 +2261,15 @@ const InsightsView = () => {
                   Neural Audit
                 </span>
               </div>
-              <button
-                onClick={handleGetDeepAnalysis}
-                disabled={isAnalyzing}
-                className="bg-blue-600/10 border border-blue-500/20 text-[9px] font-black text-blue-400 px-5 py-2.5 rounded-full uppercase tracking-widest hover:bg-blue-600/20 transition-all disabled:opacity-50"
-              >
-                {isAnalyzing ? "Processing..." : "Engage Audit"}
-              </button>
+              <Tooltip text="Run AI Analysis">
+                <button
+                  onClick={handleGetDeepAnalysis}
+                  disabled={isAnalyzing}
+                  className="bg-blue-600/10 border border-blue-500/20 text-[9px] font-black text-blue-400 px-5 py-2.5 rounded-full uppercase tracking-widest hover:bg-blue-600/20 transition-all disabled:opacity-50"
+                >
+                  {isAnalyzing ? "Processing..." : "Engage Audit"}
+                </button>
+              </Tooltip>
             </div>
 
             <div className="min-h-[280px] flex items-center justify-center">
@@ -2440,28 +2478,30 @@ const InsightsView = () => {
               { icon: "😫", label: "Stressed", sub: "High cortisol detection" },
               { icon: "☕", label: "Tired", sub: "Energy depletion phase" },
             ].map((mood, i) => (
-              <button
-                key={i}
-                onClick={() => setSelectedMood(mood.label)}
-                className={`p-6 !rounded-[28px] glass-card text-left space-y-4 group transition-all relative overflow-hidden ${selectedMood === mood.label ? "border-blue-500/50 bg-blue-600/10" : "hover:border-white/20"}`}
-              >
-                <span className="text-4xl block transition-transform group-hover:scale-110">
-                  {mood.icon}
-                </span>
-                <div>
-                  <p
-                    className={`text-[10px] font-black uppercase tracking-widest ${selectedMood === mood.label ? "text-blue-500" : "text-slate-500"}`}
-                  >
-                    {mood.label}
-                  </p>
-                  <p className="text-[10px] font-bold text-slate-700 mt-1 uppercase tracking-tighter">
-                    {mood.sub}
-                  </p>
-                </div>
-                {selectedMood === mood.label && (
-                  <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(37,99,235,1)]" />
-                )}
-              </button>
+              <Tooltip text="Set affective state">
+                <button
+                  key={i}
+                  onClick={() => setSelectedMood(mood.label)}
+                  className={`p-6 !rounded-[28px] glass-card text-left space-y-4 group transition-all relative overflow-hidden ${selectedMood === mood.label ? "border-blue-500/50 bg-blue-600/10" : "hover:border-white/20"}`}
+                >
+                  <span className="text-4xl block transition-transform group-hover:scale-110">
+                    {mood.icon}
+                  </span>
+                  <div>
+                    <p
+                      className={`text-[10px] font-black uppercase tracking-widest ${selectedMood === mood.label ? "text-blue-500" : "text-slate-500"}`}
+                    >
+                      {mood.label}
+                    </p>
+                    <p className="text-[10px] font-bold text-slate-700 mt-1 uppercase tracking-tighter">
+                      {mood.sub}
+                    </p>
+                  </div>
+                  {selectedMood === mood.label && (
+                    <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(37,99,235,1)]" />
+                  )}
+                </button>
+              </Tooltip>
             ))}
           </div>
         </div>
@@ -2503,19 +2543,23 @@ const InsightsView = () => {
                     Sync Complete
                   </motion.span>
                 )}
-                <button
-                  onClick={() => setIsReflecting(false)}
-                  className="text-[10px] font-black text-slate-700 hover:text-white uppercase tracking-widest transition-colors"
-                >
-                  Abort
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={showSuccess || !reflection.trim()}
-                  className={`bg-white text-black font-black text-[10px] uppercase tracking-widest px-10 py-4 rounded-2xl transition-all shadow-xl active:scale-95 disabled:opacity-20`}
-                >
-                  Archive Win
-                </button>
+                <Tooltip text="Cancel reflection">
+                  <button
+                    onClick={() => setIsReflecting(false)}
+                    className="text-[10px] font-black text-slate-700 hover:text-white uppercase tracking-widest transition-colors"
+                  >
+                    Abort
+                  </button>
+                </Tooltip>
+                <Tooltip text="Save your daily reflection">
+                  <button
+                    onClick={handleSave}
+                    disabled={showSuccess || !reflection.trim()}
+                    className={`bg-white text-black font-black text-[10px] uppercase tracking-widest px-10 py-4 rounded-2xl transition-all shadow-xl active:scale-95 disabled:opacity-20`}
+                  >
+                    Archive Win
+                  </button>
+                </Tooltip>
               </div>
             </GlassCard>
           ) : (
@@ -2632,22 +2676,26 @@ const HabitsView = () => {
         </div>
 
         <div className="flex bg-white/[0.03] border border-white/10 rounded-3xl p-1 items-center">
-          <button
-            onClick={() => setWeekOffset((prev) => prev + 1)}
-            className="p-3 text-slate-500 hover:text-white transition-all"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
+          <Tooltip text="View older weeks">
+            <button
+              onClick={() => setWeekOffset((prev) => prev + 1)}
+              className="p-3 text-slate-500 hover:text-white transition-all"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+          </Tooltip>
           <span className="px-6 text-[10px] font-black text-slate-200 uppercase tracking-widest min-w-[120px] text-center">
             {weekOffset === 0 ? "Active Now" : `${weekOffset}W AGO`}
           </span>
-          <button
-            disabled={weekOffset === 0}
-            onClick={() => setWeekOffset((prev) => prev - 1)}
-            className="p-3 text-slate-500 hover:text-white transition-all disabled:opacity-20"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
+          <Tooltip text="View newer weeks">
+            <button
+              disabled={weekOffset === 0}
+              onClick={() => setWeekOffset((prev) => prev - 1)}
+              className="p-3 text-slate-500 hover:text-white transition-all disabled:opacity-20"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -2713,21 +2761,23 @@ const HabitsView = () => {
                       <span className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">
                         {day.label}
                       </span>
-                      <button
-                        onClick={() => toggleHabit(habit.id, day.date)}
-                        className={`w-14 h-14 rounded-2xl transition-all border flex items-center justify-center relative ${isCompleted ? "bg-blue-600 border-blue-500 shadow-lg" : "bg-white/[0.02] border-white/5 hover:border-white/20"} ${isToday && !isCompleted ? "ring-2 ring-blue-500/30" : ""}`}
-                      >
-                        {isCompleted ? (
-                          <CheckSquare className="w-6 h-6 text-white" />
-                        ) : (
-                          <div
-                            className={`w-2 h-2 rounded-full ${isToday ? "bg-blue-500 shadow-[0_0_10px_rgba(37,99,235,1)] animate-pulse" : "bg-white/10"}`}
-                          />
-                        )}
-                        {isToday && (
-                          <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-white animate-bounce" />
-                        )}
-                      </button>
+                      <Tooltip text={isCompleted ? "Mark missed" : "Mark completed"}>
+                        <button
+                          onClick={() => toggleHabit(habit.id, day.date)}
+                          className={`w-14 h-14 rounded-2xl transition-all border flex items-center justify-center relative ${isCompleted ? "bg-blue-600 border-blue-500 shadow-lg" : "bg-white/[0.02] border-white/5 hover:border-white/20"} ${isToday && !isCompleted ? "ring-2 ring-blue-500/30" : ""}`}
+                        >
+                          {isCompleted ? (
+                            <CheckSquare className="w-6 h-6 text-white" />
+                          ) : (
+                            <div
+                              className={`w-2 h-2 rounded-full ${isToday ? "bg-blue-500 shadow-[0_0_10px_rgba(37,99,235,1)] animate-pulse" : "bg-white/10"}`}
+                            />
+                          )}
+                          {isToday && (
+                            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-white animate-bounce" />
+                          )}
+                        </button>
+                      </Tooltip>
                       <span className="text-[9px] font-bold text-slate-700 uppercase">
                         {day.fullDate}
                       </span>
@@ -2737,12 +2787,14 @@ const HabitsView = () => {
               </div>
 
               <div className="flex items-center space-x-2 xl:ml-8 border-l border-white/5 pl-8">
-                <button
-                  onClick={() => deleteHabit(habit.id)}
-                  className="p-3 text-slate-700 hover:text-red-500 transition-all"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
+                <Tooltip text="Delete rhythm">
+                  <button
+                    onClick={() => deleteHabit(habit.id)}
+                    className="p-3 text-slate-700 hover:text-red-500 transition-all"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </Tooltip>
               </div>
             </div>
           </GlassCard>
@@ -2888,12 +2940,14 @@ const TrojanChat = () => {
   return (
     <>
       <div className="fixed bottom-4 right-4 sm:bottom-8 sm:right-8 z-[200]">
-        <button
-          onClick={() => setIsOpen(true)}
-          className={`w-14 h-14 rounded-full bg-blue-600 shadow-[0_0_30px_rgba(37,99,235,0.4)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all text-white ${isOpen ? 'opacity-0 pointer-events-none scale-50' : 'opacity-100 scale-100'}`}
-        >
-          <Bot className="w-6 h-6" />
-        </button>
+        <Tooltip text="Talk to Trojan AI">
+          <button
+            onClick={() => setIsOpen(true)}
+            className={`w-14 h-14 rounded-full bg-blue-600 shadow-[0_0_30px_rgba(37,99,235,0.4)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all text-white ${isOpen ? 'opacity-0 pointer-events-none scale-50' : 'opacity-100 scale-100'}`}
+          >
+            <Bot className="w-6 h-6" />
+          </button>
+        </Tooltip>
       </div>
 
       <AnimatePresence>
@@ -2926,9 +2980,11 @@ const TrojanChat = () => {
                   </div>
                 </div>
               </div>
-              <button onClick={() => setIsOpen(false)} className="p-2 text-slate-400 hover:text-white transition-colors">
-                <CloseIcon className="w-5 h-5" />
-              </button>
+              <Tooltip text="Close Chat">
+                <button onClick={() => setIsOpen(false)} className="p-2 text-slate-400 hover:text-white transition-colors">
+                  <CloseIcon className="w-5 h-5" />
+                </button>
+              </Tooltip>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -3060,17 +3116,19 @@ const AppContent = ({
       {/* Navigation Layer */}
       <nav className="fixed top-0 left-0 right-0 z-[60] px-6 lg:px-12 py-6 flex items-center justify-between pointer-events-none">
         <div className="flex items-center space-x-6 pointer-events-auto">
-          <button
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-4 bg-white/[0.03] backdrop-blur-3xl border border-white/[0.08] rounded-2xl text-white hover:bg-white/[0.08] transition-all shadow-2xl relative group overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-white/[0.05] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            {isSidebarOpen ? (
-              <Plus className="w-6 h-6 rotate-45" />
-            ) : (
-              <Menu className="w-6 h-6" />
-            )}
-          </button>
+          <Tooltip text="Toggle Menu">
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="p-4 bg-white/[0.03] backdrop-blur-3xl border border-white/[0.08] rounded-2xl text-white hover:bg-white/[0.08] transition-all shadow-2xl relative group overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-white/[0.05] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              {isSidebarOpen ? (
+                <Plus className="w-6 h-6 rotate-45" />
+              ) : (
+                <Menu className="w-6 h-6" />
+              )}
+            </button>
+          </Tooltip>
 
           <div className="flex items-center space-x-3">
             <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-[0_0_30px_rgba(37,99,235,0.3)]">
@@ -3088,12 +3146,14 @@ const AppContent = ({
         </div>
 
         <div className="flex items-center space-x-3 pointer-events-auto">
-          <button
-            onClick={signOut}
-            className="text-xs font-bold text-slate-500 hover:text-white px-4 py-2 border border-white/10 rounded-xl bg-white/[0.02]"
-          >
-            SIGN OUT
-          </button>
+          <Tooltip text="Sign Out">
+            <button
+              onClick={signOut}
+              className="text-xs font-bold text-slate-500 hover:text-white px-4 py-2 border border-white/10 rounded-xl bg-white/[0.02]"
+            >
+              SIGN OUT
+            </button>
+          </Tooltip>
         </div>
       </nav>
 
@@ -3272,12 +3332,14 @@ const AppContent = ({
           animate={{ opacity: 1, y: 0 }}
           className="fixed bottom-12 left-1/2 -translate-x-1/2 z-[100]"
         >
-          <button
-            onClick={() => setIsZenMode(false)}
-            className="px-8 py-4 bg-white text-black font-black text-xs uppercase tracking-widest rounded-full shadow-[0_20px_50px_rgba(255,255,255,0.2)] hover:scale-105 active:scale-95 transition-all"
-          >
-            Exit Deep Focus
-          </button>
+          <Tooltip text="Exit deep focus HUD mode">
+            <button
+              onClick={() => setIsZenMode(false)}
+              className="px-8 py-4 bg-white text-black font-black text-xs uppercase tracking-widest rounded-full shadow-[0_20px_50px_rgba(255,255,255,0.2)] hover:scale-105 active:scale-95 transition-all"
+            >
+              Exit Deep Focus
+            </button>
+          </Tooltip>
         </motion.div>
       )}
     </div>
