@@ -111,6 +111,76 @@ export const getDailyMotivation = async (mood: string | null) => {
   }
 };
 
+export const getTaskFocusAdvice = async (tasks: any[]) => {
+  try {
+    const ai = getAI();
+    if (!ai) return "Review your tasks and tackle the most urgent one.";
+    
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: [{
+        parts: [{
+          text: `
+          Review these tasks. Give a short, punchy, 2-3 sentence recommendation on exactly what the user should focus on next to build momentum.
+          Tasks: ${JSON.stringify(tasks)}
+        `
+        }]
+      }]
+    });
+    
+    return response.text?.trim() || "Identify the smallest step and take action.";
+  } catch (error) {
+    return "Check your tasks and focus on high-priority items.";
+  }
+};
+
+export const getOverviewFocusAdvice = async (goals: any[], tasks: any[]) => {
+  try {
+    const ai = getAI();
+    if (!ai) return "Review your goals and tasks and tackle the most urgent ones to build momentum.";
+    
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: [{
+        parts: [{
+          text: `
+          Review these goals and tasks. Give a short, punchy, 2-3 sentence recommendation on exactly what the user should focus on today to build momentum across their objectives.
+          Goals: ${JSON.stringify(goals)}
+          Tasks: ${JSON.stringify(tasks)}
+        `
+        }]
+      }]
+    });
+    
+    return response.text?.trim() || "Identify the smallest step and take action.";
+  } catch (error) {
+    return "Check your objectives and focus on high-priority items.";
+  }
+};
+
+export const getGoalFocusAdvice = async (goals: any[]) => {
+  try {
+    const ai = getAI();
+    if (!ai) return "Review your goals and tackle the most urgent one.";
+    
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: [{
+        parts: [{
+          text: `
+          Review these goals and their subtasks. Give a short, punchy, 2-3 sentence recommendation on exactly what the user should focus on next to build momentum.
+          Goals: ${JSON.stringify(goals)}
+        `
+        }]
+      }]
+    });
+    
+    return response.text?.trim() || "Identify the smallest step and take action.";
+  } catch (error) {
+    return "Check your goals and focus on high-priority items.";
+  }
+};
+
 export const getDeepAnalysis = async (userData: any) => {
   try {
     const ai = getAI();

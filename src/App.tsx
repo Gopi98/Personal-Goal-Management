@@ -71,7 +71,7 @@ import {
   Area,
 } from "recharts";
 import { HubProvider, useHub } from "./lib/HubContext";
-import { getAICoachInsight, getTrojanChatResponse, getDailyMotivation, getGoalBreakdown, getDeepAnalysis } from "./lib/gemini";
+import { getAICoachInsight, getTrojanChatResponse, getDailyMotivation, getGoalBreakdown, getDeepAnalysis, getGoalFocusAdvice, getTaskFocusAdvice, getOverviewFocusAdvice } from "./lib/gemini";
 
 // --- Shared Components ---
 
@@ -448,6 +448,18 @@ const HomeView = () => {
   const [insight, setInsight] = useState<string | null>(null);
   const [motivation, setMotivation] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [focusAdvice, setFocusAdvice] = useState<string | null>(null);
+  const [isGettingAdvice, setIsGettingAdvice] = useState(false);
+
+  const handleGetFocusAdvice = async () => {
+    setIsGettingAdvice(true);
+    const advice = await getOverviewFocusAdvice(
+      goals.filter(g => !g.completed),
+      tasks.filter(t => !t.completed)
+    );
+    setFocusAdvice(advice);
+    setIsGettingAdvice(false);
+  };
 
   useEffect(() => {
     const fetchMotivation = async () => {
@@ -667,6 +679,52 @@ const HomeView = () => {
           </div>
         </div>
       </motion.div>
+
+      <div className="max-w-4xl mx-auto w-full space-y-4">
+        <Tooltip text="Get AI advice on where to direct your energy next">
+          <button 
+            onClick={handleGetFocusAdvice}
+            disabled={isGettingAdvice}
+            className="w-full bg-white/5 border border-white/10 rounded-2xl p-6 flex items-center space-x-4 text-blue-400 cursor-pointer hover:bg-white/10 transition-all text-left disabled:opacity-50 group shadow-[0_20px_50px_rgba(0,0,0,0.2)]"
+          >
+            <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+              {isGettingAdvice ? <RotateCcw className="w-6 h-6 animate-spin" /> : <Sparkles className="w-6 h-6" />}
+            </div>
+            <div className="flex-1">
+              <p className="text-lg font-black tracking-tight text-white mb-1">
+                {isGettingAdvice ? "Analyzing organizational vectors..." : "Tell me what to focus on today"}
+              </p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                Execute cross-domain analysis
+              </p>
+            </div>
+          </button>
+        </Tooltip>
+        
+        <AnimatePresence>
+          {focusAdvice && (
+            <motion.div
+              initial={{ opacity: 0, height: 0, scale: 0.95 }}
+              animate={{ opacity: 1, height: 'auto', scale: 1 }}
+              exit={{ opacity: 0, height: 0, scale: 0.95 }}
+              className="bg-blue-600/10 border border-blue-500/20 rounded-3xl p-8 relative overflow-hidden shadow-2xl"
+            >
+              <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 blur-[100px] rounded-full" />
+              <div className="relative z-10 flex items-start space-x-6">
+                <div className="w-14 h-14 rounded-[20px] bg-blue-500/20 flex-shrink-0 flex items-center justify-center border border-blue-500/30">
+                  <Bot className="w-6 h-6 text-blue-400" />
+                </div>
+                <div className="flex-1 space-y-2">
+                  <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2">Executive Summary</p>
+                  <p className="text-lg md:text-xl font-medium text-blue-50 leading-relaxed font-display">
+                    {focusAdvice}
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* Quick Access Grid */}
       <div className="space-y-6">
@@ -1071,6 +1129,15 @@ const GoalsView = () => {
     {},
   );
   const [parentGoalId, setParentGoalId] = useState<string | undefined>();
+  const [focusAdvice, setFocusAdvice] = useState<string | null>(null);
+  const [isGettingAdvice, setIsGettingAdvice] = useState(false);
+
+  const handleGetFocusAdvice = async () => {
+    setIsGettingAdvice(true);
+    const advice = await getGoalFocusAdvice(goals.filter(g => !g.completed));
+    setFocusAdvice(advice);
+    setIsGettingAdvice(false);
+  };
 
   const handleAutoSplit = async (goal: any) => {
     setIsSplitting({ ...isSplitting, [goal.id]: true });
@@ -1244,14 +1311,41 @@ const GoalsView = () => {
         </div>
       </GlassCard>
 
-      <Tooltip text="Get AI advice on where to direct your energy next">
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center space-x-3 text-blue-400 cursor-pointer hover:bg-white/10 transition-all max-w-4xl mx-auto">
-          <Sparkles className="w-4 h-4" />
-          <span className="text-sm font-semibold">
-            Tell me what to focus on
-          </span>
-        </div>
-      </Tooltip>
+      <div className="max-w-4xl mx-auto w-full space-y-4">
+        <Tooltip text="Get AI advice on where to direct your energy next">
+          <button 
+            onClick={handleGetFocusAdvice}
+            disabled={isGettingAdvice}
+            className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center space-x-3 text-blue-400 cursor-pointer hover:bg-white/10 transition-all text-left disabled:opacity-50"
+          >
+            {isGettingAdvice ? <RotateCcw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            <span className="text-sm font-semibold">
+              {isGettingAdvice ? "Analyzing targets..." : "Tell me what to focus on"}
+            </span>
+          </button>
+        </Tooltip>
+        
+        <AnimatePresence>
+          {focusAdvice && (
+            <motion.div
+              initial={{ opacity: 0, height: 0, scale: 0.95 }}
+              animate={{ opacity: 1, height: 'auto', scale: 1 }}
+              exit={{ opacity: 0, height: 0, scale: 0.95 }}
+              className="bg-blue-600/10 border border-blue-500/20 rounded-2xl p-6 relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-3xl rounded-full" />
+              <div className="relative z-10 flex items-start space-x-4">
+                <div className="w-10 h-10 rounded-full bg-blue-500/20 flex-shrink-0 flex items-center justify-center">
+                  <Bot className="w-5 h-5 text-blue-400" />
+                </div>
+                <div className="flex-1 space-y-2 text-sm text-blue-100 leading-relaxed">
+                  {focusAdvice}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {filteredGoals.map((goal) => (
@@ -1484,6 +1578,15 @@ const TasksView = () => {
   const [isSplitting, setIsSplitting] = useState<{ [key: string]: boolean }>({});
   const [isPrioritizing, setIsPrioritizing] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "matrix">("list");
+  const [focusAdvice, setFocusAdvice] = useState<string | null>(null);
+  const [isGettingAdvice, setIsGettingAdvice] = useState(false);
+
+  const handleGetFocusAdvice = async () => {
+    setIsGettingAdvice(true);
+    const advice = await getTaskFocusAdvice(tasks.filter(t => !t.completed));
+    setFocusAdvice(advice);
+    setIsGettingAdvice(false);
+  };
 
   const handleApplySmartPrioritize = async () => {
     setIsPrioritizing(true);
@@ -1798,6 +1901,42 @@ const TasksView = () => {
           />
         </div>
       </GlassCard>
+
+      <div className="max-w-4xl mx-auto w-full space-y-4">
+        <Tooltip text="Get AI advice on where to direct your energy next">
+          <button 
+            onClick={handleGetFocusAdvice}
+            disabled={isGettingAdvice}
+            className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center space-x-3 text-blue-400 cursor-pointer hover:bg-white/10 transition-all text-left disabled:opacity-50"
+          >
+            {isGettingAdvice ? <RotateCcw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            <span className="text-sm font-semibold">
+              {isGettingAdvice ? "Analyzing targets..." : "Tell me what to focus on"}
+            </span>
+          </button>
+        </Tooltip>
+        
+        <AnimatePresence>
+          {focusAdvice && (
+            <motion.div
+              initial={{ opacity: 0, height: 0, scale: 0.95 }}
+              animate={{ opacity: 1, height: 'auto', scale: 1 }}
+              exit={{ opacity: 0, height: 0, scale: 0.95 }}
+              className="bg-blue-600/10 border border-blue-500/20 rounded-2xl p-6 relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-3xl rounded-full" />
+              <div className="relative z-10 flex items-start space-x-4">
+                <div className="w-10 h-10 rounded-full bg-blue-500/20 flex-shrink-0 flex items-center justify-center">
+                  <Bot className="w-5 h-5 text-blue-400" />
+                </div>
+                <div className="flex-1 space-y-2 text-sm text-blue-100 leading-relaxed">
+                  {focusAdvice}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {viewMode === "list" ? (
       <DragDropContext onDragEnd={handleDragEnd}>
