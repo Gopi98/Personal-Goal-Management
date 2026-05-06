@@ -14,26 +14,30 @@ When deploying this project to Netlify, Vercel, or GitHub Pages, you **must** co
 
 **(Firebase config is automatically included via \`firebase-applet-config.json\`)**
 
-### 1-Click Deploy to Netlify
+### Deployment via GitHub Pages (Free & Automatic)
 
-[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/YOUR_GITHUB_USERNAME/YOUR_REPOSITORY_NAME)
+This repository includes a GitHub Actions workflow that automatically builds and deploys your site to GitHub Pages whenever you push to the `main` branch.
 
-***Note**: Before clicking, make sure you push this code to a public GitHub repository, then replace \`YOUR_GITHUB_USERNAME/YOUR_REPOSITORY_NAME\` in the URL above with your actual repository details.*
+**Steps to deploy from GitHub:**
 
-### Manual Deployment via GitHub + Netlify
-
-1. **Export the app** from AI Studio (Settings > Export as ZIP / Export to GitHub).
-2. **Push to GitHub** (if you exported as a ZIP).
-3. Go to [Netlify](https://app.netlify.com/) and click **Add New Site** > **Import an existing project**.
-4. Connect your GitHub account and select this repository.
-5. In the **Build Settings**:
-   - **Base directory:** (leave empty)
-   - **Build command:** \`npm run build\`
-   - **Publish directory:** \`dist\`
-6. Click **Advanced build settings** > **New variable**:
-   - Key: \`VITE_GEMINI_API_KEY\`
-   - Value: *(Your Gemini API Key)*
-7. Click **Deploy**.
+1. **Export the app** from AI Studio: Go to Settings (gear icon) > **Export to GitHub**.
+2. Go to your newly created GitHub repository.
+3. Add your Gemini API Key so it works in production:
+   - Go to your repository **Settings**.
+   - Navigate to **Secrets and variables** > **Actions** (under the "Security" section on the left sidebar).
+   - Click the **New repository secret** button.
+   - For **Name**, enter: `VITE_GEMINI_API_KEY`
+   - For **Secret**, paste your actual Gemini API Key.
+   - Click **Add secret**.
+4. Enable GitHub Pages to use GitHub Actions:
+   - Go to your repository **Settings**.
+   - Select **Pages** from the left sidebar.
+   - Under **Build and deployment** > **Source**, change from "Deploy from a branch" to **GitHub Actions**.
+5. Trigger your first deployment:
+   - Go to the **Actions** tab at the top of your GitHub repository.
+   - Click on the **"Deploy to GitHub Pages"** workflow.
+   - Click the **"Run workflow"** button on the right side.
+6. Once the workflow finishes successfully, your site will be live! GitHub will provide the link to your deployed app on the right sidebar of the repo home page (under "Environments" -> "github-pages").
 
 ## Running Locally
 
