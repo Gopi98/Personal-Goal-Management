@@ -58,11 +58,13 @@ interface HubContextType {
   updateGoal: (goalId: string, updates: any) => void;
   deleteSubtask: (goalId: string, subtaskId: string) => void;
   addTask: (task: Omit<Task, 'id' | 'completed' | 'subtasks'> & { subtasks?: any[] }) => Promise<string | undefined>;
+  updateTask: (taskId: string, updates: any) => void;
   addTaskSubtask: (taskId: string, title: string) => void;
   bulkAddTaskSubtasks: (taskId: string, subtasks: string[]) => void;
   toggleTaskSubtask: (taskId: string, subtaskId: string) => void;
   deleteTaskSubtask: (taskId: string, subtaskId: string) => void;
-  addHabit: (title: string) => void;
+  addHabit: (title: string, frequency?: string) => void;
+  updateHabit: (habitId: string, updates: any) => void;
   toggleGoal: (id: string) => void;
   toggleTask: (id: string) => void;
   toggleHabit: (id: string, date: string) => void;
@@ -237,17 +239,23 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ownerId: user.uid
     };
     if (t.duration) data.duration = t.duration;
-    if (t.energy) data.energy = t.energy;
     if (t.type) data.type = t.type;
     if (t.tags) data.tags = t.tags;
     if (t.startTime) data.startTime = t.startTime;
     if (t.endTime) data.endTime = t.endTime;
     if (t.parentGoalTitle) data.parentGoalTitle = t.parentGoalTitle;
+    if (t.linkedHabitId) data.linkedHabitId = t.linkedHabitId;
     
     Object.keys(data).forEach(key => data[key] === undefined && delete data[key]);
     
     try { await setDoc(docRef, data); } catch(e) { handleFirestoreError(e, OperationType.CREATE, docRef.path); }
     return id;
+  };
+
+  const updateTask = async (taskId: string, updates: any) => {
+    if (!user) return;
+    const docRef = doc(db, `users/${user.uid}/tasks`, taskId);
+    try { await updateDoc(docRef, updates); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
   const addTaskSubtask = async (taskId: string, title: string) => {
@@ -286,11 +294,17 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try { await updateDoc(docRef, { subtasks }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
-  const addHabit = async (title: string) => {
+  const addHabit = async (title: string, frequency: string = 'daily') => {
     if (!user) return;
     const id = Math.random().toString(36).substr(2, 9);
     const docRef = doc(db, `users/${user.uid}/habits`, id);
-    try { await setDoc(docRef, { title, streak: 0, completedHistory: {}, ownerId: user.uid }); } catch(e) { handleFirestoreError(e, OperationType.CREATE, docRef.path); }
+    try { await setDoc(docRef, { title, frequency, streak: 0, completedHistory: {}, ownerId: user.uid }); } catch(e) { handleFirestoreError(e, OperationType.CREATE, docRef.path); }
+  };
+
+  const updateHabit = async (habitId: string, updates: any) => {
+    if (!user) return;
+    const docRef = doc(db, `users/${user.uid}/habits`, habitId);
+    try { await updateDoc(docRef, updates); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
   const toggleGoal = async (id: string) => {
@@ -305,8 +319,17 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!user) return;
     const t = tasks.find(x => x.id === id);
     if (!t) return;
+    const isNowCompleted = !t.completed;
     const docRef = doc(db, `users/${user.uid}/tasks`, id);
-    try { await updateDoc(docRef, { completed: !t.completed }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
+    try {
+      await updateDoc(docRef, { completed: isNowCompleted });
+      if (t.linkedHabitId) {
+        const h = habits.find(x => x.id === t.linkedHabitId);
+        if (h && !!h.completedHistory[t.date] !== isNowCompleted) {
+          toggleHabit(t.linkedHabitId, t.date);
+        }
+      }
+    } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
   const toggleHabit = async (id: string, date: string) => {
@@ -413,8 +436,8 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       goals, tasks, habits, selectedMood, setSelectedMood, reflections, addReflection,
       focusTaskId, setFocusTaskId, focusSessions, addFocusSession, smartPrioritizeTasks,
       addGoal, addSubtask, bulkAddGoalSubtasks, toggleSubtask, updateGoal, deleteSubtask,
-      addTask, addTaskSubtask, bulkAddTaskSubtasks, toggleTaskSubtask, deleteTaskSubtask,
-      addHabit,
+      addTask, updateTask, addTaskSubtask, bulkAddTaskSubtasks, toggleTaskSubtask, deleteTaskSubtask,
+      addHabit, updateHabit,
       toggleGoal, toggleTask, toggleHabit,
       deleteGoal, deleteTask, postponeTask, deleteHabit, reorderTasks
     }}>

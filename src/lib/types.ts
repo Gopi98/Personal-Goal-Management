@@ -24,7 +24,6 @@ export interface Task {
   startTime?: string;
   endTime?: string;
   duration?: string;
-  energy?: 'High' | 'Medium' | 'Low';
   priority: 'A' | 'B' | 'C' | 'D';
   type?: 'one-off' | 'daily' | 'break';
   completed: boolean;
@@ -32,6 +31,7 @@ export interface Task {
   subtasks: Subtask[];
   order?: number;
   parentGoalTitle?: string;
+  linkedHabitId?: string;
 }
 
 export interface Habit {

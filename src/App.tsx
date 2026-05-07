@@ -451,6 +451,8 @@ const HomeView = () => {
   const [focusAdvice, setFocusAdvice] = useState<string | null>(null);
   const [isGettingAdvice, setIsGettingAdvice] = useState(false);
 
+  const [isRefreshingQuote, setIsRefreshingQuote] = useState(false);
+
   const handleGetFocusAdvice = async () => {
     setIsGettingAdvice(true);
     const advice = await getOverviewFocusAdvice(
@@ -461,15 +463,19 @@ const HomeView = () => {
     setIsGettingAdvice(false);
   };
 
+  const fetchMotivation = async () => {
+    setIsRefreshingQuote(true);
+    try {
+      const m = await getDailyMotivation(selectedMood);
+      setMotivation(m);
+    } catch (e) {
+      console.error("Motivation error:", e);
+    }
+    // a small artificial delay so the user feels the refresh if it happens too fast
+    setTimeout(() => setIsRefreshingQuote(false), 300);
+  };
+
   useEffect(() => {
-    const fetchMotivation = async () => {
-      try {
-        const m = await getDailyMotivation(selectedMood);
-        setMotivation(m);
-      } catch (e) {
-        console.error("Motivation error:", e);
-      }
-    };
     fetchMotivation();
   }, [selectedMood]);
 
@@ -513,9 +519,7 @@ const HomeView = () => {
       };
       suggestionIcon = Target;
       suggestedTask = [...incompleteTasks].sort((a, b) => {
-        if (a.priority !== b.priority) return String(a.priority || "D").localeCompare(String(b.priority || "D"));
-        const energyScore: any = { "High": 3, "Medium": 2, "Low": 1, undefined: 0 };
-        return (energyScore[b.energy as keyof typeof energyScore] || 0) - (energyScore[a.energy as keyof typeof energyScore] || 0);
+        return String(a.priority || "D").localeCompare(String(b.priority || "D"));
       })[0];
     } else if (selectedMood === "Stress" || selectedMood === "Tired") {
       suggestionTitle = "Quick Win";
@@ -528,11 +532,7 @@ const HomeView = () => {
       };
       suggestionIcon = Sparkles;
       suggestedTask = [...incompleteTasks].sort((a, b) => {
-        const energyScore: any = { "Low": 3, "Medium": 2, "High": 1, undefined: 0 };
-        const scoreA = (energyScore[a.energy as keyof typeof energyScore] || 0);
-        const scoreB = (energyScore[b.energy as keyof typeof energyScore] || 0);
-        if (scoreA !== scoreB) return scoreB - scoreA;
-        return (b.priority || "D").localeCompare(a.priority || "D"); // actually prefer lower priority if tired? D or C. let's just pick easiest energy
+        return (b.priority || "D").localeCompare(a.priority || "D"); 
       })[0];
     } else if (selectedMood === "Calm") {
       suggestionTitle = "Flow State";
@@ -545,16 +545,12 @@ const HomeView = () => {
       };
       suggestionIcon = Sparkles;
       suggestedTask = [...incompleteTasks].sort((a, b) => {
-        if (a.priority !== b.priority) return String(a.priority || "D").localeCompare(String(b.priority || "D"));
-        const energyScore: any = { "Medium": 3, "High": 2, "Low": 1, undefined: 0 };
-        return (energyScore[b.energy as keyof typeof energyScore] || 0) - (energyScore[a.energy as keyof typeof energyScore] || 0);
+        return String(a.priority || "D").localeCompare(String(b.priority || "D"));
       })[0];
     } else {
       // Default (No mood selected) falls back to Eat the frog
       suggestedTask = [...incompleteTasks].sort((a, b) => {
-        if (a.priority !== b.priority) return String(a.priority || "D").localeCompare(String(b.priority || "D"));
-        const energyScore: any = { "High": 3, "Medium": 2, "Low": 1, undefined: 0 };
-        return (energyScore[b.energy as keyof typeof energyScore] || 0) - (energyScore[a.energy as keyof typeof energyScore] || 0);
+        return String(a.priority || "D").localeCompare(String(b.priority || "D"));
       })[0];
     }
   }
@@ -611,7 +607,7 @@ const HomeView = () => {
           <h2 className="text-4xl md:text-5xl lg:text-6xl font-display font-black tracking-tighter text-white leading-[0.9]">
             System <span className="text-blue-600">Operational.</span>
             <br />
-            Good afternoon.
+            {new Date().getHours() < 12 ? "Good morning." : new Date().getHours() < 17 ? "Good afternoon." : "Good evening."}
           </h2>
           <p className="text-slate-400 text-lg md:text-xl font-medium max-w-lg leading-relaxed">
             Your command center is synchronized. Current trajectory:{" "}
@@ -653,18 +649,26 @@ const HomeView = () => {
         <div className="absolute inset-0 bg-gradient-to-br from-blue-600/[0.1] via-indigo-600/[0.05] to-purple-600/[0.1] backdrop-blur-3xl border border-white/[0.08]" />
         <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 blur-[120px] rounded-full -mr-32 -mt-32 opacity-50" />
         <div className="relative p-12 sm:p-20 flex flex-col items-center text-center space-y-8">
-          <div className="flex flex-col items-center space-y-2">
+          <div className="flex flex-col items-center space-y-2 relative">
             <div className="flex items-center space-x-3 text-blue-500">
               <Quote className="w-5 h-5 opacity-40" />
               <span className="text-[10px] font-black uppercase tracking-[0.5em] font-mono opacity-60">
                 Quote of the Day
               </span>
+              <button 
+                onClick={fetchMotivation}
+                disabled={isRefreshingQuote}
+                className={`ml-2 p-1.5 rounded-full hover:bg-white/5 transition-colors ${isRefreshingQuote ? 'animate-spin opacity-50' : 'opacity-40 hover:opacity-100 text-blue-400'}`}
+                title="Get a new quote"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
             </div>
             <p className="text-[10px] font-black text-slate-700 uppercase tracking-widest">
               Cognitive Priming Protocol
             </p>
           </div>
-          <blockquote className="text-3xl sm:text-4xl md:text-5xl font-display font-black text-white leading-[1] tracking-tighter max-w-4xl drop-shadow-2xl">
+          <blockquote className={`text-3xl sm:text-4xl md:text-5xl font-display font-black text-white leading-[1] tracking-tighter max-w-4xl drop-shadow-2xl transition-opacity duration-300 ${isRefreshingQuote ? 'opacity-0' : 'opacity-100'}`}>
             {motivation || "Focus is the art of knowing what to ignore."}
           </blockquote>
           <div className="flex items-center space-x-8">
@@ -819,11 +823,6 @@ const HomeView = () => {
                 <span className={`px-3 py-1 ${sStyle.pillBg} border ${sStyle.pillBorder} ${sStyle.text} text-[10px] uppercase font-black tracking-widest rounded-full`}>
                   Priority {suggestedTask.priority}
                 </span>
-                {suggestedTask.energy && (
-                  <span className="px-3 py-1 bg-white/5 border border-white/10 text-slate-300 text-[10px] uppercase font-black tracking-widest rounded-full">
-                    {suggestedTask.energy} Energy
-                  </span>
-                )}
               </div>
             )}
           </div>
@@ -1133,6 +1132,21 @@ const GoalsView = () => {
   const [focusAdvice, setFocusAdvice] = useState<string | null>(null);
   const [isGettingAdvice, setIsGettingAdvice] = useState(false);
 
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [editingGoalData, setEditingGoalData] = useState<{ title: string; priority: string; type: string }>({ title: "", priority: "B", type: "weekly" });
+
+  const startEditingGoal = (goal: any) => {
+    setEditingGoalId(goal.id);
+    setEditingGoalData({ title: goal.title, priority: goal.priority, type: goal.type });
+  };
+
+  const saveEditingGoal = () => {
+    if (editingGoalId) {
+      updateGoal(editingGoalId, editingGoalData);
+      setEditingGoalId(null);
+    }
+  };
+
   const handleGetFocusAdvice = async () => {
     setIsGettingAdvice(true);
     const advice = await getGoalFocusAdvice(goals.filter(g => !g.completed));
@@ -1154,8 +1168,18 @@ const GoalsView = () => {
       ? goals
       : goals.filter((g) => g.type === filter.toLowerCase());
 
+  const [goalError, setGoalError] = useState("");
+
   const handleAdd = (type: "yearly" | "monthly" | "weekly") => {
     if (!newTitle.trim()) return;
+
+    const exists = goals.some(g => g.title.toLowerCase() === newTitle.trim().toLowerCase() && g.type === type);
+    if (exists) {
+      setGoalError(`A ${type} goal with this title already exists.`);
+      setTimeout(() => setGoalError(""), 3000);
+      return;
+    }
+
     addGoal({
       title: newTitle,
       type,
@@ -1213,6 +1237,25 @@ const GoalsView = () => {
                 <ChevronDown className="w-5 h-5" />
               </button>
             </Tooltip>
+            {editingGoalId === goal.id ? (
+              <Tooltip text="Save">
+                <button
+                  onClick={saveEditingGoal}
+                  className="p-3 text-green-500 hover:text-green-400 transition-colors"
+                >
+                  <CheckSquare className="w-5 h-5" />
+                </button>
+              </Tooltip>
+            ) : (
+              <Tooltip text="Edit goal">
+                <button
+                  onClick={() => startEditingGoal(goal)}
+                  className="p-3 hover:text-blue-500 transition-colors text-slate-700"
+                >
+                  <Edit3 className="w-5 h-5" />
+                </button>
+              </Tooltip>
+            )}
             <Tooltip text="Delete goal">
               <button
                 onClick={() => deleteGoal(goal.id)}
@@ -1225,19 +1268,61 @@ const GoalsView = () => {
         </div>
 
         <div className="space-y-2">
-          <h4
-            className={`text-2xl font-display font-black tracking-tight ${goal.completed ? "line-through text-slate-600" : "text-white"}`}
-          >
-            {goal.title}
-          </h4>
-          <div className="flex items-center space-x-3">
-            <span className="text-[9px] font-black bg-blue-600/20 text-blue-400 px-3 py-1 rounded-full uppercase tracking-widest">
-              {goal.type}
-            </span>
-            <span className="text-[9px] font-black bg-white/10 text-slate-500 px-3 py-1 rounded-full uppercase tracking-widest">
-              Priority {goal.priority}
-            </span>
-          </div>
+          {editingGoalId === goal.id ? (
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={editingGoalData.title}
+                onChange={(e) => setEditingGoalData({ ...editingGoalData, title: e.target.value })}
+                className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-white font-black tracking-tight"
+                placeholder="Goal Title"
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <select
+                  value={editingGoalData.type}
+                  onChange={(e) => setEditingGoalData({ ...editingGoalData, type: e.target.value })}
+                  className="bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-white text-xs uppercase"
+                >
+                  <option value="yearly">Yearly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="weekly">Weekly</option>
+                </select>
+                <select
+                  value={editingGoalData.priority}
+                  onChange={(e) => setEditingGoalData({ ...editingGoalData, priority: e.target.value })}
+                  className="bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-white text-xs uppercase"
+                >
+                  <option value="A">Priority A</option>
+                  <option value="B">Priority B</option>
+                  <option value="C">Priority C</option>
+                  <option value="D">Priority D</option>
+                </select>
+              </div>
+            </div>
+          ) : (
+            <>
+              <h4
+                className={`text-2xl font-display font-black tracking-tight ${goal.completed ? "line-through text-slate-600" : "text-white"}`}
+              >
+                {goal.title}
+              </h4>
+              {goal.parentGoalTitle && (
+                <p className="text-xs text-blue-400/80 font-bold uppercase tracking-wider flex items-center gap-1 mb-2">
+                  <Target className="w-3 h-3" />
+                  From: {goal.parentGoalTitle}
+                </p>
+              )}
+              <div className="flex items-center space-x-3">
+                <span className="text-[9px] font-black bg-blue-600/20 text-blue-400 px-3 py-1 rounded-full uppercase tracking-widest">
+                  {goal.type}
+                </span>
+                <span className="text-[9px] font-black bg-white/10 text-slate-500 px-3 py-1 rounded-full uppercase tracking-widest">
+                  Priority {goal.priority}
+                </span>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="space-y-3">
@@ -1530,6 +1615,14 @@ const GoalsView = () => {
               </button>
             </div>
           </div>
+          {goalError && (
+            <motion.p
+              initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
+              className="text-red-400 text-[10px] font-black uppercase tracking-widest text-center mt-3 animate-pulse"
+            >
+              {goalError}
+            </motion.p>
+          )}
         </div>
       </GlassCard>
 
@@ -1621,6 +1714,7 @@ const TasksView = () => {
   const {
     tasks,
     addTask,
+    updateTask,
     toggleTask,
     deleteTask,
     postponeTask,
@@ -1640,7 +1734,6 @@ const TasksView = () => {
   const [duration, setDuration] = useState("30m");
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("09:30");
-  const [energy, setEnergy] = useState<"High" | "Medium" | "Low">("Medium");
   const [type, setType] = useState<"one-off" | "daily" | "break">("one-off");
   const [tags, setTags] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -1652,6 +1745,21 @@ const TasksView = () => {
   const [viewMode, setViewMode] = useState<"list" | "matrix">("list");
   const [focusAdvice, setFocusAdvice] = useState<string | null>(null);
   const [isGettingAdvice, setIsGettingAdvice] = useState(false);
+
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editingTaskData, setEditingTaskData] = useState<{ title: string; priority: string }>({ title: "", priority: "B" });
+
+  const startEditingTask = (task: any) => {
+    setEditingTaskId(task.id);
+    setEditingTaskData({ title: task.title, priority: task.priority || "B" });
+  };
+
+  const saveEditingTask = () => {
+    if (editingTaskId) {
+      updateTask(editingTaskId, editingTaskData);
+      setEditingTaskId(null);
+    }
+  };
 
   const handleGetFocusAdvice = async () => {
     setIsGettingAdvice(true);
@@ -1687,16 +1795,27 @@ const TasksView = () => {
     reorderTasks(result.source.index, result.destination.index);
   };
 
+  const [taskError, setTaskError] = useState("");
+
   const handleAdd = () => {
     if (!newTitle.trim()) return;
+    
+    const today = new Date().toISOString().split("T")[0];
+    const exists = tasks.some(t => t.title.toLowerCase() === newTitle.trim().toLowerCase() && t.date === today);
+    
+    if (exists) {
+      setTaskError("A task with this title already exists today.");
+      setTimeout(() => setTaskError(""), 3000);
+      return;
+    }
+
     addTask({
       title: newTitle,
-      date: new Date().toISOString().split("T")[0],
+      date: today,
       priority,
       startTime,
       endTime,
       duration,
-      energy,
       type: type as any,
       tags: tags
         .split(",")
@@ -1722,7 +1841,7 @@ const TasksView = () => {
           "00";
         const endDateTime =
           today.replace(/-/g, "") + "T" + task.endTime.replace(":", "") + "00";
-        icsContent += `BEGIN:VEVENT\nSUMMARY:${task.title}\nDTSTART:${startDateTime}\nDTEND:${endDateTime}\nDESCRIPTION:Energy: ${task.energy}\nEND:VEVENT\n`;
+        icsContent += `BEGIN:VEVENT\nSUMMARY:${task.title}\nDTSTART:${startDateTime}\nDTEND:${endDateTime}\nEND:VEVENT\n`;
       });
     icsContent += "END:VCALENDAR";
 
@@ -1827,7 +1946,7 @@ const TasksView = () => {
             <span>{isPrioritizing ? "Ranking..." : "Smart Sort"}</span>
           </button>
           <div className="absolute right-0 top-full mt-2 w-64 p-3 bg-blue-900 border border-blue-500/30 text-xs text-blue-100 rounded-xl shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all z-50 pointer-events-none font-sans font-normal normal-case tracking-normal text-left">
-            Automatically analyzes and sets the priority (A, B, C, D) and energy level of all your tasks based on context using the Eisenhower Matrix.
+            Automatically analyzes and sets the priority (A, B, C, D) of all your tasks based on context using the Eisenhower Matrix.
              <div className="absolute right-8 bottom-full w-0 h-0 border-l-[6px] border-r-[6px] border-b-[6px] border-l-transparent border-r-transparent border-b-blue-900"></div>
           </div>
         </div>
@@ -1944,19 +2063,6 @@ const TasksView = () => {
               />
             </div>
 
-            <div className="flex items-center bg-white/5 rounded-2xl px-5 py-3 border border-white/5 text-[10px] font-black text-slate-400">
-              <Zap className="w-4 h-4 mr-2 text-blue-500" />
-              <select
-                value={energy}
-                onChange={(e) => setEnergy(e.target.value as any)}
-                className="bg-transparent border-none p-0 focus:ring-0 cursor-pointer text-white font-black uppercase [&>option]:bg-[#0a0a0c] [&>option]:text-white"
-              >
-                <option value="High">Hyper</option>
-                <option value="Medium">Steady</option>
-                <option value="Low">Mellow</option>
-              </select>
-            </div>
-
             <button
               onClick={handleAdd}
               className="w-full sm:w-auto bg-white text-black font-black text-[10px] uppercase tracking-[0.2em] px-10 py-3.5 rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-xl shadow-white/5"
@@ -1964,6 +2070,14 @@ const TasksView = () => {
               + Deploy
             </button>
           </div>
+          {taskError && (
+            <motion.p
+               initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
+               className="text-red-400 text-[10px] font-black uppercase tracking-widest text-center mt-3 animate-pulse"
+            >
+              {taskError}
+            </motion.p>
+          )}
           <input
             type="text"
             value={tags}
@@ -2070,30 +2184,53 @@ const TasksView = () => {
                         </div>
 
                         <div className="flex-1 space-y-4">
-                          <h5
-                            className={`text-xl font-display font-black tracking-tight leading-tight transition-all ${task.completed ? "text-slate-600 line-through opacity-50" : "text-white"}`}
-                          >
-                            {task.title}
-                          </h5>
-                          {task.parentGoalTitle && (
-                            <p className="text-xs text-blue-400/80 font-bold uppercase tracking-wider flex items-center gap-1 mt-1">
-                              <Target className="w-3 h-3" />
-                              From: {task.parentGoalTitle}
-                            </p>
+                          {editingTaskId === task.id ? (
+                            <div className="space-y-3">
+                              <input
+                                type="text"
+                                value={editingTaskData.title}
+                                onChange={(e) => setEditingTaskData({ ...editingTaskData, title: e.target.value })}
+                                className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-white font-black tracking-tight"
+                                placeholder="Task Title"
+                                autoFocus
+                              />
+                              <div className="flex gap-2">
+                                <select
+                                  value={editingTaskData.priority}
+                                  onChange={(e) => setEditingTaskData({ ...editingTaskData, priority: e.target.value })}
+                                  className="bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-white text-xs uppercase"
+                                >
+                                  <option value="A">Priority A</option>
+                                  <option value="B">Priority B</option>
+                                  <option value="C">Priority C</option>
+                                </select>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <h5
+                                className={`text-xl font-display font-black tracking-tight leading-tight transition-all ${task.completed ? "text-slate-600 line-through opacity-50" : "text-white"}`}
+                              >
+                                {task.title}
+                              </h5>
+                              {task.parentGoalTitle && (
+                                <p className="text-xs text-blue-400/80 font-bold uppercase tracking-wider flex items-center gap-1 mt-1">
+                                  <Target className="w-3 h-3" />
+                                  From: {task.parentGoalTitle}
+                                </p>
+                              )}
+                              <div className="flex flex-wrap gap-2 mt-4">
+                                {task.startTime && (
+                                  <span className="text-[9px] font-black bg-blue-600/20 text-blue-400 px-3 py-1 rounded-full uppercase">
+                                    {task.startTime} - {task.endTime || "??:??"}
+                                  </span>
+                                )}
+                                <span className="text-[9px] font-black bg-white/10 text-slate-500 px-3 py-1 rounded-full uppercase">
+                                  {task.duration || "30m"}
+                                </span>
+                              </div>
+                            </>
                           )}
-                          <div className="flex flex-wrap gap-2 mt-4">
-                            {task.startTime && (
-                              <span className="text-[9px] font-black bg-blue-600/20 text-blue-400 px-3 py-1 rounded-full uppercase">
-                                {task.startTime} - {task.endTime || "??:??"}
-                              </span>
-                            )}
-                            <span className="text-[9px] font-black bg-white/10 text-slate-500 px-3 py-1 rounded-full uppercase">
-                              {task.energy || "Steady"}
-                            </span>
-                            <span className="text-[9px] font-black bg-white/10 text-slate-500 px-3 py-1 rounded-full uppercase">
-                              {task.duration || "30m"}
-                            </span>
-                          </div>
                         </div>
 
                         <div className="mt-8 pt-6 border-t border-white/5 flex items-center justify-between">
@@ -2120,6 +2257,25 @@ const TasksView = () => {
                                 <ChevronDown className="w-4 h-4" />
                               </button>
                             </Tooltip>
+                            {editingTaskId === task.id ? (
+                              <Tooltip text="Save">
+                                <button
+                                  onClick={saveEditingTask}
+                                  className="p-2 text-green-500 hover:text-green-400 transition-colors"
+                                >
+                                  <CheckSquare className="w-4 h-4" />
+                                </button>
+                              </Tooltip>
+                            ) : (
+                              <Tooltip text="Edit task">
+                                <button
+                                  onClick={() => startEditingTask(task)}
+                                  className="p-2 text-slate-700 hover:text-blue-500 transition-colors"
+                                >
+                                  <Edit3 className="w-4 h-4" />
+                                </button>
+                              </Tooltip>
+                            )}
                             <Tooltip text="Delete task">
                               <button
                                 onClick={() => deleteTask(task.id)}
@@ -2236,7 +2392,7 @@ const TasksView = () => {
                               </div>
 
                               <p className="text-[10px] uppercase font-black text-slate-600 tracking-widest pt-4 border-t border-white/5">
-                                Energy level: {task.energy} | Planned Duration:{" "}
+                                Planned Duration:{" "}
                                 {task.duration}
                               </p>
                             </motion.div>
@@ -2841,10 +2997,42 @@ const InsightsView = () => {
 // --- Main Layout ---
 
 const HabitsView = () => {
-  const { habits, addHabit, toggleHabit, deleteHabit } = useHub();
+  const { habits, addHabit, updateHabit, toggleHabit, deleteHabit, addTask, tasks } = useHub();
   const [newTitle, setNewTitle] = useState("");
   const [weekOffset, setWeekOffset] = useState(0);
   const today = new Date().toISOString().split("T")[0];
+
+  const [taskCreatedId, setTaskCreatedId] = useState<string | null>(null);
+
+  const handleMakeTask = (habit: any) => {
+    const alreadyExists = tasks.some(t => (t.linkedHabitId === habit.id || t.title.toLowerCase() === habit.title.toLowerCase()) && t.date === today);
+    if (!alreadyExists) {
+      addTask({
+        title: habit.title,
+        priority: 'B',
+        date: today,
+        subtasks: [],
+        linkedHabitId: habit.id
+      });
+    }
+    setTaskCreatedId(habit.id);
+    setTimeout(() => setTaskCreatedId(null), 2000);
+  };
+
+  const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
+  const [editingHabitData, setEditingHabitData] = useState<{ title: string; frequency: string }>({ title: "", frequency: "daily" });
+
+  const startEditingHabit = (habit: any) => {
+    setEditingHabitId(habit.id);
+    setEditingHabitData({ title: habit.title, frequency: habit.frequency || "daily" });
+  };
+
+  const saveEditingHabit = () => {
+    if (editingHabitId) {
+      updateHabit(editingHabitId, editingHabitData);
+      setEditingHabitId(null);
+    }
+  };
 
   const handleAdd = () => {
     if (!newTitle.trim()) return;
@@ -2948,18 +3136,41 @@ const HabitsView = () => {
                     <Flame className="w-6 h-6" />
                   </div>
                   <div>
-                    <h4 className="text-2xl font-display font-black text-white">
-                      {habit.title}
-                    </h4>
-                    <div className="flex items-center space-x-3 mt-1">
-                      <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest font-mono">
-                        Streak: {habit.streak} Days
-                      </span>
-                      <div className="w-1 h-1 rounded-full bg-slate-800" />
-                      <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
-                        Success Rate: 100%
-                      </span>
-                    </div>
+                    {editingHabitId === habit.id ? (
+                      <div className="space-y-2">
+                        <input
+                          type="text"
+                          value={editingHabitData.title}
+                          onChange={(e) => setEditingHabitData({ ...editingHabitData, title: e.target.value })}
+                          className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-white font-black tracking-tight"
+                          placeholder="Rhythm Title"
+                          autoFocus
+                        />
+                        <select
+                          value={editingHabitData.frequency}
+                          onChange={(e) => setEditingHabitData({ ...editingHabitData, frequency: e.target.value })}
+                          className="bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-white text-xs uppercase w-full"
+                        >
+                          <option value="daily">Daily</option>
+                          <option value="weekly">Weekly</option>
+                        </select>
+                      </div>
+                    ) : (
+                      <>
+                        <h4 className="text-2xl font-display font-black text-white">
+                          {habit.title}
+                        </h4>
+                        <div className="flex items-center space-x-3 mt-1">
+                          <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest font-mono">
+                            Streak: {habit.streak} Days
+                          </span>
+                          <div className="w-1 h-1 rounded-full bg-slate-800" />
+                          <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
+                            Success Rate: 100%
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -3004,6 +3215,47 @@ const HabitsView = () => {
               </div>
 
               <div className="flex items-center space-x-2 xl:ml-8 border-l border-white/5 pl-8">
+                {(() => {
+                  const alreadyExists = tasks.some(t => (t.linkedHabitId === habit.id || t.title.toLowerCase() === habit.title.toLowerCase()) && t.date === today);
+                  if (taskCreatedId === habit.id || alreadyExists) {
+                    return (
+                      <Tooltip text="Task Created">
+                        <button className="p-3 text-green-500 bg-green-500/10 rounded-xl transition-all cursor-default">
+                          <CheckCircle2 className="w-5 h-5" />
+                        </button>
+                      </Tooltip>
+                    );
+                  }
+                  return (
+                    <Tooltip text="Make Today's Task">
+                      <button
+                        onClick={() => handleMakeTask(habit)}
+                        className="p-3 text-slate-700 hover:text-orange-500 hover:bg-orange-500/10 rounded-xl transition-all"
+                      >
+                        <Plus className="w-5 h-5" />
+                      </button>
+                    </Tooltip>
+                  );
+                })()}
+                {editingHabitId === habit.id ? (
+                  <Tooltip text="Save">
+                    <button
+                      onClick={saveEditingHabit}
+                      className="p-3 text-green-500 hover:text-green-400 transition-colors"
+                    >
+                      <CheckSquare className="w-5 h-5" />
+                    </button>
+                  </Tooltip>
+                ) : (
+                  <Tooltip text="Edit rhythm">
+                    <button
+                      onClick={() => startEditingHabit(habit)}
+                      className="p-3 text-slate-700 hover:text-blue-500 transition-all"
+                    >
+                      <Edit3 className="w-5 h-5" />
+                    </button>
+                  </Tooltip>
+                )}
                 <Tooltip text="Delete rhythm">
                   <button
                     onClick={() => deleteHabit(habit.id)}
@@ -3033,7 +3285,7 @@ const HabitsView = () => {
 };
 
 const TrojanChat = () => {
-  const { tasks, goals, addTask, addTaskSubtask, addGoal, addSubtask, toggleTask, deleteTask, toggleGoal, deleteGoal } = useHub();
+  const { tasks, goals, habits, addHabit, updateGoal, updateTask, updateHabit, addTask, addTaskSubtask, addGoal, addSubtask, toggleTask, deleteTask, toggleGoal, deleteGoal, bulkAddTaskSubtasks, bulkAddGoalSubtasks } = useHub();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<{ role: "user" | "model"; parts: { text: string }[] }[]>([
     { role: "model", parts: [{ text: "Trojan AI initialized. I can help you prioritize or create tasks and goals. What's your objective?" }] }
@@ -3062,13 +3314,13 @@ const TrojanChat = () => {
 
     const history = messages; // send history
 
-    const response = await getTrojanChatResponse(userMsg.parts[0].text, history, tasks, goals);
+    const response = await getTrojanChatResponse(userMsg.parts[0].text, history, tasks, goals, habits);
 
     if (response?.functionCalls) {
       let functionResponses = [];
       for (const call of response.functionCalls) {
         if (call.name === "createTask") {
-          let { title, priority, energy, subtasks } = call.args;
+          let { title, priority, subtasks } = call.args;
           const today = new Date().toISOString().split('T')[0];
           
           if (!title || typeof title !== 'string') title = 'Untitled Task';
@@ -3079,9 +3331,6 @@ const TrojanChat = () => {
             else if (String(priority).toUpperCase().startsWith('D')) priority = 'D';
             else priority = 'C'; // default
           }
-          if (!['High', 'Medium', 'Low'].includes(energy)) {
-            energy = 'Medium'; // default
-          }
           
           let initialSubtasks: any[] = [];
           if (subtasks && Array.isArray(subtasks)) {
@@ -3091,7 +3340,7 @@ const TrojanChat = () => {
                completed: false
              }));
           }
-          const newTaskId = await addTask({ title, priority, energy, subtasks: initialSubtasks, date: today });
+          const newTaskId = await addTask({ title, priority, subtasks: initialSubtasks, date: today });
           functionResponses.push(`Created task: ${title}` + (initialSubtasks.length ? ` with ${initialSubtasks.length} subtasks` : ''));
         } else if (call.name === "createGoal") {
           let { title, type, priority, subtasks } = call.args;
@@ -3117,6 +3366,52 @@ const TrojanChat = () => {
           }
           const newGoalId = await addGoal({ title, type, priority, completed: false, subtasks: initialSubtasks });
           functionResponses.push(`Created ${type} goal: ${title}` + (initialSubtasks.length ? ` with ${initialSubtasks.length} subtasks` : ''));
+        } else if (call.name === "createHabit") {
+          let { title, frequency } = call.args;
+          if (!title || typeof title !== 'string') title = 'Untitled Rhythm';
+          if (!frequency || typeof frequency !== 'string') frequency = 'daily';
+          await addHabit(title, frequency);
+          functionResponses.push(`Created rhythm: ${title} (${frequency})`);
+        } else if (call.name === "updateTask") {
+          let { id, title, priority, subtasks } = call.args;
+          if (id) {
+            const updates: any = {};
+            if (title) updates.title = title;
+            if (priority) updates.priority = priority;
+            updateTask(id, updates);
+            
+            if (subtasks && Array.isArray(subtasks) && subtasks.length > 0) {
+              bulkAddTaskSubtasks(id, subtasks);
+              functionResponses.push(`Updated task id: ${id} and added ${subtasks.length} subtasks`);
+            } else {
+              functionResponses.push(`Updated task id: ${id}`);
+            }
+          }
+        } else if (call.name === "updateGoal") {
+          let { id, title, priority, type, subtasks } = call.args;
+          if (id) {
+            const updates: any = {};
+            if (title) updates.title = title;
+            if (priority) updates.priority = priority;
+            if (type) updates.type = type;
+            updateGoal(id, updates);
+            
+            if (subtasks && Array.isArray(subtasks) && subtasks.length > 0) {
+              bulkAddGoalSubtasks(id, subtasks);
+              functionResponses.push(`Updated goal id: ${id} and added ${subtasks.length} subtasks`);
+            } else {
+              functionResponses.push(`Updated goal id: ${id}`);
+            }
+          }
+        } else if (call.name === "updateHabit") {
+          let { id, title, frequency } = call.args;
+          if (id) {
+            const updates: any = {};
+            if (title) updates.title = title;
+            if (frequency) updates.frequency = frequency;
+            updateHabit(id, updates);
+            functionResponses.push(`Updated rhythm id: ${id}`);
+          }
         } else if (call.name === "toggleTask") {
           let { id } = call.args;
           if (id) {

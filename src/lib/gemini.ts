@@ -87,27 +87,62 @@ export const getReflectionInsight = async (reflectionText: string) => {
   }
 };
 
+const EPIC_QUOTES = [
+  "Action generates motivation, not the other way around.",
+  "Do not let your yesterday take up too much of your today.",
+  "We are all going to die. But very few of us are actually going to live.",
+  "You cannot find yourself until you are willing to lose yourself.",
+  "The only way to figure out what you love is to do what you hate.",
+  "Comfort is the enemy of progress. Seek discomfort.",
+  "Failure is a punctuation mark, not a full stop.",
+  "Your biggest regret will be the risks you didn't take.",
+  "Overthinking is the art of creating problems that aren't even there.",
+  "Stop waiting for the perfect moment. Take the moment and make it perfect.",
+  "Consistency beats intensity. Do it every day.",
+  "You are not your thoughts. You are the observer of your thoughts.",
+  "If you want different results, do not do the same things.",
+  "The most expensive thing you can buy is the opinion of other people.",
+  "Anxiety is just excitement without the breath.",
+  "Say no. It is a complete sentence.",
+  "If it is not a 'hell yes', it is a 'no'.",
+  "Don't optimize for wealth. Optimize for freedom.",
+  "Success is a lousy teacher. It seduces smart people into thinking they can't lose.",
+  "Your self-worth is not decided by your net worth.",
+  "Respect is earned. Honesty is appreciated. Trust is gained. Loyalty is returned.",
+  "The hardest thing in life is to know which bridge to cross and which to burn.",
+];
+
 export const getDailyMotivation = async (mood: string | null) => {
   try {
-    const ai = getAI();
-    if (!ai) return "The best way to get started is to quit talking and begin doing.";
-    
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [{
-        parts: [{
-          text: `
-          Provide a short, powerful, technical-themed productivity quote or "Daily Proverb" (max 15 words) 
-          tailored to a user who currently feels "${mood || 'ready to focus'}". 
-          Examples: "Code is clean, mind is clear.", "Incremental progress outpaces stalled perfection."
-        `
-        }]
-      }]
-    });
-    
-    return response.text?.trim() || "The best way to get started is to quit talking and begin doing.";
+    // Generate a random index
+    const randomIndex = Math.floor(Math.random() * EPIC_QUOTES.length);
+    let selectedQuote = EPIC_QUOTES[randomIndex];
+
+    // Try to get past quotes from local storage to avoid repeating recently (in the browser)
+    try {
+      const stored = localStorage.getItem('past_epic_quotes');
+      const pastQuotes: string[] = stored ? JSON.parse(stored) : [];
+      
+      // If we've shown it recently, pick another one (try a few times)
+      for (let i = 0; i < 10; i++) {
+        const nextIndex = Math.floor(Math.random() * EPIC_QUOTES.length);
+        if (!pastQuotes.includes(EPIC_QUOTES[nextIndex])) {
+          selectedQuote = EPIC_QUOTES[nextIndex];
+          break;
+        }
+      }
+      
+      // Add the new quote, keep the last 7
+      pastQuotes.push(selectedQuote);
+      if (pastQuotes.length > 7) {
+        pastQuotes.shift(); // Remove oldest
+      }
+      localStorage.setItem('past_epic_quotes', JSON.stringify(pastQuotes));
+    } catch(e) {} // ignore local storage errors
+
+    return selectedQuote;
   } catch (error) {
-    return "Focus is the art of knowing what to ignore.";
+    return "Action creates the motivation, not the other way around.";
   }
 };
 
@@ -248,17 +283,13 @@ export const createTaskDeclaration = {
         type: "STRING",
         description: "Priority level: 'A' for highest/urgent, 'B' for important, 'C' for nice to have.",
       },
-      energy: {
-        type: "STRING",
-        description: "Energy required: 'High', 'Medium', or 'Low'.",
-      },
       subtasks: {
         type: "ARRAY",
         items: { type: "STRING" },
         description: "Optional list of sub-steps to break down this task.",
       }
     },
-    required: ["title", "priority", "energy"],
+    required: ["title", "priority"],
   },
 };
 
@@ -322,11 +353,78 @@ export const deleteGoalDeclaration = {
   },
 };
 
+export const createHabitDeclaration = {
+  name: "createHabit",
+  description: "Creates a new Rhythm (what the user might call a habit), a recurring task that the user wants to perform.",
+  parameters: {
+    type: "OBJECT",
+    properties: {
+      title: { type: "STRING", description: "The title/name of the habit or rhythm." },
+      frequency: { type: "STRING", description: "The frequency (e.g. 'daily', 'weekly'). Defaults to daily." }
+    },
+    required: ["title"]
+  }
+};
+
+export const updateHabitDeclaration = {
+  name: "updateHabit",
+  description: "Updates an existing Rhythm (habit). You must pass the habit's id.",
+  parameters: {
+    type: "OBJECT",
+    properties: {
+      id: { type: "STRING", description: "The id of the habit to update." },
+      title: { type: "STRING", description: "The new title." },
+      frequency: { type: "STRING", description: "The new frequency." }
+    },
+    required: ["id"]
+  }
+};
+
+export const updateGoalDeclaration = {
+  name: "updateGoal",
+  description: "Updates a goal's properties or adds subtasks to it.",
+  parameters: {
+    type: "OBJECT",
+    properties: {
+      id: { type: "STRING", description: "The id of the goal." },
+      title: { type: "STRING", description: "The new title." },
+      priority: { type: "STRING", description: "The new priority (A, B, C, D)." },
+      type: { type: "STRING", description: "The new type (yearly, monthly, weekly)." },
+      subtasks: {
+        type: "ARRAY",
+        items: { type: "STRING" },
+        description: "List of new subtasks to add to this goal.",
+      }
+    },
+    required: ["id"]
+  }
+};
+
+export const updateTaskDeclaration = {
+  name: "updateTask",
+  description: "Updates a task's properties or adds subtasks to it.",
+  parameters: {
+    type: "OBJECT",
+    properties: {
+      id: { type: "STRING", description: "The id of the task." },
+      title: { type: "STRING", description: "The new title." },
+      priority: { type: "STRING", description: "The new priority (A, B, C)." },
+      subtasks: {
+        type: "ARRAY",
+        items: { type: "STRING" },
+        description: "List of new subtasks to add to this task.",
+      }
+    },
+    required: ["id"]
+  }
+};
+
 export const getTrojanChatResponse = async (
   message: string,
   history: { role: "user" | "model"; parts: { text: string }[] }[],
   tasks: any[],
-  goals: any[] = []
+  goals: any[] = [],
+  habits: any[] = []
 ): Promise<any> => {
   try {
     const ai = getAI();
@@ -339,8 +437,8 @@ export const getTrojanChatResponse = async (
       model: "gemini-2.5-flash",
       contents: contents as any,
       config: {
-        systemInstruction: `You are Trojan, an elite AI productivity agent. You help the user manage their tasks and goals (yearly/monthly/weekly). Be concise, militaristic, and professional. Current tasks: ${JSON.stringify(tasks.map((t: any) => ({ id: t.id, title: t.title, priority: t.priority, completed: t.completed }))) }. Current goals: ${JSON.stringify(goals.map((g: any) => ({ id: g.id, title: g.title, type: g.type, priority: g.priority, completed: g.completed }))) }. Use the tools to create, toggle (complete), or delete tasks/goals based on user request. Do not ask for confirmation if the user already gave you enough details.`,
-        tools: [{ functionDeclarations: [createTaskDeclaration as any, createGoalDeclaration as any, toggleTaskDeclaration as any, deleteTaskDeclaration as any, toggleGoalDeclaration as any, deleteGoalDeclaration as any] }],
+        systemInstruction: `You are Trojan, an elite AI productivity agent. You help the user manage their tasks, goals (yearly/monthly/weekly), and Rhythms (which user might call Habits). Be concise, militaristic, and professional. Current tasks: ${JSON.stringify(tasks.map((t: any) => ({ id: t.id, title: t.title, priority: t.priority, completed: t.completed }))) }. Current goals: ${JSON.stringify(goals.map((g: any) => ({ id: g.id, title: g.title, type: g.type, priority: g.priority, completed: g.completed }))) }. Current Habits (Rhythms): ${JSON.stringify(habits.map((h: any) => ({ id: h.id, title: h.title }))) }. Use the tools to create, update, toggle (complete), or delete tasks/goals/habits based on user request. Do not ask for confirmation if the user already gave you enough details.`,
+        tools: [{ functionDeclarations: [createTaskDeclaration as any, createGoalDeclaration as any, createHabitDeclaration as any, toggleTaskDeclaration as any, deleteTaskDeclaration as any, toggleGoalDeclaration as any, deleteGoalDeclaration as any, updateTaskDeclaration as any, updateGoalDeclaration as any, updateHabitDeclaration as any] }],
         temperature: 0.7
       }
     });
@@ -357,14 +455,14 @@ export const smartTaskPrioritization = async (tasks: any[]) => {
     const ai = getAI();
     if (!ai) return [];
     
-    const taskList = tasks.map((t: any) =>`[${t.priority}] ${t.title} (${t.energy} energy)`).join('\n');
+    const taskList = tasks.map((t: any) =>`[${t.priority}] ${t.title}`).join('\n');
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: [{
         parts: [{
           text: `
           Analyze these daily tasks and return a JSON array of their titles in prioritized order (most impactful/urgent first).
-          Consider priority (A is highest) and energy levels.
+          Consider priority (A is highest).
           Return ONLY the JSON array of strings.
           
           Tasks:
