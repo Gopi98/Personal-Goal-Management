@@ -69,6 +69,8 @@ import {
   CartesianGrid,
   AreaChart,
   Area,
+  PieChart as RechartsPieChart,
+  Pie,
 } from "recharts";
 import { HubProvider, useHub } from "./lib/HubContext";
 import { getAICoachInsight, getTrojanChatResponse, getDailyMotivation, getGoalBreakdown, getDeepAnalysis, getGoalFocusAdvice, getTaskFocusAdvice, getOverviewFocusAdvice } from "./lib/gemini";
@@ -255,6 +257,50 @@ const playAIAudio = async (text: string) => {
   } catch (error) {
     console.error("AI Audio playback failed:", error);
   }
+};
+
+
+const ZenTimer = ({ onExit }: { onExit: () => void }) => {
+  const [seconds, setSeconds] = useState(0);
+  const { addFocusSession } = useHub();
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSeconds(s => s + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleExit = () => {
+     const minutes = Math.floor(seconds / 60);
+     if (minutes > 0) {
+       addFocusSession(minutes, "work");
+     }
+     onExit();
+  };
+
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="fixed top-1/2 -mt-10 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] flex flex-col items-center gap-8"
+    >
+      <div className="text-7xl sm:text-9xl md:text-[140px] leading-none font-black text-white font-mono tracking-tighter drop-shadow-2xl mix-blend-difference pointer-events-none">
+        {mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
+      </div>
+      <Tooltip text="Exit deep focus HUD mode & save time">
+        <button
+          onClick={handleExit}
+          className="px-8 py-4 bg-white text-black font-black text-xs uppercase tracking-widest rounded-full shadow-[0_20px_50px_rgba(255,255,255,0.2)] hover:scale-105 active:scale-95 transition-all"
+        >
+          Exit Deep Focus
+        </button>
+      </Tooltip>
+    </motion.div>
+  );
 };
 
 const PomodoroTimer = ({
@@ -444,7 +490,7 @@ const getMoodAccent = (mood: string | null) => {
 // --- Sub-views ---
 
 const HomeView = () => {
-  const { goals, tasks, selectedMood, setSelectedMood, reflections, focusSessions } = useHub();
+  const { goals, tasks, habits, selectedMood, setSelectedMood, reflections, focusSessions } = useHub();
   const [insight, setInsight] = useState<string | null>(null);
   const [motivation, setMotivation] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -607,7 +653,7 @@ const HomeView = () => {
           <h2 className="text-4xl md:text-5xl lg:text-6xl font-display font-black tracking-tighter text-white leading-[0.9]">
             System <span className="text-blue-600">Operational.</span>
             <br />
-            {new Date().getHours() < 12 ? "Good morning." : new Date().getHours() < 17 ? "Good afternoon." : "Good evening."}
+            {new Date().getHours() < 5 ? "Good night." : new Date().getHours() < 12 ? "Good morning." : new Date().getHours() < 17 ? "Good afternoon." : "Good evening."}
           </h2>
           <p className="text-slate-400 text-lg md:text-xl font-medium max-w-lg leading-relaxed">
             Your command center is synchronized. Current trajectory:{" "}
@@ -881,13 +927,13 @@ const HomeView = () => {
                     Expert System Insight
                   </span>
                 </div>
-                <div className="min-h-[100px]">
+                <div className="min-h-[100px] max-h-[150px] overflow-y-auto pr-2">
                   <h4 className="text-2xl font-display font-bold text-white mb-3">
                     {insight
                       ? "Strategic Audit Complete"
                       : "Perform Strategic Audit"}
                   </h4>
-                  <p className="text-slate-400 text-base leading-relaxed line-clamp-3">
+                  <p className="text-slate-400 text-base leading-relaxed">
                     {insight ||
                       "Synthesize your task velocity and goal trajectories into a personalized coaching plan."}
                   </p>
@@ -965,6 +1011,7 @@ const HomeView = () => {
               icon: Target,
               color: "text-blue-400",
               sub: "Critical Path",
+              desc: "Total number of uncompleted goals remaining in the system. Represents your long-term focus.",
             },
             {
               label: "OP VELOCITY",
@@ -972,25 +1019,28 @@ const HomeView = () => {
               icon: CheckSquare,
               color: "text-orange-400",
               sub: "Today Completion",
+              desc: "Proportion of today's scheduled tasks that have been completed. Measures daily execution speed.",
             },
             {
               label: "SYNC STREAK",
-              value: "1d",
+              value: `${Math.max(1, habits.filter(h => h.completedHistory[new Date().toISOString().split('T')[0]]).length)}`,
               icon: Flame,
               color: "text-rose-400",
               sub: "Rhythm Consistency",
+              desc: "Number of active habits completed today. Establishes your baseline operational rhythm.",
             },
             {
               label: "DEEP WORK",
-              value: "2.5h",
+              value: `${deepWorkHours}h`,
               icon: Timer,
               color: "text-blue-400",
               sub: "Focus Duration",
+              desc: "Total hours invested in uninterrupted, high-concentration focus sessions today.",
             },
           ].map((card, i) => (
             <GlassCard
               key={i}
-              className="p-6 group hover:translate-y-[-4px] transition-all duration-300"
+              className="p-6 group hover:translate-y-[-4px] transition-all duration-300 relative overflow-visible"
             >
               <div
                 className={`w-10 h-10 rounded-2xl bg-white/[0.03] flex items-center justify-center mb-6 group-hover:bg-white/[0.08] transition-all border border-white/[0.05]`}
@@ -998,9 +1048,11 @@ const HomeView = () => {
                 <card.icon className={`w-5 h-5 ${card.color}`} />
               </div>
               <div className="space-y-1">
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                  {card.label}
-                </p>
+                <Tooltip text={card.desc}>
+                  <p className="text-[10px] w-max font-black text-slate-500 uppercase tracking-widest cursor-help border-b border-dashed border-slate-500/50 pb-0.5 inline-block">
+                    {card.label}
+                  </p>
+                </Tooltip>
                 <h4 className="text-3xl font-display font-black text-white">
                   {card.value}
                 </h4>
@@ -2527,18 +2579,12 @@ const InsightsView = () => {
   const focusHours = Math.floor(totalFocusMinutes / 60);
   const focusMins = totalFocusMinutes % 60;
 
-  const focusChartData = Array.from({ length: 7 }).map((_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (6 - i));
-    const dateStr = d.toISOString().split("T")[0];
-    const daySessions = focusSessions.filter(
-      (s) => s.date.includes(dateStr) && s.type === "work",
-    );
-    return {
-      name: d.toLocaleDateString("en-US", { weekday: "narrow" }),
-      minutes: daySessions.reduce((acc, s) => acc + s.duration, 0),
-    };
-  });
+  const priorityData = [
+    { name: "A: Urgent & Important", value: tasks.filter((t) => t.priority === "A").length, color: "#22c55e" },
+    { name: "B: Schedule", value: tasks.filter((t) => t.priority === "B").length, color: "#3b82f6" },
+    { name: "C: Delegate", value: tasks.filter((t) => t.priority === "C").length, color: "#f97316" },
+    { name: "D: Eliminate", value: tasks.filter((t) => t.priority === "D").length, color: "#ef4444" },
+  ].filter(d => d.value > 0);
 
   return (
     <div className="space-y-16 animate-in fade-in duration-700">
@@ -2565,6 +2611,7 @@ const InsightsView = () => {
             max: goals.length.toString(),
             icon: Target,
             accent: "text-blue-500",
+            desc: "The ratio of completed goals versus total goals set.",
           },
           {
             label: "EXECUTION FLOW",
@@ -2572,6 +2619,7 @@ const InsightsView = () => {
             max: `${tasks.length} OPS`,
             icon: CheckSquare,
             accent: "text-emerald-500",
+            desc: "The percentage of all available tasks that have been completed.",
           },
           {
             label: "DEEP WORK",
@@ -2579,6 +2627,7 @@ const InsightsView = () => {
             max: "TRACKED",
             icon: Zap,
             accent: "text-orange-500",
+            desc: "Total duration accumulated in focus sessions today.",
           },
           {
             label: "HABIT LOOP",
@@ -2586,11 +2635,12 @@ const InsightsView = () => {
             max: "CIRCUITS",
             icon: Flame,
             accent: "text-rose-500",
+            desc: "The total number of active habits configured in your system.",
           },
         ].map((stat, i) => (
           <div
             key={i}
-            className="glass-card p-1 !rounded-[32px] overflow-hidden group"
+            className="glass-card p-1 !rounded-[32px] overflow-visible group"
           >
             <div className="p-8 space-y-6">
               <div className="flex items-center justify-between">
@@ -2600,9 +2650,11 @@ const InsightsView = () => {
                   <stat.icon className="w-6 h-6" />
                 </div>
                 <div className="text-right">
-                  <p className="text-[9px] font-black text-slate-600 tracking-widest uppercase mb-1">
-                    {stat.label}
-                  </p>
+                  <Tooltip text={stat.desc}>
+                    <p className="text-[9px] w-max ml-auto font-black cursor-help text-slate-600 tracking-widest uppercase mb-1 border-b border-dashed border-slate-600/50 pb-0.5 inline-block">
+                      {stat.label}
+                    </p>
+                  </Tooltip>
                   <p className="text-xs font-bold text-slate-800 uppercase tabular-nums">
                     / {stat.max}
                   </p>
@@ -2645,9 +2697,9 @@ const InsightsView = () => {
               </Tooltip>
             </div>
 
-            <div className="min-h-[280px] flex items-center justify-center">
+            <div className="min-h-[280px] max-h-[350px] overflow-y-auto pr-2 flex justify-center">
               {deepAnalysis ? (
-                <div className="text-slate-300 text-sm leading-8 font-medium space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-700">
+                <div className="text-slate-300 text-sm leading-8 font-medium space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-700 w-full py-4">
                   {deepAnalysis
                     .split("\n")
                     .filter(Boolean)
@@ -2676,74 +2728,53 @@ const InsightsView = () => {
         <GlassCard className="p-1 !rounded-[40px]">
           <div className="p-10 space-y-8 h-full">
             <div className="flex items-center space-x-3">
-              <TrendingUp className="w-5 h-5 text-emerald-500" />
+              <TrendingUp className="w-5 h-5 text-purple-500" />
               <span className="text-[10px] font-black text-slate-500 tracking-[0.3em] uppercase font-mono">
-                Focus Trajectory
+                Priority Distribution
               </span>
             </div>
 
-            <div className="flex-1 min-h-[300px] w-full">
-              <ResponsiveContainer
-                width="100%"
-                height="100%"
-                minWidth={0}
-                minHeight={0}
-              >
-                <AreaChart data={focusChartData}>
-                  <defs>
-                    <linearGradient
-                      id="colorMinutes"
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
+            <div className="flex-1 min-h-[300px] w-full flex items-center justify-center">
+              {priorityData.length > 0 ? (
+                <ResponsiveContainer
+                  width="100%"
+                  height="100%"
+                  minWidth={0}
+                  minHeight={0}
+                >
+                  <RechartsPieChart>
+                    <Pie
+                      data={priorityData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={5}
+                      dataKey="value"
+                      stroke="transparent"
                     >
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="#ffffff03"
-                    vertical={false}
-                  />
-                  <XAxis
-                    dataKey="name"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: "#475569", fontSize: 10, fontWeight: 800 }}
-                    dy={10}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: "#475569", fontSize: 10, fontWeight: 800 }}
-                  />
-                  <ReTooltip
-                    contentStyle={{
-                      backgroundColor: "#0a0a0c",
-                      border: "1px solid rgba(255,255,255,0.05)",
-                      borderRadius: "20px",
-                      fontSize: "10px",
-                      boxShadow: "0 20px 50px rgba(0,0,0,0.5)",
-                    }}
-                    labelStyle={{
-                      color: "#64748b",
-                      fontWeight: 800,
-                      marginBottom: "4px",
-                      textTransform: "uppercase",
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="minutes"
-                    stroke="#3b82f6"
-                    strokeWidth={3}
-                    fillOpacity={1}
-                    fill="url(#colorMinutes)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+                      {priorityData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <ReTooltip
+                      contentStyle={{
+                        backgroundColor: "#0a0a0c",
+                        border: "1px solid rgba(255,255,255,0.05)",
+                        borderRadius: "20px",
+                        fontSize: "12px",
+                        fontWeight: 800,
+                        boxShadow: "0 20px 50px rgba(0,0,0,0.5)",
+                      }}
+                      itemStyle={{ color: "#fff" }}
+                    />
+                  </RechartsPieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="text-center text-slate-500 text-xs font-bold uppercase tracking-widest">
+                  No tasks available. Add some tasks to see distribution.
+                </div>
+              )}
             </div>
           </div>
         </GlassCard>
@@ -2790,7 +2821,7 @@ const InsightsView = () => {
                     transition={{ delay: i * 0.02 }}
                     className={`aspect-square rounded-xl border border-white/[0.03] transition-all hover:scale-110 active:scale-95 cursor-pointer ${
                       activityLevel === 0
-                        ? "bg-white/[0.02]"
+                        ? "bg-white/5"
                         : activityLevel === 1
                           ? "bg-blue-600/30"
                           : activityLevel === 2
@@ -2810,10 +2841,10 @@ const InsightsView = () => {
               Idle
             </span>
             <div className="flex space-x-1.5">
-              {[0, 2, 4, 6, 8].map((v) => (
+              {["bg-white/5", "bg-blue-600/30", "bg-blue-600/50", "bg-blue-600/70", "bg-blue-600"].map((cls, idx) => (
                 <div
-                  key={v}
-                  className={`w-3 h-3 rounded-md ${v === 0 ? "bg-white/[0.02]" : `bg-blue-600 opacity-[0.${v}]`}`}
+                  key={idx}
+                  className={`w-3 h-3 rounded-md ${cls}`}
                 />
               ))}
             </div>
@@ -2831,50 +2862,55 @@ const InsightsView = () => {
               Real-time Telemetry
             </span>
             <h3 className="text-3xl font-display font-black text-white">
-              Affective State.
+              System Resource Allocation.
             </h3>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             {[
-              { icon: "🎯", label: "Focus", sub: "Single-tasking excellence" },
               {
-                icon: "🔋",
-                label: "Energized",
-                sub: "Maximum output potential",
+                label: "Missions Active",
+                desc: "Total number of ongoing goals",
+                value: goals.filter((g) => !g.completed).length,
+                total: goals.length,
+                color: "bg-blue-500",
               },
               {
-                icon: "🧘",
-                label: "Calm",
-                sub: "Sustained parasympathetic state",
+                label: "Tactical Ops",
+                desc: "Pending tasks required for progress",
+                value: tasks.filter((t) => !t.completed).length,
+                total: tasks.length,
+                color: "bg-indigo-500",
               },
-              { icon: "😫", label: "Stressed", sub: "High cortisol detection" },
-              { icon: "☕", label: "Tired", sub: "Energy depletion phase" },
-            ].map((mood, i) => (
-              <Tooltip text="Set affective state">
-                <button
-                  key={i}
-                  onClick={() => setSelectedMood(mood.label)}
-                  className={`p-6 !rounded-[28px] glass-card text-left space-y-4 group transition-all relative overflow-hidden ${selectedMood === mood.label ? "border-blue-500/50 bg-blue-600/10" : "hover:border-white/20"}`}
-                >
-                  <span className="text-4xl block transition-transform group-hover:scale-110">
-                    {mood.icon}
-                  </span>
-                  <div>
-                    <p
-                      className={`text-[10px] font-black uppercase tracking-widest ${selectedMood === mood.label ? "text-blue-500" : "text-slate-500"}`}
-                    >
-                      {mood.label}
-                    </p>
-                    <p className="text-[10px] font-bold text-slate-700 mt-1 uppercase tracking-tighter">
-                      {mood.sub}
-                    </p>
+              {
+                label: "Habitual Circuits",
+                desc: "Automated routines tracked",
+                value: habits.length,
+                total: habits.length,
+                color: "bg-rose-500",
+              },
+            ].map((stat, i) => (
+              <GlassCard key={i} className="p-6 !rounded-[28px] relative overflow-hidden group">
+                <div className="relative z-10 space-y-4">
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <p className="text-sm font-black text-white uppercase tracking-widest">{stat.label}</p>
+                      <p className="text-[10px] font-bold text-slate-500 tracking-widest mt-1 uppercase">{stat.desc}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-black text-white">{stat.value}</p>
+                    </div>
                   </div>
-                  {selectedMood === mood.label && (
-                    <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(37,99,235,1)]" />
-                  )}
-                </button>
-              </Tooltip>
+                  <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${stat.total === 0 ? 0 : (stat.value / stat.total) * 100}%` }}
+                      transition={{ duration: 1, ease: "easeOut" }}
+                      className={`h-full ${stat.color}`}
+                    />
+                  </div>
+                </div>
+              </GlassCard>
             ))}
           </div>
         </div>
@@ -2954,7 +2990,7 @@ const InsightsView = () => {
                 </div>
               </GlassCard>
 
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-[550px] overflow-y-auto pr-2">
                 {reflections.map((ref) => (
                   <GlassCard
                     key={ref.id}
@@ -3752,7 +3788,13 @@ const AppContent = ({
                   </p>
                   <div className="relative group/tooltip z-50 hover:z-[100]">
                     <button
-                      onClick={() => setIsZenMode(!isZenMode)}
+                      onClick={() => {
+                        const newZenMode = !isZenMode;
+                        setIsZenMode(newZenMode);
+                        if (newZenMode) {
+                          setIsSidebarOpen(false);
+                        }
+                      }}
                       className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all border ${isZenMode ? "bg-blue-600/10 border-blue-500/50 text-blue-400" : "bg-white/5 border-white/10 text-slate-500 hover:text-white"}`}
                     >
                       <div className="flex items-center space-x-3">
@@ -3838,22 +3880,7 @@ const AppContent = ({
         </div>
       </main>
 
-      {isZenMode && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="fixed bottom-12 left-1/2 -translate-x-1/2 z-[100]"
-        >
-          <Tooltip text="Exit deep focus HUD mode">
-            <button
-              onClick={() => setIsZenMode(false)}
-              className="px-8 py-4 bg-white text-black font-black text-xs uppercase tracking-widest rounded-full shadow-[0_20px_50px_rgba(255,255,255,0.2)] hover:scale-105 active:scale-95 transition-all"
-            >
-              Exit Deep Focus
-            </button>
-          </Tooltip>
-        </motion.div>
-      )}
+      {isZenMode && <ZenTimer onExit={() => setIsZenMode(false)} />}
     </div>
   );
 };
