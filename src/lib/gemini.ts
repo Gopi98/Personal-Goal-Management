@@ -14,7 +14,7 @@ export const getAICoachInsight = async (userData: any) => {
     const ai = getAI();
     if (!ai) return "Keep pushing towards your goals. Every small step counts.";
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-1.5-flash",
       contents: [{
         parts: [{
           text: `
@@ -31,7 +31,10 @@ export const getAICoachInsight = async (userData: any) => {
       }]
     });
     return response.text || "Keep pushing towards your goals. Every small step counts.";
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.message?.includes("429") || error?.message?.toLowerCase().includes("quota")) {
+      return "System Uplink Exhausted. Please wait 60 seconds before requesting another insight.";
+    }
     console.error("AI Coach Error:", error);
     return "Keep pushing towards your goals. Every small step counts.";
   }
@@ -43,7 +46,7 @@ export const getGoalBreakdown = async (goalTitle: string) => {
     if (!ai) return [];
     
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-1.5-flash",
       contents: [{
         parts: [{
           text: `
@@ -57,7 +60,10 @@ export const getGoalBreakdown = async (goalTitle: string) => {
     const text = response.text || "[]";
     const match = text.match(/\[.*\]/s);
     return match ? JSON.parse(match[0]) : [];
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.message?.includes("429") || error?.message?.toLowerCase().includes("quota")) {
+      return ["Quota exceeded. Break this goal down manually for now.", "Try again in 60 seconds."];
+    }
     console.error("Goal Breakdown Error:", error);
     return [];
   }
@@ -69,7 +75,7 @@ export const getReflectionInsight = async (reflectionText: string) => {
     if (!ai) return "Thank you for sharing your reflection.";
     
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-1.5-flash",
       contents: [{
         parts: [{
           text: `
@@ -81,7 +87,10 @@ export const getReflectionInsight = async (reflectionText: string) => {
     });
     
     return response.text?.trim() || "Thank you for sharing your reflection.";
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.message?.includes("429") || error?.message?.toLowerCase().includes("quota")) {
+      return "System Uplink Exhausted. Keep going, try again later.";
+    }
     console.error("Reflection Insight Error:", error);
     return "Reflecting is a key to growth.";
   }
@@ -152,7 +161,7 @@ export const getTaskFocusAdvice = async (tasks: any[]) => {
     if (!ai) return "Review your tasks and tackle the most urgent one.";
     
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-1.5-flash",
       contents: [{
         parts: [{
           text: `
@@ -164,8 +173,11 @@ export const getTaskFocusAdvice = async (tasks: any[]) => {
     });
     
     return response.text?.trim() || "Identify the smallest step and take action.";
-  } catch (error) {
-    return "Check your tasks and focus on high-priority items.";
+  } catch (error: any) {
+    if (error?.message?.includes("429") || error?.message?.toLowerCase().includes("quota")) {
+      return "System Uplink Exhausted. Wait 60 seconds.";
+    }
+    return "Identify the smallest step and take action.";
   }
 };
 
@@ -175,7 +187,7 @@ export const getOverviewFocusAdvice = async (goals: any[], tasks: any[]) => {
     if (!ai) return "Review your goals and tasks and tackle the most urgent ones to build momentum.";
     
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-1.5-flash",
       contents: [{
         parts: [{
           text: `
@@ -188,7 +200,10 @@ export const getOverviewFocusAdvice = async (goals: any[], tasks: any[]) => {
     });
     
     return response.text?.trim() || "Identify the smallest step and take action.";
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.message?.includes("429") || error?.message?.toLowerCase().includes("quota")) {
+      return "System Uplink Exhausted. Wait 60 seconds.";
+    }
     return "Check your objectives and focus on high-priority items.";
   }
 };
@@ -199,7 +214,7 @@ export const getGoalFocusAdvice = async (goals: any[]) => {
     if (!ai) return "Review your goals and tackle the most urgent one.";
     
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-1.5-flash",
       contents: [{
         parts: [{
           text: `
@@ -222,7 +237,7 @@ export const getDeepAnalysis = async (userData: any) => {
     if (!ai) return "Analyze your data to see trends.";
     
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-1.5-flash",
       contents: [{
         parts: [{
           text: `
@@ -234,7 +249,10 @@ export const getDeepAnalysis = async (userData: any) => {
     });
     
     return response.text?.trim() || "Analyze your data to see trends.";
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.message?.includes("429") || error?.message?.toLowerCase().includes("quota")) {
+      return "System Uplink Exhausted. Wait 60 seconds.";
+    }
     return "Focus on the process, not just the result.";
   }
 };
@@ -355,11 +373,11 @@ export const deleteGoalDeclaration = {
 
 export const createHabitDeclaration = {
   name: "createHabit",
-  description: "Creates a new Rhythm (what the user might call a habit), a recurring task that the user wants to perform.",
+  description: "Creates a new Habit, a recurring task that the user wants to perform.",
   parameters: {
     type: "OBJECT",
     properties: {
-      title: { type: "STRING", description: "The title/name of the habit or rhythm." },
+      title: { type: "STRING", description: "The title/name of the habit." },
       frequency: { type: "STRING", description: "The frequency (e.g. 'daily', 'weekly'). Defaults to daily." }
     },
     required: ["title"]
@@ -368,7 +386,7 @@ export const createHabitDeclaration = {
 
 export const updateHabitDeclaration = {
   name: "updateHabit",
-  description: "Updates an existing Rhythm (habit). You must pass the habit's id.",
+  description: "Updates an existing Habit. You must pass the habit's id.",
   parameters: {
     type: "OBJECT",
     properties: {
@@ -434,10 +452,10 @@ export const getTrojanChatResponse = async (
     contents.push({ role: "user", parts: [{ text: message }] });
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-1.5-flash",
       contents: contents as any,
       config: {
-        systemInstruction: `You are Trojan, an elite AI productivity agent. You help the user manage their tasks, goals (yearly/monthly/weekly), and Rhythms (which user might call Habits). Be concise, militaristic, and professional. Current tasks: ${JSON.stringify(tasks.map((t: any) => ({ id: t.id, title: t.title, priority: t.priority, completed: t.completed }))) }. Current goals: ${JSON.stringify(goals.map((g: any) => ({ id: g.id, title: g.title, type: g.type, priority: g.priority, completed: g.completed }))) }. Current Habits (Rhythms): ${JSON.stringify(habits.map((h: any) => ({ id: h.id, title: h.title }))) }. Use the tools to create, update, toggle (complete), or delete tasks/goals/habits based on user request. Do not ask for confirmation if the user already gave you enough details.`,
+        systemInstruction: `You are Trojan, an elite AI productivity agent. You help the user manage their tasks, goals (yearly/monthly/weekly), and Habits. Be concise, militaristic, and professional. Current tasks: ${JSON.stringify(tasks.map((t: any) => ({ id: t.id, title: t.title, priority: t.priority, completed: t.completed }))) }. Current goals: ${JSON.stringify(goals.map((g: any) => ({ id: g.id, title: g.title, type: g.type, priority: g.priority, completed: g.completed }))) }. Current Habits: ${JSON.stringify(habits.map((h: any) => ({ id: h.id, title: h.title }))) }. Use the tools to create, update, toggle (complete), or delete tasks/goals/habits based on user request. Do not ask for confirmation if the user already gave you enough details.`,
         tools: [{ functionDeclarations: [createTaskDeclaration as any, createGoalDeclaration as any, createHabitDeclaration as any, toggleTaskDeclaration as any, deleteTaskDeclaration as any, toggleGoalDeclaration as any, deleteGoalDeclaration as any, updateTaskDeclaration as any, updateGoalDeclaration as any, updateHabitDeclaration as any] }],
         temperature: 0.7
       }
@@ -446,7 +464,11 @@ export const getTrojanChatResponse = async (
     return response;
   } catch (error: any) {
     console.error("Trojan Error:", error);
-    return { text: `Error communicating with Trojan command: ${error?.message || "Unknown error"}` };
+    const errMsg = error?.message || "";
+    if (errMsg.includes("429") || errMsg.toLowerCase().includes("quota") || errMsg.toLowerCase().includes("exhausted")) {
+      return { text: "SYSTEM ALERT: Uplink quota exhausted (Rate limit reached). Please standby for 60 seconds before initiating the next command.", isQuotaError: true };
+    }
+    return { text: `COMMAND FAILED: Error communicating with Trojan: ${errMsg || "Unknown error"}` };
   }
 };
 
@@ -457,7 +479,7 @@ export const smartTaskPrioritization = async (tasks: any[]) => {
     
     const taskList = tasks.map((t: any) =>`[${t.priority}] ${t.title}`).join('\n');
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-1.5-flash",
       contents: [{
         parts: [{
           text: `

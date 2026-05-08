@@ -1,3 +1,4 @@
+import { toLocalDateStr } from './dateUtils';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Goal, Task, Habit, Subtask, Reflection, FocusSession } from './types';
 import { db, auth } from './firebase';
@@ -359,7 +360,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const d = new Date(t.date);
     d.setDate(d.getDate() + 1);
     const docRef = doc(db, `users/${user.uid}/tasks`, id);
-    try { await updateDoc(docRef, { date: d.toISOString().split('T')[0] }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
+    try { await updateDoc(docRef, { date: toLocalDateStr(d) }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
   const deleteHabit = async (id: string) => {
@@ -383,7 +384,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const smartPrioritizeTasks = async () => {
     if (!user) return;
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = toLocalDateStr();
       const todayTasksList = tasks.filter(t => t.date === today && !t.completed);
       if (todayTasksList.length < 2) return;
 
@@ -413,7 +414,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const reorderTasks = async (startIndex: number, endIndex: number) => {
     if (!user) return;
-    const today = new Date().toISOString().split('T')[0];
+    const today = toLocalDateStr();
     const todayTasks = tasks.filter(t => t.date === today && !t.completed).sort((a, b) => (a.order || 0) - (b.order || 0));
     
     if (startIndex < 0 || startIndex >= todayTasks.length || endIndex < 0 || endIndex >= todayTasks.length) return;

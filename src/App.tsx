@@ -1,3 +1,4 @@
+import { toLocalDateStr } from './lib/dateUtils';
 import React, { useState, useEffect, useRef } from "react";
 import {
   Home,
@@ -286,9 +287,9 @@ const ZenTimer = ({ onExit }: { onExit: () => void }) => {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="fixed top-1/2 -mt-10 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] flex flex-col items-center gap-8"
+      className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] flex flex-col items-center gap-8 w-full px-6"
     >
-      <div className="text-7xl sm:text-9xl md:text-[140px] leading-none font-black text-white font-mono tracking-tighter drop-shadow-2xl mix-blend-difference pointer-events-none">
+      <div className="text-[20vw] sm:text-9xl md:text-[140px] leading-none font-black text-white font-mono tracking-tighter drop-shadow-2xl mix-blend-difference pointer-events-none text-center">
         {mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
       </div>
       <Tooltip text="Exit deep focus HUD mode & save time">
@@ -358,11 +359,11 @@ const PomodoroTimer = ({
       if (mode === "work") {
         sendNotification(
           "Deep Work Complete",
-          "Mission accomplished. Time for a refuel break.",
+          "Task accomplished. Time for a refuel break.",
         );
         playBeep();
         playAIAudio(
-          "Mission accomplished. Deep work cycle complete. Initializing refuel break.",
+          "Task accomplished. Deep work cycle complete. Initializing refuel break.",
         );
       } else {
         sendNotification(
@@ -527,12 +528,12 @@ const HomeView = () => {
 
   const activeGoals = goals.filter((g) => !g.completed).length;
   const todayTasks = tasks.filter(
-    (t) => t.date === new Date().toISOString().split("T")[0],
+    (t) => t.date === toLocalDateStr(),
   );
   const completedToday = todayTasks.filter((t) => t.completed).length;
 
   const focusTimeToday = focusSessions
-    .filter((s) => s.type === "work" && s.date === new Date().toISOString().split("T")[0])
+    .filter((s) => s.type === "work" && s.date === toLocalDateStr())
     .reduce((acc, s) => acc + s.duration, 0);
 
   const deepWorkHours = +(focusTimeToday / 60).toFixed(1);
@@ -556,7 +557,7 @@ const HomeView = () => {
   if (incompleteTasks.length > 0) {
     if (selectedMood === "Focus" || selectedMood === "Energized") {
       suggestionTitle = "Eat The Frog";
-      suggestionDesc = "You have high energy. Time to tackle your hardest, most important mission right now.";
+      suggestionDesc = "You have high energy. Time to tackle your hardest, most important task right now.";
       sStyle = {
         bgGlow: "bg-green-500/10",
         text: "text-green-400",
@@ -604,7 +605,7 @@ const HomeView = () => {
   const chartData = Array.from({ length: 7 }).map((_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (6 - i));
-    const dateStr = d.toISOString().split("T")[0];
+    const dateStr = toLocalDateStr(d);
     const dayTasks = tasks.filter((t) => t.date === dateStr);
     const completed = dayTasks.filter((t) => t.completed).length;
     return {
@@ -647,7 +648,7 @@ const HomeView = () => {
           >
             <Sparkles className="w-4 h-4" />
             <span className="text-[10px] font-black uppercase tracking-[0.4em] font-mono">
-              Mission Status
+              Task Status
             </span>
           </motion.div>
           <h2 className="text-4xl md:text-5xl lg:text-6xl font-display font-black tracking-tighter text-white leading-[0.9]">
@@ -858,8 +859,8 @@ const HomeView = () => {
                   </h3>
                   <p className="text-slate-500 text-sm mt-2">
                     {tasks.length === 0 
-                      ? "Get started by adding your first mission. Navigate to the Tasks tab below and press the + icon to plan your strategy." 
-                      : "You have conquered your missions for now. Take a deep breath."}
+                      ? "Get started by adding your first task. Navigate to the Tasks tab below and press the + icon to plan your strategy." 
+                      : "You have conquered your tasks for now. Take a deep breath."}
                   </p>
                 </div>
               )}
@@ -973,7 +974,7 @@ const HomeView = () => {
               <div className="relative group/tooltip z-50 hover:z-[100]">
                 <Info className="w-3 h-3 text-slate-600 cursor-help" />
                 <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-48 p-3 bg-slate-800 text-xs text-slate-300 rounded-lg shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all z-50 pointer-events-none">
-                  A dynamic score ({completedToday * 20 + 42} pts) calculated by your completed tasks ({completedToday}) multiplied by 20, plus a base momentum of 42. Keep crushing missions to boost your score!
+                  A dynamic score ({completedToday * 20 + 42} pts) calculated by your completed tasks ({completedToday}) multiplied by 20, plus a base momentum of 42. Keep crushing tasks to boost your score!
                   <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-slate-800"></div>
                 </div>
               </div>
@@ -1006,7 +1007,7 @@ const HomeView = () => {
         <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[
             {
-              label: "ACTIVE MISSIONS",
+              label: "ACTIVE GOALS",
               value: activeGoals.toString(),
               icon: Target,
               color: "text-blue-400",
@@ -1023,11 +1024,11 @@ const HomeView = () => {
             },
             {
               label: "SYNC STREAK",
-              value: `${Math.max(1, habits.filter(h => h.completedHistory[new Date().toISOString().split('T')[0]]).length)}`,
+              value: `${Math.max(1, habits.filter(h => h.completedHistory[toLocalDateStr()]).length)}`,
               icon: Flame,
               color: "text-rose-400",
-              sub: "Rhythm Consistency",
-              desc: "Number of active habits completed today. Establishes your baseline operational rhythm.",
+              sub: "Habit Consistency",
+              desc: "Number of active habits completed today. Establishes your baseline operational habit.",
             },
             {
               label: "DEEP WORK",
@@ -1219,6 +1220,8 @@ const GoalsView = () => {
     filter === "All"
       ? goals
       : goals.filter((g) => g.type === filter.toLowerCase());
+
+  const displayGoals = [...filteredGoals].sort((a,b) => a.priority.localeCompare(b.priority));
 
   const [goalError, setGoalError] = useState("");
 
@@ -1420,7 +1423,7 @@ const GoalsView = () => {
                   onKeyDown={(e) =>
                     e.key === "Enter" && handleAddSub(goal.id)
                   }
-                  placeholder="Add sub-mission..."
+                  placeholder="Add subtask..."
                   className="flex-1 bg-white/5 border border-white/5 rounded-[20px] px-6 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500/20"
                 />
                 <Tooltip text="Auto-split with AI">
@@ -1472,7 +1475,7 @@ const GoalsView = () => {
                           </button>
                         </Tooltip>
                       )}
-                      <Tooltip text="Delete sub-mission">
+                      <Tooltip text="Delete subtask">
                         <button
                           onClick={() => deleteSubtask(goal.id, sub.id)}
                           className="text-slate-700 hover:text-red-500 p-1"
@@ -1555,7 +1558,7 @@ const GoalsView = () => {
     } else if (goal.type === "weekly") {
       addTask({
         title: item.title,
-        date: new Date().toISOString().split("T")[0],
+        date: toLocalDateStr(),
         priority: goal.priority,
         type: "one-off",
         tags: ["#from-goals"],
@@ -1600,7 +1603,7 @@ const GoalsView = () => {
             </span>
           </div>
           <h2 className="text-4xl md:text-5xl lg:text-6xl font-display font-black tracking-tighter text-white">
-            Missions.
+            Goals.
           </h2>
           <p className="text-slate-500 font-medium">
             Architect your long-term success. Filter by temporal scope.
@@ -1718,7 +1721,7 @@ const GoalsView = () => {
         <DragDropContext onDragEnd={handleDragEnd}>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-x-auto pb-8">
             {["Yearly", "Monthly", "Weekly"].map((colType) => {
-              const colGoals = goals.filter((g) => g.type === colType.toLowerCase());
+              const colGoals = displayGoals.filter((g) => g.type === colType.toLowerCase());
               return (
                 <div key={colType} className="flex flex-col space-y-4">
                   <div className="flex items-center justify-between mb-2">
@@ -1744,8 +1747,8 @@ const GoalsView = () => {
         </DragDropContext>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {filteredGoals.map((goal, index) => renderGoal(goal, index, false))}
-          {filteredGoals.length === 0 && (
+          {displayGoals.map((goal, index) => renderGoal(goal, index, false))}
+          {displayGoals.length === 0 && (
             <div className="text-center py-24 bg-white/[0.02] border border-dashed border-white/10 rounded-[40px] md:col-span-2 space-y-4 px-6">
               <div className="w-16 h-16 rounded-full bg-blue-600/10 flex items-center justify-center mx-auto mb-6">
                 <Target className="w-8 h-8 text-blue-500" />
@@ -1842,6 +1845,8 @@ const TasksView = () => {
     setIsSplitting({ ...isSplitting, [task.id]: false });
   };
 
+  const displayTasks = [...tasks].sort((a,b) => a.priority.localeCompare(b.priority) || (a.order || 0) - (b.order || 0));
+
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination) return;
     reorderTasks(result.source.index, result.destination.index);
@@ -1852,7 +1857,7 @@ const TasksView = () => {
   const handleAdd = () => {
     if (!newTitle.trim()) return;
     
-    const today = new Date().toISOString().split("T")[0];
+    const today = toLocalDateStr();
     const exists = tasks.some(t => t.title.toLowerCase() === newTitle.trim().toLowerCase() && t.date === today);
     
     if (exists) {
@@ -1879,7 +1884,7 @@ const TasksView = () => {
   };
 
   const exportCalendar = () => {
-    const today = new Date().toISOString().split("T")[0];
+    const today = toLocalDateStr();
     let icsContent =
       "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Drive Productivity OS//EN\n";
     tasks
@@ -1900,7 +1905,7 @@ const TasksView = () => {
     const element = document.createElement("a");
     const file = new Blob([icsContent], { type: "text/calendar" });
     element.href = URL.createObjectURL(file);
-    element.download = "drive_missions.ics";
+    element.download = "drive_goals.ics";
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
@@ -1946,7 +1951,7 @@ const TasksView = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex bg-white/5 rounded-[24px] p-1 border border-white/10 mr-2">
+          <div className="flex bg-white/5 rounded-[24px] p-1 border border-white/10">
             <button
               onClick={() => setViewMode("list")}
               className={`px-4 py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === "list" ? "bg-white text-black shadow-md" : "text-slate-400 hover:text-white"}`}
@@ -1960,48 +1965,6 @@ const TasksView = () => {
               Matrix
             </button>
           </div>
-          <button
-            onClick={exportCalendar}
-            className="px-6 py-4 bg-white/[0.03] border border-white/10 rounded-[24px] text-white hover:bg-white/[0.08] transition-all flex items-center space-x-3 group"
-          >
-            <Calendar className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
-            <span className="text-[10px] font-black uppercase tracking-widest">
-              Export Tasks
-            </span>
-          </button>
-        <div className="relative group/tooltip z-50 hover:z-[100]">
-          <button
-            onClick={() => setShowAutoSchedule(true)}
-            className="px-6 py-4 bg-white/[0.03] border border-white/10 rounded-[24px] text-white hover:bg-white/[0.08] transition-all flex items-center space-x-3 group"
-          >
-            <Timer className="w-4 h-4 text-rose-500 group-hover:scale-110 transition-transform" />
-            <span className="text-[10px] font-black uppercase tracking-widest">
-              Auto Schedule
-            </span>
-          </button>
-          <div className="absolute right-0 top-full mt-2 w-56 p-3 bg-slate-800 text-xs text-slate-300 rounded-xl shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all z-50 pointer-events-none font-sans font-normal normal-case tracking-normal text-left">
-            Generates a timed schedule blocking out your free time into productive stints.
-            <div className="absolute right-8 bottom-full w-0 h-0 border-l-[6px] border-r-[6px] border-b-[6px] border-l-transparent border-r-transparent border-b-slate-800"></div>
-          </div>
-        </div>
-        <div className="relative group/tooltip z-50 hover:z-[100]">
-          <button
-            onClick={handleApplySmartPrioritize}
-            disabled={isPrioritizing}
-            className="px-8 py-4 bg-blue-600 text-white rounded-[24px] font-black text-[10px] uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-[0_20px_40px_rgba(37,99,235,0.2)] disabled:opacity-50 flex items-center space-x-3"
-          >
-            {isPrioritizing ? (
-              <RotateCcw className="w-4 h-4 animate-spin" />
-            ) : (
-              <Sparkles className="w-4 h-4" />
-            )}
-            <span>{isPrioritizing ? "Ranking..." : "Smart Sort"}</span>
-          </button>
-          <div className="absolute right-0 top-full mt-2 w-64 p-3 bg-blue-900 border border-blue-500/30 text-xs text-blue-100 rounded-xl shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all z-50 pointer-events-none font-sans font-normal normal-case tracking-normal text-left">
-            Automatically analyzes and sets the priority (A, B, C, D) of all your tasks based on context using the Eisenhower Matrix.
-             <div className="absolute right-8 bottom-full w-0 h-0 border-l-[6px] border-r-[6px] border-b-[6px] border-l-transparent border-r-transparent border-b-blue-900"></div>
-          </div>
-        </div>
         </div>
       </div>
 
@@ -2084,7 +2047,7 @@ const TasksView = () => {
             type="text"
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
-            placeholder="What is your next mission?"
+            placeholder="What is your next task?"
             className="w-full bg-transparent border-none focus:ring-0 text-white text-xl sm:text-3xl placeholder:text-slate-800 font-display font-black text-center"
           />
           <div className="flex flex-wrap gap-2 sm:gap-3 items-center justify-center">
@@ -2185,7 +2148,7 @@ const TasksView = () => {
               {...provided.droppableProps}
               className="grid grid-cols-1 md:grid-cols-2 gap-4"
             >
-              {tasks.map((task, index) => (
+              {displayTasks.map((task, index) => (
                 <Draggable key={task.id} draggableId={task.id} index={index}>
                   {(provided) => (
                     <div
@@ -2224,14 +2187,6 @@ const TasksView = () => {
                                 </button>
                               </Tooltip>
                             )}
-                            <Tooltip text="Postpone task">
-                              <button
-                                onClick={() => handlePostpone(task)}
-                                className="p-3 text-slate-500 hover:text-orange-500 bg-white/5 hover:bg-orange-500/10 rounded-xl transition-all"
-                              >
-                                <CalendarRange className="w-4 h-4" />
-                              </button>
-                            </Tooltip>
                           </div>
                         </div>
 
@@ -2471,7 +2426,7 @@ const TasksView = () => {
             <div key={quad.priority} className={`rounded-[32px] border p-6 flex flex-col space-y-4 ${quad.color}`}>
               <h3 className={`font-display font-black tracking-tight ${quad.header}`}>{quad.label}</h3>
               <div className="space-y-2 flex-1">
-                {tasks.filter(t => t.priority === quad.priority).map((task) => (
+                {displayTasks.filter(t => t.priority === quad.priority).map((task) => (
                   <div key={task.id} className={`flex items-center space-x-3 p-3 bg-white/[0.03] border border-white/5 rounded-xl ${task.completed ? "opacity-50 line-through" : ""}`}>
                     <Tooltip text={task.completed ? "Mark pending" : "Complete task"}>
                       <button
@@ -2484,8 +2439,8 @@ const TasksView = () => {
                     <span className="text-sm font-medium text-white line-clamp-1">{task.title}</span>
                   </div>
                 ))}
-                {tasks.filter(t => t.priority === quad.priority).length === 0 && (
-                  <p className="text-[10px] uppercase font-black tracking-widest text-slate-600 pt-2">No missions here</p>
+                {displayTasks.filter(t => t.priority === quad.priority).length === 0 && (
+                  <p className="text-[10px] uppercase font-black tracking-widest text-slate-600 pt-2">No goals here</p>
                 )}
               </div>
             </div>
@@ -2572,7 +2527,7 @@ const InsightsView = () => {
     .filter(
       (s) =>
         s.type === "work" &&
-        s.date.includes(new Date().toISOString().split("T")[0]),
+        s.date.includes(toLocalDateStr()),
     )
     .reduce((acc, s) => acc + s.duration, 0);
 
@@ -2606,7 +2561,7 @@ const InsightsView = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
           {
-            label: "MISSION PROGRESS",
+            label: "GOAL PROGRESS",
             value: completedGoals.toString(),
             max: goals.length.toString(),
             icon: Target,
@@ -2800,7 +2755,7 @@ const InsightsView = () => {
             {Array.from({ length: 30 }).map((_, i) => {
               const d = new Date();
               d.setDate(d.getDate() - (29 - i));
-              const dateStr = d.toISOString().split("T")[0];
+              const dateStr = toLocalDateStr(d);
               const sessionsCount = focusSessions.filter((s) =>
                 s.date.includes(dateStr),
               ).length;
@@ -2869,7 +2824,7 @@ const InsightsView = () => {
           <div className="grid grid-cols-1 gap-4">
             {[
               {
-                label: "Missions Active",
+                label: "Goals Active",
                 desc: "Total number of ongoing goals",
                 value: goals.filter((g) => !g.completed).length,
                 total: goals.length,
@@ -2939,7 +2894,7 @@ const InsightsView = () => {
               <textarea
                 value={reflection}
                 onChange={(e) => setReflection(e.target.value)}
-                placeholder="The mission success coordinates were..."
+                placeholder="The goal success coordinates were..."
                 className="w-full bg-white/[0.02] border border-white/[0.08] rounded-[30px] p-8 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 min-h-[220px] font-medium leading-loose"
               />
               <div className="flex justify-end items-center space-x-6">
@@ -3036,7 +2991,7 @@ const HabitsView = () => {
   const { habits, addHabit, updateHabit, toggleHabit, deleteHabit, addTask, tasks } = useHub();
   const [newTitle, setNewTitle] = useState("");
   const [weekOffset, setWeekOffset] = useState(0);
-  const today = new Date().toISOString().split("T")[0];
+  const today = toLocalDateStr();
 
   const [taskCreatedId, setTaskCreatedId] = useState<string | null>(null);
 
@@ -3086,7 +3041,7 @@ const HabitsView = () => {
       d.setDate(d.getDate() - i);
       days.push({
         label: d.toLocaleDateString("en-US", { weekday: "narrow" }),
-        date: d.toISOString().split("T")[0],
+        date: toLocalDateStr(d),
         fullDate: d.toLocaleDateString("en-US", {
           month: "short",
           day: "numeric",
@@ -3109,7 +3064,7 @@ const HabitsView = () => {
             </span>
           </div>
           <h2 className="text-4xl md:text-5xl lg:text-6xl font-display font-black tracking-tighter text-white">
-            Rhythm.
+            Habits.
           </h2>
           <p className="text-slate-500 font-medium">
             Build unbreakable streaks. Calibrate your daily systems.
@@ -3179,7 +3134,7 @@ const HabitsView = () => {
                           value={editingHabitData.title}
                           onChange={(e) => setEditingHabitData({ ...editingHabitData, title: e.target.value })}
                           className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-white font-black tracking-tight"
-                          placeholder="Rhythm Title"
+                          placeholder="Habit Title"
                           autoFocus
                         />
                         <select
@@ -3198,11 +3153,35 @@ const HabitsView = () => {
                         </h4>
                         <div className="flex items-center space-x-3 mt-1">
                           <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest font-mono">
-                            Streak: {habit.streak} Days
+                            Streak: {(() => {
+                              const history = habit.completedHistory || {};
+                              let currentStreak = 0;
+                              let d = new Date();
+                              const todayStr = toLocalDateStr(d);
+                              if (history[todayStr]) { currentStreak++; }
+                              d.setDate(d.getDate() - 1);
+                              while (true) {
+                                const dateStr = toLocalDateStr(d);
+                                if (history[dateStr]) {
+                                  currentStreak++;
+                                  d.setDate(d.getDate() - 1);
+                                } else {
+                                  break;
+                                }
+                              }
+                              return currentStreak;
+                            })()} Days
                           </span>
                           <div className="w-1 h-1 rounded-full bg-slate-800" />
                           <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
-                            Success Rate: 100%
+                            Success Rate: {Math.round(
+                                (() => {
+                                  const history = habit.completedHistory || {};
+                                  const completedDays = Object.values(history).filter(Boolean).length;
+                                  const allDaysLogged = Object.keys(history).length || 1;
+                                  return (completedDays / allDaysLogged) * 100
+                                })()
+                            )}%
                           </span>
                         </div>
                       </>
@@ -3214,8 +3193,9 @@ const HabitsView = () => {
               <div className="flex flex-1 items-center justify-between xl:justify-end gap-2 overflow-x-auto no-scrollbar pb-2 xl:pb-0">
                 {weekDays.map((day) => {
                   const isCompleted = habit.completedHistory[day.date];
-                  const today = new Date().toISOString().split("T")[0];
+                  const today = toLocalDateStr();
                   const isToday = today === day.date;
+                  const isPast = day.date < today;
 
                   return (
                     <div
@@ -3228,16 +3208,20 @@ const HabitsView = () => {
                       <Tooltip text={isCompleted ? "Mark missed" : "Mark completed"}>
                         <button
                           onClick={() => toggleHabit(habit.id, day.date)}
-                          className={`w-14 h-14 rounded-2xl transition-all border flex items-center justify-center relative ${isCompleted ? "bg-blue-600 border-blue-500 shadow-lg" : "bg-white/[0.02] border-white/5 hover:border-white/20"} ${isToday && !isCompleted ? "ring-2 ring-blue-500/30" : ""}`}
+                          className={`w-14 h-14 rounded-2xl transition-all border flex items-center justify-center relative ${
+                            isCompleted
+                              ? "bg-blue-600 border-blue-500 shadow-lg"
+                              : isPast
+                                ? "bg-red-500/10 border-red-500/20 hover:border-red-500/50 hover:bg-red-500/20"
+                                : "bg-white/[0.02] border-white/10 hover:bg-white/5 hover:border-white/20"
+                          }`}
                         >
                           {isCompleted ? (
                             <CheckSquare className="w-6 h-6 text-white" />
                           ) : (
-                            <div
-                              className={`w-2 h-2 rounded-full ${isToday ? "bg-blue-500 shadow-[0_0_10px_rgba(37,99,235,1)] animate-pulse" : "bg-white/10"}`}
-                            />
+                            isPast && <CloseIcon className={`w-6 h-6 text-red-500/50`} />
                           )}
-                          {isToday && (
+                          {isToday && !isCompleted && (
                             <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-white animate-bounce" />
                           )}
                         </button>
@@ -3283,7 +3267,7 @@ const HabitsView = () => {
                     </button>
                   </Tooltip>
                 ) : (
-                  <Tooltip text="Edit rhythm">
+                  <Tooltip text="Edit habit">
                     <button
                       onClick={() => startEditingHabit(habit)}
                       className="p-3 text-slate-700 hover:text-blue-500 transition-all"
@@ -3292,7 +3276,7 @@ const HabitsView = () => {
                     </button>
                   </Tooltip>
                 )}
-                <Tooltip text="Delete rhythm">
+                <Tooltip text="Delete habit">
                   <button
                     onClick={() => deleteHabit(habit.id)}
                     className="p-3 text-slate-700 hover:text-red-500 transition-all"
@@ -3328,11 +3312,22 @@ const TrojanChat = () => {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [quotaWaitTime, setQuotaWaitTime] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (quotaWaitTime > 0) {
+      timer = setInterval(() => {
+        setQuotaWaitTime(prev => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [quotaWaitTime]);
 
   useEffect(() => {
     if (isOpen) {
@@ -3342,7 +3337,7 @@ const TrojanChat = () => {
   }, [messages, isOpen]);
 
   const handleSend = async () => {
-    if (!input.trim() || loading) return;
+    if (!input.trim() || loading || quotaWaitTime > 0) return;
     const userMsg = { role: "user" as const, parts: [{ text: input.trim() }] };
     setMessages(prev => [...prev, userMsg]);
     setInput("");
@@ -3352,12 +3347,15 @@ const TrojanChat = () => {
 
     const response = await getTrojanChatResponse(userMsg.parts[0].text, history, tasks, goals, habits);
 
-    if (response?.functionCalls) {
+    if (response?.isQuotaError) {
+      setQuotaWaitTime(60);
+      setMessages(prev => [...prev, { role: "model", parts: [{ text: response.text }] }]);
+    } else if (response?.functionCalls) {
       let functionResponses = [];
       for (const call of response.functionCalls) {
         if (call.name === "createTask") {
           let { title, priority, subtasks } = call.args;
-          const today = new Date().toISOString().split('T')[0];
+          const today = toLocalDateStr();
           
           if (!title || typeof title !== 'string') title = 'Untitled Task';
           if (!['A', 'B', 'C', 'D'].includes(priority)) {
@@ -3404,10 +3402,10 @@ const TrojanChat = () => {
           functionResponses.push(`Created ${type} goal: ${title}` + (initialSubtasks.length ? ` with ${initialSubtasks.length} subtasks` : ''));
         } else if (call.name === "createHabit") {
           let { title, frequency } = call.args;
-          if (!title || typeof title !== 'string') title = 'Untitled Rhythm';
+          if (!title || typeof title !== 'string') title = 'Untitled Habit';
           if (!frequency || typeof frequency !== 'string') frequency = 'daily';
           await addHabit(title, frequency);
-          functionResponses.push(`Created rhythm: ${title} (${frequency})`);
+          functionResponses.push(`Created habit: ${title} (${frequency})`);
         } else if (call.name === "updateTask") {
           let { id, title, priority, subtasks } = call.args;
           if (id) {
@@ -3446,7 +3444,7 @@ const TrojanChat = () => {
             if (title) updates.title = title;
             if (frequency) updates.frequency = frequency;
             updateHabit(id, updates);
-            functionResponses.push(`Updated rhythm id: ${id}`);
+            functionResponses.push(`Updated habit id: ${id}`);
           }
         } else if (call.name === "toggleTask") {
           let { id } = call.args;
@@ -3564,13 +3562,13 @@ const TrojanChat = () => {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                  placeholder="Command Trojan..."
-                  className="flex-1 bg-white/5 border border-white/10 rounded-full px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50"
-                  disabled={loading}
+                  placeholder={quotaWaitTime > 0 ? `Uplink blocked. Resuming in ${quotaWaitTime}s...` : "Command Trojan..."}
+                  className={`flex-1 bg-white/5 border border-white/10 rounded-full px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 ${quotaWaitTime > 0 ? 'opacity-50' : ''}`}
+                  disabled={loading || quotaWaitTime > 0}
                 />
                 <button
                   onClick={handleSend}
-                  disabled={!input.trim() || loading}
+                  disabled={!input.trim() || loading || quotaWaitTime > 0}
                   className="w-10 h-10 flex-shrink-0 rounded-full bg-blue-600 flex items-center justify-center text-white disabled:opacity-50 hover:bg-blue-500 transition-colors"
                 >
                   <Send className="w-4 h-4 translate-x-[1px]" />
@@ -3747,7 +3745,7 @@ const AppContent = ({
                 />
                 <SidebarItem
                   icon={Target}
-                  label="Missions"
+                  label="Goals"
                   active={activeView === "goals"}
                   onClick={() => {
                     setActiveView("goals");
@@ -3765,7 +3763,7 @@ const AppContent = ({
                 />
                 <SidebarItem
                   icon={Flame}
-                  label="Rhythm"
+                  label="Habits"
                   active={activeView === "habits"}
                   onClick={() => {
                     setActiveView("habits");
