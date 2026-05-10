@@ -48,6 +48,8 @@ service cloud.firestore {
              isValidSubtaskList(data.subtasks) &&
              data.createdAt is string && data.createdAt.size() <= 60 &&
              data.ownerId == request.auth.uid &&
+             (data.keys().hasAll(['notificationEnabled']) ? data.notificationEnabled is bool : true) &&
+             (data.keys().hasAll(['notificationTime']) ? data.notificationTime is string && data.notificationTime.size() <= 10 : true) &&
              (data.keys().hasAll(['parentGoalId']) ? (data.parentGoalId is string && data.parentGoalId.size() <= 128) : true);
     }
 
@@ -60,6 +62,8 @@ service cloud.firestore {
              isValidSubtaskList(data.subtasks) &&
              (data.keys().hasAll(['createdAt']) ? data.createdAt is string && data.createdAt.size() <= 60 : true) &&
              (data.keys().hasAll(['ownerId']) ? data.ownerId == request.auth.uid : true) &&
+             (data.keys().hasAll(['notificationEnabled']) ? data.notificationEnabled is bool : true) &&
+             (data.keys().hasAll(['notificationTime']) ? data.notificationTime is string && data.notificationTime.size() <= 10 : true) &&
              (data.keys().hasAll(['parentGoalId']) ? (data.parentGoalId is string && data.parentGoalId.size() <= 128) : true);
     }
 
@@ -101,14 +105,22 @@ service cloud.firestore {
              data.title is string && data.title.size() <= 500 &&
              data.streak is number && data.streak >= 0 &&
              data.completedHistory is map && data.completedHistory.size() <= 1000 &&
-             data.ownerId == request.auth.uid;
+             data.ownerId == request.auth.uid &&
+             (data.keys().hasAll(['frequency']) ? data.frequency is string && data.frequency.size() <= 60 : true) &&
+             (data.keys().hasAll(['notificationEnabled']) ? data.notificationEnabled is bool : true) &&
+             (data.keys().hasAll(['notificationTime']) ? data.notificationTime is string && data.notificationTime.size() <= 10 : true) &&
+             (data.keys().hasAll(['order']) ? data.order is number : true);
     }
     
     function isValidHabitUpdate(data) {
       return data.title is string && data.title.size() <= 500 &&
              data.streak is number && data.streak >= 0 &&
              data.completedHistory is map && data.completedHistory.size() <= 1000 &&
-             (data.keys().hasAll(['ownerId']) ? data.ownerId == request.auth.uid : true);
+             (data.keys().hasAll(['ownerId']) ? data.ownerId == request.auth.uid : true) &&
+             (data.keys().hasAll(['frequency']) ? data.frequency is string && data.frequency.size() <= 60 : true) &&
+             (data.keys().hasAll(['notificationEnabled']) ? data.notificationEnabled is bool : true) &&
+             (data.keys().hasAll(['notificationTime']) ? data.notificationTime is string && data.notificationTime.size() <= 10 : true) &&
+             (data.keys().hasAll(['order']) ? data.order is number : true);
     }
     
     function isValidReflectionCreate(data) {
@@ -150,7 +162,9 @@ service cloud.firestore {
         incoming().diff(existing()).affectedKeys().hasOnly(['completed', 'progress']) ||
         incoming().diff(existing()).affectedKeys().hasOnly(['subtasks', 'progress']) ||
         incoming().diff(existing()).affectedKeys().hasOnly(['subtasks', 'progress', 'completed']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['notificationEnabled', 'notificationTime']) ||
         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'type', 'priority']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['title', 'type', 'priority', 'notificationEnabled', 'notificationTime']) ||
         incoming().diff(existing()).affectedKeys().hasOnly([])
       );
       allow delete: if isOwner(userId);
@@ -175,7 +189,11 @@ service cloud.firestore {
       allow create: if isOwner(userId) && isValidId(habitId) && isValidHabitCreate(incoming());
       allow update: if isOwner(userId) && isValidId(habitId) && isValidHabitUpdate(incoming()) && (
         incoming().diff(existing()).affectedKeys().hasOnly(['completedHistory']) ||
-        incoming().diff(existing()).affectedKeys().hasOnly(['title', 'streak']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['completedHistory', 'streak']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['title', 'streak', 'frequency']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['title', 'streak', 'frequency', 'notificationEnabled', 'notificationTime']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['notificationEnabled', 'notificationTime']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['order']) ||
         incoming().diff(existing()).affectedKeys().hasOnly([])
       );
       allow delete: if isOwner(userId);
