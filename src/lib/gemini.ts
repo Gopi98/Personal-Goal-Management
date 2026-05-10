@@ -437,6 +437,60 @@ export const updateTaskDeclaration = {
   }
 };
 
+export const updateTaskSubtaskDeclaration = {
+  name: "updateTaskSubtask",
+  description: "Updates the title of a specific subtask within a task.",
+  parameters: {
+    type: "OBJECT",
+    properties: {
+      taskId: { type: "STRING", description: "The id of the parent task." },
+      subtaskId: { type: "STRING", description: "The id of the subtask." },
+      title: { type: "STRING", description: "The new title for the subtask." }
+    },
+    required: ["taskId", "subtaskId", "title"]
+  }
+};
+
+export const deleteTaskSubtaskDeclaration = {
+  name: "deleteTaskSubtask",
+  description: "Deletes a specific subtask from a task.",
+  parameters: {
+    type: "OBJECT",
+    properties: {
+      taskId: { type: "STRING", description: "The id of the parent task." },
+      subtaskId: { type: "STRING", description: "The id of the subtask to delete." }
+    },
+    required: ["taskId", "subtaskId"]
+  }
+};
+
+export const updateGoalSubtaskDeclaration = {
+  name: "updateGoalSubtask",
+  description: "Updates the title of a specific subtask within a goal.",
+  parameters: {
+    type: "OBJECT",
+    properties: {
+      goalId: { type: "STRING", description: "The id of the parent goal." },
+      subtaskId: { type: "STRING", description: "The id of the subtask." },
+      title: { type: "STRING", description: "The new title for the subtask." }
+    },
+    required: ["goalId", "subtaskId", "title"]
+  }
+};
+
+export const deleteGoalSubtaskDeclaration = {
+  name: "deleteGoalSubtask",
+  description: "Deletes a specific subtask from a goal.",
+  parameters: {
+    type: "OBJECT",
+    properties: {
+      goalId: { type: "STRING", description: "The id of the parent goal." },
+      subtaskId: { type: "STRING", description: "The id of the subtask to delete." }
+    },
+    required: ["goalId", "subtaskId"]
+  }
+};
+
 export const getTrojanChatResponse = async (
   message: string,
   history: { role: "user" | "model"; parts: { text: string }[] }[],
@@ -457,10 +511,14 @@ export const getTrojanChatResponse = async (
         model: "gemini-2.0-flash",
         contents: contents as any,
         config: {
-          systemInstruction: `You are Trojan, an elite AI productivity agent. You help the user manage their tasks, goals (yearly/monthly/weekly), and Habits. Be concise, militaristic, and professional. Current tasks: ${JSON.stringify(tasks.map((t: any) => ({ id: t.id, title: t.title, priority: t.priority, completed: t.completed }))) }. Current goals: ${JSON.stringify(goals.map((g: any) => ({ id: g.id, title: g.title, type: g.type, priority: g.priority, completed: g.completed }))) }. Current Habits: ${JSON.stringify(habits.map((h: any) => ({ id: h.id, title: h.title }))) }. 
+          systemInstruction: `You are Trojan, an elite AI productivity personal assistant and performance coach. You help the user manage their tasks, goals (yearly/monthly/weekly), and Habits. Current tasks: ${JSON.stringify(tasks.map((t: any) => ({ id: t.id, title: t.title, priority: t.priority, completed: t.completed, subtasks: t.subtasks?.map((s:any) => ({ id: s.id, title: s.title, completed: s.completed })) }))) }. Current goals: ${JSON.stringify(goals.map((g: any) => ({ id: g.id, title: g.title, type: g.type, priority: g.priority, completed: g.completed, subtasks: g.subtasks?.map((s:any) => ({ id: s.id, title: s.title, completed: s.completed })) }))) }. Current Habits: ${JSON.stringify(habits.map((h: any) => ({ id: h.id, title: h.title }))) }. 
 
-CRITICAL: Maintain context across turns. If the user provided a title in a previous turn and now provides a missing priority (or vice versa), combine them and execute the command. Do not ask for information the user has already provided in the conversation history. If all details are present across the last 2-3 turns, execute the tool immediately.`,
-          tools: [{ functionDeclarations: [createTaskDeclaration as any, createGoalDeclaration as any, createHabitDeclaration as any, toggleTaskDeclaration as any, deleteTaskDeclaration as any, toggleGoalDeclaration as any, deleteGoalDeclaration as any, updateTaskDeclaration as any, updateGoalDeclaration as any, updateHabitDeclaration as any] }],
+CRITICAL MISSION:
+1. When asked what to do today, prioritize incomplete tasks and suggest an action plan.
+2. If asked to analyze progress or results, evaluate completed vs incomplete items. Tell the user what they did well, what they did wrong (e.g., too many incomplete high-priority tasks), and how to improve. Motivate them aggressively but constructively.
+3. Suggest habits or goals if the user asks for self-improvement ideas.
+4. Maintain context across turns. If the user provided a title in a previous turn and now provides a missing priority (or vice versa), combine them and execute the tool. Do not ask for information the user has already provided. If all required details are present, execute the tool immediately.`,
+          tools: [{ functionDeclarations: [createTaskDeclaration as any, createGoalDeclaration as any, createHabitDeclaration as any, toggleTaskDeclaration as any, deleteTaskDeclaration as any, toggleGoalDeclaration as any, deleteGoalDeclaration as any, updateTaskDeclaration as any, updateGoalDeclaration as any, updateHabitDeclaration as any, updateTaskSubtaskDeclaration as any, deleteTaskSubtaskDeclaration as any, updateGoalSubtaskDeclaration as any, deleteGoalSubtaskDeclaration as any] }],
           temperature: 0.1
         }
       });
@@ -472,10 +530,14 @@ CRITICAL: Maintain context across turns. If the user provided a title in a previ
           model: "gemini-2.5-flash",
           contents: contents as any,
           config: {
-            systemInstruction: `You are Trojan, an elite AI productivity agent. You help the user manage their tasks, goals (yearly/monthly/weekly), and Habits. Be concise, militaristic, and professional. Current tasks: ${JSON.stringify(tasks.map((t: any) => ({ id: t.id, title: t.title, priority: t.priority, completed: t.completed }))) }. Current goals: ${JSON.stringify(goals.map((g: any) => ({ id: g.id, title: g.title, type: g.type, priority: g.priority, completed: g.completed }))) }. Current Habits: ${JSON.stringify(habits.map((h: any) => ({ id: h.id, title: h.title }))) }. 
+            systemInstruction: `You are Trojan, an elite AI productivity personal assistant and performance coach. You help the user manage their tasks, goals (yearly/monthly/weekly), and Habits. Current tasks: ${JSON.stringify(tasks.map((t: any) => ({ id: t.id, title: t.title, priority: t.priority, completed: t.completed, subtasks: t.subtasks?.map((s:any) => ({ id: s.id, title: s.title, completed: s.completed })) }))) }. Current goals: ${JSON.stringify(goals.map((g: any) => ({ id: g.id, title: g.title, type: g.type, priority: g.priority, completed: g.completed, subtasks: g.subtasks?.map((s:any) => ({ id: s.id, title: s.title, completed: s.completed })) }))) }. Current Habits: ${JSON.stringify(habits.map((h: any) => ({ id: h.id, title: h.title }))) }. 
 
-CRITICAL: Maintain context across turns. If the user provided a title in a previous turn and now provides a missing priority (or vice versa), combine them and execute the command. Do not ask for information the user has already provided in the conversation history. If all details are present across the last 2-3 turns, execute the tool immediately.`,
-            tools: [{ functionDeclarations: [createTaskDeclaration as any, createGoalDeclaration as any, createHabitDeclaration as any, toggleTaskDeclaration as any, deleteTaskDeclaration as any, toggleGoalDeclaration as any, deleteGoalDeclaration as any, updateTaskDeclaration as any, updateGoalDeclaration as any, updateHabitDeclaration as any] }],
+CRITICAL MISSION:
+1. When asked what to do today, prioritize incomplete tasks and suggest an action plan.
+2. If asked to analyze progress or results, evaluate completed vs incomplete items. Tell the user what they did well, what they did wrong (e.g., too many incomplete high-priority tasks), and how to improve. Motivate them aggressively but constructively.
+3. Suggest habits or goals if the user asks for self-improvement ideas.
+4. Maintain context across turns. If the user provided a title in a previous turn and now provides a missing priority (or vice versa), combine them and execute the tool. Do not ask for information the user has already provided. If all required details are present, execute the tool immediately.`,
+            tools: [{ functionDeclarations: [createTaskDeclaration as any, createGoalDeclaration as any, createHabitDeclaration as any, toggleTaskDeclaration as any, deleteTaskDeclaration as any, toggleGoalDeclaration as any, deleteGoalDeclaration as any, updateTaskDeclaration as any, updateGoalDeclaration as any, updateHabitDeclaration as any, updateTaskSubtaskDeclaration as any, deleteTaskSubtaskDeclaration as any, updateGoalSubtaskDeclaration as any, deleteGoalSubtaskDeclaration as any] }],
             temperature: 0.1
           }
         });

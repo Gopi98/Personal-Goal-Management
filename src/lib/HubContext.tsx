@@ -5,6 +5,7 @@ import { db, auth } from './firebase';
 import { collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, query, where, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { getReflectionInsight, smartTaskPrioritization } from './gemini';
+import confetti from 'canvas-confetti';
 
 enum OperationType {
   CREATE = 'create',
@@ -333,8 +334,19 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!user) return;
     const g = goals.find(x => x.id === id);
     if (!g) return;
+    const isNowCompleted = !g.completed;
     const docRef = doc(db, `users/${user.uid}/goals`, id);
-    try { await updateDoc(docRef, { completed: !g.completed, progress: !g.completed ? 100 : 0 }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
+    try { 
+      await updateDoc(docRef, { completed: isNowCompleted, progress: isNowCompleted ? 100 : 0 }); 
+      if (isNowCompleted) {
+        confetti({
+          particleCount: 150,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#3b82f6', '#ffffff']
+        });
+      }
+    } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
   const toggleTask = async (id: string) => {
@@ -345,6 +357,14 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const docRef = doc(db, `users/${user.uid}/tasks`, id);
     try {
       await updateDoc(docRef, { completed: isNowCompleted });
+      if (isNowCompleted) {
+        confetti({
+          particleCount: 100,
+          spread: 50,
+          origin: { y: 0.7 },
+          colors: ['#3b82f6', '#ffffff']
+        });
+      }
       if (t.linkedHabitId) {
         const h = habits.find(x => x.id === t.linkedHabitId);
         if (h && !!h.completedHistory[t.date] !== isNowCompleted) {

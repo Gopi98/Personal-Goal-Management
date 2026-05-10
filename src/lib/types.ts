@@ -11,6 +11,9 @@ export interface Goal {
   parentGoalTitle?: string;
   notificationEnabled?: boolean;
   notificationTime?: string;
+  notificationSchedule?: 'once' | 'daily' | 'weekly' | 'specific_days';
+  notificationDays?: number[];
+  notificationDate?: string;
 }
 
 export interface Subtask {
@@ -34,6 +37,11 @@ export interface Task {
   order?: number;
   parentGoalTitle?: string;
   linkedHabitId?: string;
+  notificationEnabled?: boolean;
+  notificationTime?: string;
+  notificationSchedule?: 'once' | 'daily' | 'weekly' | 'specific_days';
+  notificationDays?: number[];
+  notificationDate?: string;
 }
 
 export interface Habit {
@@ -45,6 +53,9 @@ export interface Habit {
   order?: number;
   notificationEnabled?: boolean;
   notificationTime?: string;
+  notificationSchedule?: 'once' | 'daily' | 'weekly' | 'specific_days';
+  notificationDays?: number[];
+  notificationDate?: string;
 }
 
 export interface FocusSession {

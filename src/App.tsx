@@ -4,6 +4,8 @@ import {
   Home,
   Target,
   CheckSquare,
+  Check,
+  Activity,
   Zap,
   PieChart,
   Wallet,
@@ -55,6 +57,7 @@ import {
   DropResult,
 } from "@hello-pangea/dnd";
 import { GoogleGenAI, Modality } from "@google/genai";
+import confetti from "canvas-confetti";
 
 import {
   BarChart,
@@ -95,7 +98,7 @@ const SidebarItem = ({
       className={`w-full flex items-center space-x-4 px-6 py-4 rounded-[20px] transition-all group relative overflow-hidden ${
         active
           ? "bg-blue-600/10 text-white border border-blue-500/20 shadow-[0_0_20px_rgba(37,99,235,0.1)]"
-          : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.03] border border-transparent"
+          : "text-slate-300 hover:text-slate-200 hover:bg-white/[0.03] border border-transparent"
       }`}
     >
       {active && (
@@ -170,12 +173,30 @@ const Tooltip = ({
   );
 };
 
+let ambientAudio: HTMLAudioElement | null = null;
+
 const playAILoop = (type: "rain" | "birds") => {
-  // Ambient audio completely removed as it was unstable
+  if (ambientAudio) {
+    ambientAudio.pause();
+    ambientAudio = null;
+  }
+  
+  const url = type === "rain" 
+    ? "https://actions.google.com/sounds/v1/weather/rain_heavy_loud.ogg"
+    : "https://actions.google.com/sounds/v1/animals/birds_forest_afternoon.ogg";
+    
+  ambientAudio = new Audio(url);
+  ambientAudio.loop = true;
+  ambientAudio.volume = 0.4;
+  
+  ambientAudio.play().catch(e => console.warn("Audio autoplay blocked:", e));
 };
 
 const stopAILoop = () => {
-  // Ambient audio removed
+  if (ambientAudio) {
+    ambientAudio.pause();
+    ambientAudio = null;
+  }
 };
 
 const playBeep = () => {
@@ -211,6 +232,105 @@ const sendNotification = (title: string, body: string) => {
     new Notification(title, { body, icon: "/favicon.ico" });
   }
 };
+
+const NotificationEditor = ({
+  enabled,
+  setEnabled,
+  time,
+  setTime,
+  schedule,
+  setSchedule,
+  days,
+  setDays,
+  date,
+  setDate,
+}: {
+  enabled: boolean;
+  setEnabled: (e: boolean) => void;
+  time: string;
+  setTime: (t: string) => void;
+  schedule: 'once' | 'daily' | 'weekly' | 'specific_days';
+  setSchedule: (s: 'once' | 'daily' | 'weekly' | 'specific_days') => void;
+  days: number[];
+  setDays: (d: number[]) => void;
+  date: string;
+  setDate: (d: string) => void;
+}) => {
+  const dayNames = ["S", "M", "T", "W", "T", "F", "S"];
+  return (
+    <div className="space-y-3 mt-4 border-t border-white/10 pt-4">
+      <div className="flex items-center justify-between">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => {
+              setEnabled(e.target.checked);
+              if (e.target.checked && Notification.permission !== "granted") {
+                Notification.requestPermission();
+              }
+            }}
+            className="accent-blue-500 w-4 h-4"
+          />
+          <span className="text-sm font-bold text-white uppercase tracking-wider">Enable Notification</span>
+        </label>
+      </div>
+
+      {enabled && (
+        <div className="pl-6 space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <input
+              type="time"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              className="bg-white/5 border border-white/20 rounded-xl px-3 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
+            />
+            <select
+              value={schedule}
+              onChange={(e) => setSchedule(e.target.value as any)}
+              className="bg-white/5 border border-white/20 rounded-xl px-3 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
+            >
+              <option value="once">Once</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="specific_days">Specific Days</option>
+            </select>
+          </div>
+
+          {schedule === "once" && (
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="bg-white/5 border border-white/20 rounded-xl px-3 py-1.5 text-white text-sm focus:border-blue-500 outline-none w-full"
+            />
+          )}
+
+          {schedule === "specific_days" && (
+            <div className="flex gap-1 justify-between max-w-[200px]">
+              {dayNames.map((n, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => {
+                    if (days.includes(i)) setDays(days.filter(d => d !== i));
+                    else setDays([...days, i]);
+                  }}
+                  className={`w-6 h-6 rounded-full text-[10px] font-bold flex items-center justify-center transition-colors ${
+                    days.includes(i) ? "bg-blue-600 text-white" : "bg-white/10 text-slate-400 hover:bg-white/20"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const playAIAudio = async (text: string) => {
   try {
     const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
@@ -264,10 +384,14 @@ const ZenTimer = ({ onExit }: { onExit: () => void }) => {
   const { addFocusSession } = useHub();
 
   useEffect(() => {
+    playAILoop("rain");
     const interval = setInterval(() => {
       setSeconds(s => s + 1);
     }, 1000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      stopAILoop();
+    };
   }, []);
 
   const handleExit = () => {
@@ -416,7 +540,7 @@ const PomodoroTimer = ({
           <Tooltip key={mins} text={`Set duration to ${mins}m`}>
             <button
               onClick={() => setTimerLength(mins)}
-              className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${currentLength === mins && mode === "work" ? "bg-blue-600 text-white shadow-md" : "bg-white/5 text-slate-400 hover:text-white"}`}
+              className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${currentLength === mins && mode === "work" ? "bg-blue-600 text-white shadow-md" : "bg-white/5 text-slate-300 hover:text-white"}`}
             >
               {mins}m
             </button>
@@ -442,7 +566,7 @@ const PomodoroTimer = ({
         <Tooltip text="Reset timer">
           <button
             onClick={reset}
-            className="p-3 text-slate-400 hover:text-white transition-colors"
+            className="p-3 text-slate-300 hover:text-white transition-colors"
           >
             <RotateCcw className="w-5 h-5" />
           </button>
@@ -459,13 +583,13 @@ const getMoodTheme = (mood: string | null) => {
     case "Calm":
       return "bg-[#0d1117] selection:bg-teal-500/30";
     case "Energized":
-      return "bg-[#0f0a0a] selection:bg-orange-500/30";
+      return "bg-[#0a0505] selection:bg-orange-500/30";
     case "Stress":
       return "bg-[#120e16] selection:bg-purple-500/30";
     case "Tired":
-      return "bg-[#0a0c10] selection:bg-slate-500/30";
+      return "bg-[#050507] selection:bg-slate-500/30";
     default:
-      return "bg-[#0a0a0c] selection:bg-blue-500/30";
+      return "bg-[#050505] selection:bg-blue-500/30";
   }
 };
 
@@ -480,7 +604,7 @@ const getMoodAccent = (mood: string | null) => {
     case "Stress":
       return "text-purple-400 border-purple-500/30 bg-purple-500/10";
     case "Tired":
-      return "text-slate-400 border-slate-500/30 bg-slate-500/10";
+      return "text-slate-300 border-slate-500/30 bg-slate-500/10";
     default:
       return "text-blue-400 border-blue-500/30 bg-blue-500/10";
   }
@@ -488,24 +612,114 @@ const getMoodAccent = (mood: string | null) => {
 
 // --- Sub-views ---
 
+const MiniCalendar = ({ tasks, onDateClick }: { tasks: any[], onDateClick?: (dateStr: string) => void }) => {
+  const [currentDate, setCurrentDate] = useState(new Date());
+  
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+
+  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
+  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
+
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  
+  const startDayOfWeek = firstDay.getDay(); // 0 is Sunday
+  const numDays = lastDay.getDate();
+
+  const days: (number | null)[] = [];
+  for (let i = 0; i < startDayOfWeek; i++) {
+    days.push(null);
+  }
+  for (let i = 1; i <= numDays; i++) {
+    days.push(i);
+  }
+
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+  const dayNames = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+  return (
+    <div className="flex flex-col">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col">
+          <span className="text-[10px] font-black uppercase tracking-[0.3em] font-mono text-rose-500 mb-1">Calendar</span>
+          <h4 className="text-xl md:text-2xl font-display font-black text-white">{monthNames[month]} {year}</h4>
+        </div>
+        <div className="flex space-x-2">
+          <button onClick={prevMonth} className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white transition-colors">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button onClick={nextMonth} className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white transition-colors">
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-7 gap-2 mb-2">
+        {dayNames.map((d, i) => (
+          <div key={i} className="text-[10px] md:text-xs font-black text-slate-400 text-center uppercase tracking-wider">{d}</div>
+        ))}
+      </div>
+      
+      <div className="grid grid-cols-7 gap-2">
+        {days.map((d, i) => {
+          let hasTasks = false;
+          let dateStr = "";
+          if (d) {
+            dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            hasTasks = tasks.some(t => t.date === dateStr);
+          }
+          const isToday = d && new Date().getDate() === d && new Date().getMonth() === month && new Date().getFullYear() === year;
+          return (
+            <div 
+              key={i} 
+              onClick={() => d && onDateClick && onDateClick(dateStr)}
+              className={`h-12 md:h-14 rounded-xl flex flex-col items-center justify-center text-sm md:text-base font-bold transition-all relative ${
+                d === null 
+                  ? "" 
+                  : isToday
+                  ? "bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)] border border-blue-500 cursor-pointer hover:bg-blue-500"
+                  : "bg-white/[0.02] border border-white/[0.05] hover:bg-white/10 hover:border-white/20 text-slate-300 cursor-pointer"
+              }`}
+            >
+              {d && <span>{d}</span>}
+              {hasTasks && d && (
+                <div className={`w-1.5 h-1.5 rounded-full mt-1 ${isToday ? 'bg-white' : 'bg-blue-500'}`} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const HomeView = () => {
-  const { goals, tasks, habits, selectedMood, setSelectedMood, reflections, focusSessions } = useHub();
-  const [insight, setInsight] = useState<string | null>(null);
+  const { goals, tasks, habits, selectedMood, setSelectedMood, reflections, focusSessions, toggleTask, addTask } = useHub();
   const [motivation, setMotivation] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [focusAdvice, setFocusAdvice] = useState<string | null>(null);
-  const [isGettingAdvice, setIsGettingAdvice] = useState(false);
 
   const [isRefreshingQuote, setIsRefreshingQuote] = useState(false);
+  const [taskCreateDate, setTaskCreateDate] = useState<string|null>(null);
+  const [taskCreateTitle, setTaskCreateTitle] = useState("");
 
-  const handleGetFocusAdvice = async () => {
-    setIsGettingAdvice(true);
-    const advice = await getOverviewFocusAdvice(
-      goals.filter(g => !g.completed),
-      tasks.filter(t => !t.completed)
-    );
-    setFocusAdvice(advice);
-    setIsGettingAdvice(false);
+  const handleDateClick = (dateStr: string) => {
+    setTaskCreateDate(dateStr);
+    setTaskCreateTitle("");
+  };
+
+  const handleCreateTask = () => {
+    if (!taskCreateTitle.trim() || !taskCreateDate) return;
+    addTask({
+      title: taskCreateTitle,
+      date: taskCreateDate,
+      priority: "B",
+      type: "one-off"
+    });
+    setTaskCreateDate(null);
+    setTaskCreateTitle("");
   };
 
   const fetchMotivation = async () => {
@@ -525,8 +739,9 @@ const HomeView = () => {
   }, [selectedMood]);
 
   const activeGoals = goals.filter((g) => !g.completed).length;
+  const todayDateStr = toLocalDateStr();
   const todayTasks = tasks.filter(
-    (t) => t.date === toLocalDateStr(),
+    (t) => t.date === todayDateStr || (t.date < todayDateStr && !t.completed),
   );
   const completedToday = todayTasks.filter((t) => t.completed).length;
 
@@ -622,18 +837,6 @@ const HomeView = () => {
     Tired: "Focus on low-energy tasks or take a short active break.",
   };
 
-  const handleGetInsight = async () => {
-    setLoading(true);
-    const data = {
-      activeGoals: goals.filter((g) => !g.completed).map((g) => g.title),
-      todayTasks: todayTasks.map((t) => t.title),
-      completedCount: completedToday,
-    };
-    const res = await getAICoachInsight(data);
-    setInsight(res);
-    setLoading(false);
-  };
-
   return (
     <div className="space-y-12 sm:space-y-16 animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Header Section with better hierarchy */}
@@ -654,7 +857,7 @@ const HomeView = () => {
             <br />
             {new Date().getHours() < 5 ? "Good night." : new Date().getHours() < 12 ? "Good morning." : new Date().getHours() < 17 ? "Good afternoon." : "Good evening."}
           </h2>
-          <p className="text-slate-400 text-lg md:text-xl font-medium max-w-lg leading-relaxed">
+          <p className="text-slate-300 text-lg md:text-xl font-medium max-w-lg leading-relaxed">
             Your command center is synchronized. Current trajectory:{" "}
             <span className="text-slate-200">Optimal.</span>
           </p>
@@ -709,7 +912,7 @@ const HomeView = () => {
                 <RotateCcw className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
               Cognitive Priming Protocol
             </p>
           </div>
@@ -720,7 +923,7 @@ const HomeView = () => {
             <div className="h-[2px] w-12 bg-gradient-to-r from-transparent to-white/10" />
             <div className="flex items-center space-x-3">
               <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] leading-none">
+              <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em] leading-none">
                 Intelligence Signal Active
               </span>
             </div>
@@ -729,58 +932,12 @@ const HomeView = () => {
         </div>
       </motion.div>
 
-      <div className="max-w-4xl mx-auto w-full space-y-4">
-        <Tooltip text="Get AI advice on where to direct your energy next">
-          <button 
-            onClick={handleGetFocusAdvice}
-            disabled={isGettingAdvice}
-            className="w-full bg-white/5 border border-white/10 rounded-2xl p-6 flex items-center space-x-4 text-blue-400 cursor-pointer hover:bg-white/10 transition-all text-left disabled:opacity-50 group shadow-[0_20px_50px_rgba(0,0,0,0.2)]"
-          >
-            <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-              {isGettingAdvice ? <RotateCcw className="w-6 h-6 animate-spin" /> : <Sparkles className="w-6 h-6" />}
-            </div>
-            <div className="flex-1">
-              <p className="text-lg font-black tracking-tight text-white mb-1">
-                {isGettingAdvice ? "Analyzing organizational vectors..." : "Tell me what to focus on today"}
-              </p>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                Execute cross-domain analysis
-              </p>
-            </div>
-          </button>
-        </Tooltip>
-        
-        <AnimatePresence>
-          {focusAdvice && (
-            <motion.div
-              initial={{ opacity: 0, height: 0, scale: 0.95 }}
-              animate={{ opacity: 1, height: 'auto', scale: 1 }}
-              exit={{ opacity: 0, height: 0, scale: 0.95 }}
-              className="bg-blue-600/10 border border-blue-500/20 rounded-3xl p-8 relative overflow-hidden shadow-2xl"
-            >
-              <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 blur-[100px] rounded-full" />
-              <div className="relative z-10 flex items-start space-x-6">
-                <div className="w-14 h-14 rounded-[20px] bg-blue-500/20 flex-shrink-0 flex items-center justify-center border border-blue-500/30">
-                  <Bot className="w-6 h-6 text-blue-400" />
-                </div>
-                <div className="flex-1 space-y-2">
-                  <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2">Executive Summary</p>
-                  <p className="text-lg md:text-xl font-medium text-blue-50 leading-relaxed font-display">
-                    {focusAdvice}
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
       {/* Quick Access Grid */}
       <div className="space-y-6">
         <div className="flex items-center space-x-2 px-2">
-          <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Current State Sequence</h2>
+          <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-300">Current State Sequence</h2>
           <div className="relative group/tooltip z-50 hover:z-[100]">
-            <Info className="w-3 h-3 text-slate-400 cursor-help" />
+            <Info className="w-3 h-3 text-slate-300 cursor-help" />
             <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 p-3 bg-slate-700 text-xs text-slate-300 rounded-lg shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all z-50 pointer-events-none font-sans font-normal tracking-normal normal-case">
               Select your current mental or physical state. The AI will adapt your recommended tasks to match what you are capable of handling right now.
               <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-slate-800"></div>
@@ -811,7 +968,7 @@ const HomeView = () => {
                     {m === "Tired" && "☕"}
                   </span>
                   <span
-                    className={`text-[10px] font-black uppercase tracking-widest ${selectedMood === m ? "text-white" : "text-slate-400"}`}
+                    className={`text-[10px] font-black uppercase tracking-widest ${selectedMood === m ? "text-white" : "text-slate-300"}`}
                   >
                     {m}
                   </span>
@@ -846,7 +1003,7 @@ const HomeView = () => {
                   <h3 className="text-2xl sm:text-3xl font-display font-black text-white mb-2 leading-tight">
                     {suggestedTask.title}
                   </h3>
-                  <p className="text-slate-400 text-sm mb-6 max-w-sm">
+                  <p className="text-slate-300 text-sm mb-6 max-w-sm">
                     {suggestionDesc}
                   </p>
                 </>
@@ -855,7 +1012,7 @@ const HomeView = () => {
                   <h3 className="text-xl sm:text-2xl font-display font-black text-slate-300 mb-2">
                     {tasks.length === 0 ? "Welcome to Command Center" : "You're all clear!"}
                   </h3>
-                  <p className="text-slate-400 text-sm mt-2">
+                  <p className="text-slate-300 text-sm mt-2">
                     {tasks.length === 0 
                       ? "Get started by adding your first task. Navigate to the Tasks tab below and press the + icon to plan your strategy." 
                       : "You have conquered your tasks for now. Take a deep breath."}
@@ -897,7 +1054,7 @@ const HomeView = () => {
                 <div key={idx} className="space-y-2">
                   <div className="flex justify-between items-center text-sm">
                     <span className="font-bold text-slate-300">{metric.label}</span>
-                    <span className="text-indigo-400 font-black">{metric.value} <span className="text-slate-400">/ {metric.target}</span></span>
+                    <span className="text-indigo-400 font-black">{metric.value} <span className="text-slate-300">/ {metric.target}</span></span>
                   </div>
                   <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
                     <motion.div
@@ -916,61 +1073,14 @@ const HomeView = () => {
       {/* Main Insights Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: AI & Stats */}
-        <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <GlassCard className="md:col-span-2 p-8 group hover:border-blue-500/30 transition-all shadow-2xl backdrop-blur-3xl overflow-visible">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 h-full">
-              <div className="space-y-6 flex-1 min-w-0">
-                <div className="flex items-center space-x-2 text-blue-500">
-                  <Sparkles className="w-5 h-5 animate-pulse" />
-                  <span className="text-[10px] font-black uppercase tracking-[0.3em] font-mono">
-                    Expert System Insight
-                  </span>
-                </div>
-                <div className="min-h-[100px] max-h-[150px] overflow-y-auto pr-2">
-                  <h4 className="text-2xl font-display font-bold text-white mb-3">
-                    {insight
-                      ? "Strategic Audit Complete"
-                      : "Perform Strategic Audit"}
-                  </h4>
-                  <p className="text-slate-400 text-base leading-relaxed">
-                    {insight ||
-                      "Synthesize your task velocity and goal trajectories into a personalized coaching plan."}
-                  </p>
-                </div>
-                <Tooltip text="Generate personalized strategic audit">
-                  <button
-                    onClick={handleGetInsight}
-                    disabled={loading}
-                    className="flex items-center space-x-4 bg-white text-black px-8 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-50 transition-all shadow-[0_10px_30px_rgba(255,255,255,0.1)] active:scale-95 disabled:opacity-50"
-                  >
-                    {loading ? (
-                      <RotateCcw className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Play className="w-4 h-4" />
-                    )}
-                    <span>{loading ? "Processing..." : "Run Audit"}</span>
-                  </button>
-                </Tooltip>
-              </div>
-              {insight && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="w-32 h-32 hidden md:flex items-center justify-center bg-blue-600/10 rounded-3xl border border-blue-500/20"
-                >
-                  <Zap className="w-12 h-12 text-blue-400" />
-                </motion.div>
-              )}
-            </div>
-          </GlassCard>
-
+        <div className="lg:col-span-12 grid grid-cols-1 gap-6">
           <GlassCard className="p-8 flex flex-col justify-between overflow-visible">
             <div className="flex items-center space-x-2 mb-8">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
                 Performance Score
               </p>
               <div className="relative group/tooltip z-50 hover:z-[100]">
-                <Info className="w-3 h-3 text-slate-400 cursor-help" />
+                <Info className="w-3 h-3 text-slate-300 cursor-help" />
                 <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-48 p-3 bg-slate-700 text-xs text-slate-300 rounded-lg shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all z-50 pointer-events-none">
                   A dynamic score ({completedToday * 20 + 42} pts) calculated by your completed tasks ({completedToday}) multiplied by 20, plus a base momentum of 42. Keep crushing tasks to boost your score!
                   <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-slate-800"></div>
@@ -978,14 +1088,14 @@ const HomeView = () => {
               </div>
             </div>
             <div className="flex items-baseline space-x-1">
-              <span className="text-6xl font-display font-black text-white">
+              <span className="text-7xl font-display font-black text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.1)]">
                 {completedToday * 20 + 42}
               </span>
-              <span className="text-blue-500 font-bold">PTS</span>
+              <span className="text-blue-500 font-black tracking-widest text-sm">PTS</span>
             </div>
             <div className="mt-8 pt-8 border-t border-white/5 space-y-4">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400 font-medium">Daily Target</span>
+                <span className="text-slate-300 font-medium">Daily Target</span>
                 <span className="text-white font-black">
                   {Math.min(100, completedToday * 25)}%
                 </span>
@@ -1048,14 +1158,14 @@ const HomeView = () => {
               </div>
               <div className="space-y-1">
                 <Tooltip text={card.desc}>
-                  <p className="text-[10px] w-max font-black text-slate-400 uppercase tracking-widest cursor-help border-b border-dashed border-slate-500/50 pb-0.5 inline-block">
+                  <p className="text-[10px] w-max font-black text-slate-300 uppercase tracking-widest cursor-help border-b border-dashed border-slate-500/50 pb-0.5 inline-block">
                     {card.label}
                   </p>
                 </Tooltip>
                 <h4 className="text-3xl font-display font-black text-white">
                   {card.value}
                 </h4>
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mt-2">
+                <p className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter mt-2">
                   {card.sub}
                 </p>
               </div>
@@ -1078,13 +1188,13 @@ const HomeView = () => {
               <div className="flex items-center space-x-6">
                 <div className="flex items-center space-x-2">
                   <div className="w-2 h-2 rounded-full bg-blue-600" />
-                  <span className="text-[10px] font-black text-slate-400 uppercase">
+                  <span className="text-[10px] font-black text-slate-300 uppercase">
                     Completed
                   </span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <div className="w-2 h-2 rounded-full bg-white/10" />
-                  <span className="text-[10px] font-black text-slate-400 uppercase">
+                  <span className="text-[10px] font-black text-slate-300 uppercase">
                     Backlog
                   </span>
                 </div>
@@ -1118,10 +1228,10 @@ const HomeView = () => {
                               <p className="text-sm font-bold text-white">
                                 {payload[0].payload.completed} Tasks Finished
                               </p>
-                              <p className="text-sm font-bold text-slate-400">
+                              <p className="text-sm font-bold text-slate-300">
                                 {payload[0].payload.backlog} Backlog Tasks
                               </p>
-                              <p className="text-[9px] text-slate-400 uppercase">
+                              <p className="text-[9px] text-slate-300 uppercase">
                                 Total Capacity: {payload[0].payload.total}
                               </p>
                             </div>
@@ -1150,7 +1260,65 @@ const HomeView = () => {
             </div>
           </GlassCard>
         </div>
+
+        {/* Operations Timeline Widget */}
+        <div className="lg:col-span-12">
+          <GlassCard className="p-6 md:p-8">
+            <MiniCalendar tasks={tasks} onDateClick={handleDateClick} />
+          </GlassCard>
+        </div>
       </div>
+
+      <AnimatePresence>
+        {taskCreateDate && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md"
+            >
+              <GlassCard className="p-6 space-y-6 relative overflow-visible">
+                <button
+                  onClick={() => setTaskCreateDate(null)}
+                  className="absolute -top-3 -right-3 w-8 h-8 bg-slate-800 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 transition-colors border border-white/10"
+                >
+                  <CloseIcon className="w-4 h-4" />
+                </button>
+                <div>
+                  <h3 className="text-xl font-display font-black text-white">Create Task</h3>
+                  <p className="text-sm text-slate-400">Scheduled for {taskCreateDate}</p>
+                </div>
+                <div className="space-y-4">
+                  <input
+                    autoFocus
+                    type="text"
+                    value={taskCreateTitle}
+                    onChange={(e) => setTaskCreateTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleCreateTask();
+                    }}
+                    placeholder="E.g., Read 10 pages..."
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  />
+                  <button
+                    onClick={handleCreateTask}
+                    disabled={!taskCreateTitle.trim()}
+                    className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-white/5 disabled:text-slate-500 text-white font-bold py-3 rounded-xl transition-all"
+                  >
+                    Add Task
+                  </button>
+                </div>
+              </GlassCard>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -1188,11 +1356,38 @@ const GoalsView = () => {
   const [isGettingAdvice, setIsGettingAdvice] = useState(false);
 
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
-  const [editingGoalData, setEditingGoalData] = useState<{ title: string; priority: string; type: string; notificationEnabled: boolean; notificationTime: string }>({ title: "", priority: "B", type: "weekly", notificationEnabled: false, notificationTime: "09:00" });
+  const [editingGoalData, setEditingGoalData] = useState<{ 
+    title: string; 
+    priority: string; 
+    type: string; 
+    notificationEnabled: boolean; 
+    notificationTime: string;
+    notificationSchedule: 'once' | 'daily' | 'weekly' | 'specific_days';
+    notificationDays: number[];
+    notificationDate: string;
+  }>({ 
+    title: "", 
+    priority: "B", 
+    type: "weekly", 
+    notificationEnabled: false, 
+    notificationTime: "09:00",
+    notificationSchedule: 'specific_days',
+    notificationDays: [1, 2, 3, 4, 5],
+    notificationDate: ""
+  });
 
   const startEditingGoal = (goal: any) => {
     setEditingGoalId(goal.id);
-    setEditingGoalData({ title: goal.title, priority: goal.priority, type: goal.type, notificationEnabled: goal.notificationEnabled || false, notificationTime: goal.notificationTime || "09:00" });
+    setEditingGoalData({ 
+      title: goal.title, 
+      priority: goal.priority, 
+      type: goal.type, 
+      notificationEnabled: goal.notificationEnabled || false, 
+      notificationTime: goal.notificationTime || "09:00",
+      notificationSchedule: goal.notificationSchedule || 'daily',
+      notificationDays: goal.notificationDays || [1, 2, 3, 4, 5],
+      notificationDate: goal.notificationDate || ""
+    });
   };
 
   const saveEditingGoal = () => {
@@ -1295,7 +1490,7 @@ const GoalsView = () => {
                 onClick={() =>
                   setExpandedId(expandedId === goal.id ? null : goal.id)
                 }
-                className={`p-3 bg-white/5 rounded-xl text-slate-400 hover:text-white transition-all ${expandedId === goal.id ? "rotate-180 bg-white/10" : ""}`}
+                className={`p-3 bg-white/5 rounded-xl text-slate-300 hover:text-white transition-all ${expandedId === goal.id ? "rotate-180 bg-white/10" : ""}`}
               >
                 <ChevronDown className="w-5 h-5" />
               </button>
@@ -1313,7 +1508,7 @@ const GoalsView = () => {
               <Tooltip text="Edit goal">
                 <button
                   onClick={() => startEditingGoal(goal)}
-                  className="p-3 hover:text-blue-500 transition-colors text-slate-400"
+                  className="p-3 hover:text-blue-500 transition-colors text-slate-300"
                 >
                   <Edit3 className="w-5 h-5" />
                 </button>
@@ -1322,7 +1517,7 @@ const GoalsView = () => {
             <Tooltip text="Delete goal">
               <button
                 onClick={() => deleteGoal(goal.id)}
-                className="p-3 hover:text-red-500 transition-colors text-slate-400"
+                className="p-3 hover:text-red-500 transition-colors text-slate-300"
               >
                 <Trash2 className="w-5 h-5" />
               </button>
@@ -1361,34 +1556,24 @@ const GoalsView = () => {
                   <option value="C">Priority C</option>
                   <option value="D">Priority D</option>
                 </select>
-                <label className="flex items-center gap-2 bg-white/5 border border-white/20 rounded-xl px-3 py-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editingGoalData.notificationEnabled}
-                    onChange={(e) => {
-                      setEditingGoalData({ ...editingGoalData, notificationEnabled: e.target.checked });
-                      if (e.target.checked && Notification.permission !== "granted") {
-                        Notification.requestPermission();
-                      }
-                    }}
-                    className="accent-blue-500"
-                  />
-                  <span className="text-xs text-white uppercase">Notify</span>
-                </label>
-                {editingGoalData.notificationEnabled && (
-                  <input
-                    type="time"
-                    value={editingGoalData.notificationTime}
-                    onChange={(e) => setEditingGoalData({ ...editingGoalData, notificationTime: e.target.value })}
-                    className="bg-white/5 border border-white/20 rounded-xl px-3 py-1.5 text-white text-sm"
-                  />
-                )}
               </div>
+              <NotificationEditor
+                enabled={editingGoalData.notificationEnabled}
+                setEnabled={(b) => setEditingGoalData({ ...editingGoalData, notificationEnabled: b })}
+                time={editingGoalData.notificationTime}
+                setTime={(t) => setEditingGoalData({ ...editingGoalData, notificationTime: t })}
+                schedule={editingGoalData.notificationSchedule}
+                setSchedule={(s) => setEditingGoalData({ ...editingGoalData, notificationSchedule: s })}
+                days={editingGoalData.notificationDays}
+                setDays={(d) => setEditingGoalData({ ...editingGoalData, notificationDays: d })}
+                date={editingGoalData.notificationDate}
+                setDate={(d) => setEditingGoalData({ ...editingGoalData, notificationDate: d })}
+              />
             </div>
           ) : (
             <>
               <h4
-                className={`text-2xl font-display font-black tracking-tight break-words ${goal.completed ? "line-through text-slate-400" : "text-white"}`}
+                className={`text-2xl font-display font-black tracking-tight break-words ${goal.completed ? "line-through text-slate-300" : "text-white"}`}
               >
                 {goal.title}
               </h4>
@@ -1402,7 +1587,7 @@ const GoalsView = () => {
                 <span className="text-[9px] font-black bg-blue-600/20 text-blue-400 px-3 py-1 rounded-full uppercase tracking-widest">
                   {goal.type}
                 </span>
-                <span className="text-[9px] font-black bg-white/10 text-slate-400 px-3 py-1 rounded-full uppercase tracking-widest">
+                <span className="text-[9px] font-black bg-white/10 text-slate-300 px-3 py-1 rounded-full uppercase tracking-widest">
                   Priority {goal.priority}
                 </span>
                 {!goal.completed && (
@@ -1424,23 +1609,27 @@ const GoalsView = () => {
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
               Progress
             </span>
             <span className="text-[10px] font-black text-white font-mono">
               {goal.progress}% COMPLETE
             </span>
           </div>
-          <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+          <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden border border-white/5 relative">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${goal.progress}%` }}
-              className={`h-full transition-all duration-1000 ${
+              className={`h-full transition-all duration-1000 relative ${
                 goal.completed
                   ? "bg-blue-600"
-                  : "bg-gradient-to-r from-blue-600 to-indigo-500"
+                  : "bg-gradient-to-r from-blue-600 to-indigo-500 shadow-[0_0_15px_rgba(59,130,246,0.3)]"
               }`}
-            />
+            >
+              {!goal.completed && (
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] animate-[shimmer_2s_infinite]" />
+              )}
+            </motion.div>
           </div>
         </div>
 
@@ -1484,7 +1673,7 @@ const GoalsView = () => {
               </div>
 
               <div className="space-y-3">
-                {(goal.subtasks || []).map((sub: any) => (
+                {(!!goal.subtasks && goal.subtasks.length > 0 ? [...goal.subtasks].sort((a: any, b: any) => Number(a.completed || false) - Number(b.completed || false)) : []).map((sub: any) => (
                   <div
                     key={sub.id}
                     className="flex items-center justify-between p-4 bg-white/[0.02] border border-white/[0.04] rounded-2xl group/sub hover:bg-white/[0.04] transition-all gap-4"
@@ -1527,7 +1716,7 @@ const GoalsView = () => {
                         </div>
                       ) : (
                         <span
-                          className={`text-sm font-bold flex-1 min-w-0 break-words text-left ${sub.completed ? "text-slate-400 line-through" : "text-slate-300"}`}
+                          className={`text-sm font-bold flex-1 min-w-0 break-words text-left ${sub.completed ? "text-slate-300 line-through" : "text-slate-300"}`}
                         >
                           {sub.title}
                         </span>
@@ -1541,7 +1730,7 @@ const GoalsView = () => {
                               setEditingSubtaskId(sub.id);
                               setEditingSubtaskTitle(sub.title);
                             }}
-                            className="text-slate-400 hover:text-blue-400 p-1"
+                            className="text-slate-300 hover:text-blue-400 p-1"
                           >
                             <Edit3 className="w-4 h-4" />
                           </button>
@@ -1551,7 +1740,7 @@ const GoalsView = () => {
                         <Tooltip text="Promote to individual task">
                           <button
                             onClick={() => handlePromote(goal, sub, true)}
-                            className="text-slate-400 hover:text-blue-400 p-1"
+                            className="text-slate-300 hover:text-blue-400 p-1"
                           >
                             <ArrowUpRight className="w-4 h-4" />
                           </button>
@@ -1560,7 +1749,7 @@ const GoalsView = () => {
                       <Tooltip text="Delete subtask">
                         <button
                           onClick={() => deleteSubtask(goal.id, sub.id)}
-                          className="text-slate-400 hover:text-red-500 p-1"
+                          className="text-slate-300 hover:text-red-500 p-1"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -1687,33 +1876,9 @@ const GoalsView = () => {
           <h2 className="text-4xl md:text-5xl lg:text-6xl font-display font-black tracking-tighter text-white">
             Goals.
           </h2>
-          <p className="text-slate-400 font-medium">
+          <p className="text-slate-300 font-medium">
             Architect your long-term success. Filter by temporal scope.
           </p>
-        </div>
-
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full md:w-auto">
-          <div className="flex-1 sm:min-w-[200px] xl:min-w-[300px]">
-             <input
-                type="text"
-                placeholder="Search goals..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-white/[0.03] border border-white/10 rounded-[20px] px-4 py-3 sm:py-4 text-white text-sm focus:outline-none focus:border-blue-500/50 transition-colors"
-                style={{ appearance: 'none', WebkitAppearance: 'none' }}
-             />
-          </div>
-          <div className="flex bg-white/[0.03] border border-white/10 rounded-3xl p-1 gap-1 overflow-x-auto no-scrollbar max-w-full">
-            {["All", "Yearly", "Monthly", "Weekly"].map((t) => (
-              <button
-                key={t}
-                onClick={() => setFilter(t)}
-                className={`px-4 py-3 sm:px-6 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all flex-none sm:flex-1 text-center min-w-[80px] whitespace-nowrap ${filter === t ? "bg-white text-black shadow-lg" : "text-slate-400 hover:text-white hover:bg-white/5"}`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
@@ -1724,12 +1889,12 @@ const GoalsView = () => {
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             placeholder="Define your next objective..."
-            className="w-full bg-transparent border-none focus:ring-0 text-white text-xl sm:text-3xl placeholder:text-slate-400 font-display font-black text-center"
+            className="w-full bg-transparent border-none focus:ring-0 text-white text-xl sm:text-3xl placeholder:text-slate-300 font-display font-black text-center"
           />
 
           <div className="flex flex-wrap items-center justify-center gap-4">
             <div className="flex items-center space-x-3 bg-white/5 rounded-2xl px-5 py-3 border border-white/10">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
                 Priority
               </span>
               <select
@@ -1811,6 +1976,30 @@ const GoalsView = () => {
         </AnimatePresence>
       </div>
 
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full max-w-4xl mx-auto">
+        <div className="flex-1 sm:min-w-[200px]">
+           <input
+              type="text"
+              placeholder="Search goals..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-white/[0.03] border border-white/10 rounded-[20px] px-4 py-3 sm:py-4 text-white text-sm focus:outline-none focus:border-blue-500/50 transition-colors"
+              style={{ appearance: 'none', WebkitAppearance: 'none' }}
+           />
+        </div>
+        <div className="flex bg-white/[0.03] border border-white/10 rounded-3xl p-1 gap-1 overflow-x-auto no-scrollbar max-w-full">
+          {["All", "Yearly", "Monthly", "Weekly"].map((t) => (
+            <button
+              key={t}
+              onClick={() => setFilter(t)}
+              className={`px-4 py-3 sm:px-6 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all flex-none sm:flex-1 text-center min-w-[80px] whitespace-nowrap ${filter === t ? "bg-white text-black shadow-lg" : "text-slate-300 hover:text-white hover:bg-white/5"}`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {filter === "All" ? (
         <DragDropContext onDragEnd={handleDragEnd}>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-x-auto pb-8">
@@ -1848,7 +2037,7 @@ const GoalsView = () => {
                 <Target className="w-8 h-8 text-blue-500" />
               </div>
               <h3 className="text-xl sm:text-2xl font-display font-black text-slate-300">Set Your First Goal</h3>
-              <p className="text-slate-400 max-w-xl mx-auto text-sm leading-relaxed">
+              <p className="text-slate-300 max-w-xl mx-auto text-sm leading-relaxed">
                 Goals act as strategic containers for your daily actions. Create a high-level objective you want to achieve, then use the AI or manual input to break it down into a sequence of actionable steps. Drop a goal title in the input above and press Enter.
               </p>
             </div>
@@ -1860,7 +2049,7 @@ const GoalsView = () => {
         <div className="mt-8 space-y-4">
           <button 
             onClick={() => setShowCompleted(!showCompleted)}
-            className="flex items-center space-x-3 text-xs font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors w-full"
+            className="flex items-center space-x-3 text-xs font-black uppercase tracking-widest text-slate-300 hover:text-white transition-colors w-full"
           >
             <div className="flex-1 h-px bg-white/5"></div>
             <span>{showCompleted ? "Hide" : "Show"} Completed Goals ({completedGoals.length})</span>
@@ -1880,13 +2069,13 @@ const GoalsView = () => {
                       </Tooltip>
                       <span className="text-sm font-medium text-slate-300 line-through line-clamp-2">{goal.title}</span>
                     </div>
-                    <button onClick={() => deleteGoal(goal.id)} className="text-slate-400 hover:text-red-400 p-1 shrink-0 ml-2">
+                    <button onClick={() => deleteGoal(goal.id)} className="text-slate-300 hover:text-red-400 p-1 shrink-0 ml-2">
                        <Trash2 className="w-4 h-4"/>
                     </button>
                   </div>
                   <div className="flex space-x-2 mt-3 pl-9">
-                    <span className="text-[10px] font-black uppercase tracking-widest bg-white/5 px-2 py-1 rounded-md text-slate-400">{goal.type}</span>
-                    <span className="text-[10px] font-black uppercase tracking-widest bg-white/5 px-2 py-1 rounded-md text-slate-400">{goal.priority}</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest bg-white/5 px-2 py-1 rounded-md text-slate-300">{goal.type}</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest bg-white/5 px-2 py-1 rounded-md text-slate-300">{goal.priority}</span>
                   </div>
                 </div>
               ))}
@@ -2086,7 +2275,7 @@ const TasksView = () => {
           <h2 className="text-4xl md:text-5xl lg:text-6xl font-display font-black tracking-tighter text-white">
             Daily Tasks.
           </h2>
-          <p className="text-slate-400 font-medium max-w-md">
+          <p className="text-slate-300 font-medium max-w-md">
             Synchronize your daily operations. Execute with precision.
           </p>
         </div>
@@ -2095,13 +2284,13 @@ const TasksView = () => {
           <div className="flex bg-white/5 rounded-[24px] p-1 border border-white/10">
             <button
               onClick={() => setViewMode("list")}
-              className={`px-4 py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === "list" ? "bg-white text-black shadow-md" : "text-slate-400 hover:text-white"}`}
+              className={`px-4 py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === "list" ? "bg-white text-black shadow-md" : "text-slate-300 hover:text-white"}`}
             >
               List
             </button>
             <button
               onClick={() => setViewMode("matrix")}
-              className={`px-4 py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === "matrix" ? "bg-white text-black shadow-md" : "text-slate-400 hover:text-white"}`}
+              className={`px-4 py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === "matrix" ? "bg-white text-black shadow-md" : "text-slate-300 hover:text-white"}`}
             >
               Matrix
             </button>
@@ -2130,12 +2319,12 @@ const TasksView = () => {
                 onClick={() => setShowAutoSchedule(false)}
                 className="p-3 bg-white/5 rounded-full hover:bg-white/10 transition-colors"
               >
-                <Plus className="w-6 h-6 rotate-45 text-slate-400" />
+                <Plus className="w-6 h-6 rotate-45 text-slate-300" />
               </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
                   Window Access
                 </label>
                 <div className="flex items-center space-x-2 bg-white/5 p-2 rounded-2xl border border-white/5">
@@ -2147,7 +2336,7 @@ const TasksView = () => {
                     }
                     className="bg-transparent border-none text-white font-bold text-sm focus:ring-0 w-24"
                   />
-                  <span className="text-slate-400">TO</span>
+                  <span className="text-slate-300">TO</span>
                   <input
                     type="time"
                     value={freeTime.end}
@@ -2159,7 +2348,7 @@ const TasksView = () => {
                 </div>
               </div>
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
                   Block Size (M)
                 </label>
                 <input
@@ -2189,10 +2378,10 @@ const TasksView = () => {
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             placeholder="What is your next task?"
-            className="w-full bg-transparent border-none focus:ring-0 text-white text-xl sm:text-3xl placeholder:text-slate-400 font-display font-black text-center"
+            className="w-full bg-transparent border-none focus:ring-0 text-white text-xl sm:text-3xl placeholder:text-slate-300 font-display font-black text-center"
           />
           <div className="flex flex-wrap gap-2 sm:gap-3 items-center justify-center">
-            <div className="flex items-center bg-white/5 rounded-2xl px-5 py-3 border border-white/5 text-[10px] font-black text-slate-400">
+            <div className="flex items-center bg-white/5 rounded-2xl px-5 py-3 border border-white/5 text-[10px] font-black text-slate-300">
               <Calendar className="w-4 h-4 mr-2 opacity-30" />
               <span>
                 {new Date().toLocaleDateString("en-US", {
@@ -2202,7 +2391,7 @@ const TasksView = () => {
               </span>
             </div>
 
-            <div className="flex items-center bg-white/5 rounded-2xl px-5 py-3 border border-white/5 text-[10px] font-black text-slate-400">
+            <div className="flex items-center bg-white/5 rounded-2xl px-5 py-3 border border-white/5 text-[10px] font-black text-slate-300">
               <Clock className="w-4 h-4 mr-2 opacity-30" />
               <input
                 type="time"
@@ -2220,7 +2409,7 @@ const TasksView = () => {
             </div>
             
             <div className="flex items-center bg-white/5 rounded-2xl px-5 py-3 border border-white/5 text-[10px] font-black">
-              <span className="text-slate-400 mr-2 uppercase tracking-widest opacity-50">PRIORITY</span>
+              <span className="text-slate-300 mr-2 uppercase tracking-widest opacity-50">PRIORITY</span>
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as any)}
@@ -2254,7 +2443,7 @@ const TasksView = () => {
             value={tags}
             onChange={(e) => setTags(e.target.value)}
             placeholder="Tags: #urgent, #deep, #admin"
-            className="w-full bg-transparent border-t border-white/5 pt-6 text-[10px] font-bold text-slate-400 text-center uppercase tracking-widest placeholder:text-slate-400 focus:outline-none"
+            className="w-full bg-transparent border-t border-white/5 pt-6 text-[10px] font-bold text-slate-300 text-center uppercase tracking-widest placeholder:text-slate-300 focus:outline-none"
           />
         </div>
       </GlassCard>
@@ -2337,7 +2526,7 @@ const TasksView = () => {
                                       focusTaskId === task.id ? null : task.id,
                                     )
                                   }
-                                  className={`p-3 rounded-xl transition-all ${focusTaskId === task.id ? "bg-blue-600 text-white shadow-lg" : "text-slate-400 hover:text-white bg-white/5 hover:bg-white/10"}`}
+                                  className={`p-3 rounded-xl transition-all ${focusTaskId === task.id ? "bg-blue-600 text-white shadow-lg" : "text-slate-300 hover:text-white bg-white/5 hover:bg-white/10"}`}
                                 >
                                   <Zap className="w-4 h-4 fill-current" />
                                 </button>
@@ -2372,7 +2561,7 @@ const TasksView = () => {
                           ) : (
                             <>
                               <h5
-                                className={`text-xl font-display font-black tracking-tight leading-tight transition-all ${task.completed ? "text-slate-400 line-through opacity-50" : "text-white"}`}
+                                className={`text-xl font-display font-black tracking-tight leading-tight transition-all ${task.completed ? "text-slate-300 line-through opacity-50" : "text-white"}`}
                               >
                                 {task.title}
                               </h5>
@@ -2388,7 +2577,7 @@ const TasksView = () => {
                                     {task.startTime} - {task.endTime || "??:??"}
                                   </span>
                                 )}
-                                <span className="text-[9px] font-black bg-white/10 text-slate-400 px-3 py-1 rounded-full uppercase">
+                                <span className="text-[9px] font-black bg-white/10 text-slate-300 px-3 py-1 rounded-full uppercase">
                                   {task.duration || "30m"}
                                 </span>
                                 {!task.completed && (
@@ -2413,7 +2602,7 @@ const TasksView = () => {
                             {task.tags?.map((tag) => (
                               <span
                                 key={tag}
-                                className="text-[8px] font-black text-slate-400 uppercase tracking-tighter px-2 py-1 bg-white/[0.03] rounded-md border border-white/[0.04] mr-1"
+                                className="text-[8px] font-black text-slate-300 uppercase tracking-tighter px-2 py-1 bg-white/[0.03] rounded-md border border-white/[0.04] mr-1"
                               >
                                 #{tag}
                               </span>
@@ -2427,7 +2616,7 @@ const TasksView = () => {
                                     expandedId === task.id ? null : task.id,
                                   )
                                 }
-                                className={`p-2 text-slate-400 hover:text-white transition-transform ${expandedId === task.id ? "rotate-180" : ""}`}
+                                className={`p-2 text-slate-300 hover:text-white transition-transform ${expandedId === task.id ? "rotate-180" : ""}`}
                               >
                                 <ChevronDown className="w-4 h-4" />
                               </button>
@@ -2445,7 +2634,7 @@ const TasksView = () => {
                               <Tooltip text="Edit task">
                                 <button
                                   onClick={() => startEditingTask(task)}
-                                  className="p-2 text-slate-400 hover:text-blue-500 transition-colors"
+                                  className="p-2 text-slate-300 hover:text-blue-500 transition-colors"
                                 >
                                   <Edit3 className="w-4 h-4" />
                                 </button>
@@ -2454,7 +2643,7 @@ const TasksView = () => {
                             <Tooltip text="Delete task">
                               <button
                                 onClick={() => deleteTask(task.id)}
-                                className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                                className="p-2 text-slate-300 hover:text-red-500 transition-colors"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -2517,7 +2706,7 @@ const TasksView = () => {
                               </div>
 
                               <div className="space-y-2">
-                                {(task.subtasks || []).map((sub: any) => (
+                                {(!!task.subtasks && task.subtasks.length > 0 ? [...task.subtasks].sort((a: any, b: any) => Number(a.completed || false) - Number(b.completed || false)) : []).map((sub: any) => (
                                   <div
                                     key={sub.id}
                                     className="flex items-center justify-between group/sub gap-3"
@@ -2568,7 +2757,7 @@ const TasksView = () => {
                                         </div>
                                       ) : (
                                         <span
-                                          className={`text-sm flex-1 min-w-0 break-words text-left ${sub.completed ? "text-slate-400 line-through" : "text-slate-300"}`}
+                                          className={`text-sm flex-1 min-w-0 break-words text-left ${sub.completed ? "text-slate-300 line-through" : "text-slate-300"}`}
                                         >
                                           {sub.title}
                                         </span>
@@ -2582,7 +2771,7 @@ const TasksView = () => {
                                               setEditingSubtaskId(sub.id);
                                               setEditingSubtaskTitle(sub.title);
                                             }}
-                                            className="text-slate-400 hover:text-blue-400 p-1"
+                                            className="text-slate-300 hover:text-blue-400 p-1"
                                           >
                                             <Edit3 className="w-3.5 h-3.5" />
                                           </button>
@@ -2593,7 +2782,7 @@ const TasksView = () => {
                                           onClick={() =>
                                             deleteTaskSubtask(task.id, sub.id)
                                           }
-                                          className="text-slate-400 hover:text-red-400 p-1"
+                                          className="text-slate-300 hover:text-red-400 p-1"
                                         >
                                           <Trash2 className="w-3.5 h-3.5" />
                                         </button>
@@ -2602,13 +2791,13 @@ const TasksView = () => {
                                   </div>
                                 ))}
                                 {(task.subtasks || []).length === 0 && (
-                                  <p className="text-xs text-slate-400 italic">
+                                  <p className="text-xs text-slate-300 italic">
                                     No steps yet. Break it down for more focus.
                                   </p>
                                 )}
                               </div>
 
-                              <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest pt-4 border-t border-white/5">
+                              <p className="text-[10px] uppercase font-black text-slate-300 tracking-widest pt-4 border-t border-white/5">
                                 Planned Duration:{" "}
                                 {task.duration}
                               </p>
@@ -2650,7 +2839,7 @@ const TasksView = () => {
                   </div>
                 ))}
                 {incompleteTasks.filter(t => t.priority === quad.priority).length === 0 && (
-                  <p className="text-[10px] uppercase font-black tracking-widest text-slate-400 pt-2">No goals here</p>
+                  <p className="text-[10px] uppercase font-black tracking-widest text-slate-300 pt-2">No goals here</p>
                 )}
               </div>
             </div>
@@ -2663,7 +2852,7 @@ const TasksView = () => {
             <CheckSquare className="w-8 h-8 text-blue-500" />
           </div>
           <h3 className="text-xl sm:text-2xl font-display font-black text-slate-300">Your Action Plan is Empty</h3>
-          <p className="text-slate-400 max-w-xl mx-auto text-sm leading-relaxed">
+          <p className="text-slate-300 max-w-xl mx-auto text-sm leading-relaxed">
             Every great achievement starts with a single step. Add a task above using the input field, or hit <kbd className="bg-white/10 px-2 py-1 rounded text-white text-xs mx-1 font-mono">⌘K</kbd> to quick-add. Once you add tasks, you can use the AI Prioritize button to automatically organize your day based on the Eisenhower Matrix.
           </p>
         </div>
@@ -2673,7 +2862,7 @@ const TasksView = () => {
         <div className="mt-8 space-y-4">
           <button 
             onClick={() => setShowCompleted(!showCompleted)}
-            className="flex items-center space-x-3 text-xs font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors w-full"
+            className="flex items-center space-x-3 text-xs font-black uppercase tracking-widest text-slate-300 hover:text-white transition-colors w-full"
           >
             <div className="flex-1 h-px bg-white/5"></div>
             <span>{showCompleted ? "Hide" : "Show"} Completed Tasks ({completedTasks.length})</span>
@@ -2693,8 +2882,8 @@ const TasksView = () => {
                     <span className="text-sm font-medium text-slate-300 line-through truncate">{task.title}</span>
                   </div>
                   <div className="flex items-center space-x-2 shrink-0 pl-4">
-                    <span className="text-[10px] font-black uppercase bg-white/5 px-2 py-1 rounded-md text-slate-400">{task.priority}</span>
-                    <button onClick={() => deleteTask(task.id)} className="text-slate-400 hover:text-red-400 p-1">
+                    <span className="text-[10px] font-black uppercase bg-white/5 px-2 py-1 rounded-md text-slate-300">{task.priority}</span>
+                    <button onClick={() => deleteTask(task.id)} className="text-slate-300 hover:text-red-400 p-1">
                       <Trash2 className="w-4 h-4"/>
                     </button>
                   </div>
@@ -2799,7 +2988,7 @@ const InsightsView = () => {
         <h2 className="text-4xl md:text-5xl lg:text-6xl font-display font-black tracking-tighter text-white">
           Quantum.
         </h2>
-        <p className="text-slate-400 font-medium">
+        <p className="text-slate-300 font-medium">
           Deconstruct your behavioral data. Identify growth vectors.
         </p>
       </div>
@@ -2852,11 +3041,11 @@ const InsightsView = () => {
                 </div>
                 <div className="text-right">
                   <Tooltip text={stat.desc}>
-                    <p className="text-[9px] w-max ml-auto font-black cursor-help text-slate-400 tracking-widest uppercase mb-1 border-b border-dashed border-slate-500/50 pb-0.5 inline-block">
+                    <p className="text-[9px] w-max ml-auto font-black cursor-help text-slate-300 tracking-widest uppercase mb-1 border-b border-dashed border-slate-500/50 pb-0.5 inline-block">
                       {stat.label}
                     </p>
                   </Tooltip>
-                  <p className="text-xs font-bold text-slate-400 uppercase tabular-nums">
+                  <p className="text-xs font-bold text-slate-300 uppercase tabular-nums">
                     / {stat.max}
                   </p>
                 </div>
@@ -2883,7 +3072,7 @@ const InsightsView = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <Sparkles className="w-5 h-5 text-blue-500" />
-                <span className="text-[10px] font-black text-slate-400 tracking-[0.3em] uppercase font-mono">
+                <span className="text-[10px] font-black text-slate-300 tracking-[0.3em] uppercase font-mono">
                   Neural Audit
                 </span>
               </div>
@@ -2914,9 +3103,9 @@ const InsightsView = () => {
               ) : (
                 <div className="flex flex-col items-center justify-center p-8 text-center space-y-6">
                   <div className="w-20 h-20 rounded-full bg-white/[0.02] border border-white/[0.05] flex items-center justify-center">
-                    <Sparkles className="w-8 h-8 text-slate-400" />
+                    <Sparkles className="w-8 h-8 text-slate-300" />
                   </div>
-                  <p className="text-slate-400 text-xs font-black uppercase tracking-[0.2em] max-w-xs leading-loose">
+                  <p className="text-slate-300 text-xs font-black uppercase tracking-[0.2em] max-w-xs leading-loose">
                     Waiting for deep analysis initialization. Initiate audit to
                     begin.
                   </p>
@@ -2930,7 +3119,7 @@ const InsightsView = () => {
           <div className="p-6 md:p-8 space-y-6 md:space-y-8 h-full">
             <div className="flex items-center space-x-3">
               <TrendingUp className="w-5 h-5 text-purple-500" />
-              <span className="text-[10px] font-black text-slate-400 tracking-[0.3em] uppercase font-mono">
+              <span className="text-[10px] font-black text-slate-300 tracking-[0.3em] uppercase font-mono">
                 Priority Distribution
               </span>
             </div>
@@ -2972,7 +3161,7 @@ const InsightsView = () => {
                   </RechartsPieChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="text-center text-slate-400 text-xs font-bold uppercase tracking-widest">
+                <div className="text-center text-slate-300 text-xs font-bold uppercase tracking-widest">
                   No tasks available. Add some tasks to see distribution.
                 </div>
               )}
@@ -2986,12 +3175,12 @@ const InsightsView = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <Calendar className="w-5 h-5 text-orange-500" />
-              <span className="text-[10px] font-black text-slate-400 tracking-[0.3em] uppercase font-mono">
+              <span className="text-[10px] font-black text-slate-300 tracking-[0.3em] uppercase font-mono">
                 Behavioral Consistency
               </span>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">
+              <span className="text-[10px] text-slate-300 font-black uppercase tracking-widest">
                 System Load: Moderate
               </span>
             </div>
@@ -3038,7 +3227,7 @@ const InsightsView = () => {
           </div>
 
           <div className="flex justify-end items-center space-x-4">
-            <span className="text-[10px] text-slate-400 font-black tracking-widest uppercase">
+            <span className="text-[10px] text-slate-300 font-black tracking-widest uppercase">
               Idle
             </span>
             <div className="flex space-x-1.5">
@@ -3049,7 +3238,7 @@ const InsightsView = () => {
                 />
               ))}
             </div>
-            <span className="text-[10px] text-slate-400 font-black tracking-widest uppercase">
+            <span className="text-[10px] text-slate-300 font-black tracking-widest uppercase">
               Peak
             </span>
           </div>
@@ -3096,7 +3285,7 @@ const InsightsView = () => {
                   <div className="flex justify-between items-end">
                     <div>
                       <p className="text-sm font-black text-white uppercase tracking-widest">{stat.label}</p>
-                      <p className="text-[10px] font-bold text-slate-400 tracking-widest mt-1 uppercase">{stat.desc}</p>
+                      <p className="text-[10px] font-bold text-slate-300 tracking-widest mt-1 uppercase">{stat.desc}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-2xl font-black text-white">{stat.value}</p>
@@ -3132,7 +3321,7 @@ const InsightsView = () => {
                 <p className="text-xl font-display font-black text-white">
                   Identify your primary victory.
                 </p>
-                <p className="text-xs font-medium text-slate-400">
+                <p className="text-xs font-medium text-slate-300">
                   Documenting success reinforces neural pathways associated with
                   achievement.
                 </p>
@@ -3156,7 +3345,7 @@ const InsightsView = () => {
                 <Tooltip text="Cancel reflection">
                   <button
                     onClick={() => setIsReflecting(false)}
-                    className="text-[10px] font-black text-slate-400 hover:text-white uppercase tracking-widest transition-colors"
+                    className="text-[10px] font-black text-slate-300 hover:text-white uppercase tracking-widest transition-colors"
                   >
                     Abort
                   </button>
@@ -3178,14 +3367,14 @@ const InsightsView = () => {
                 onClick={() => setIsReflecting(true)}
                 className="p-10 !rounded-[40px] border-dashed border-white/10 hover:border-blue-500/30 group transition-all cursor-pointer flex flex-col items-center justify-center text-center space-y-6"
               >
-                <div className="w-16 h-16 rounded-full bg-white/[0.03] border border-white/[0.05] flex items-center justify-center text-slate-400 group-hover:text-blue-500 group-hover:scale-110 transition-all">
+                <div className="w-16 h-16 rounded-full bg-white/[0.03] border border-white/[0.05] flex items-center justify-center text-slate-300 group-hover:text-blue-500 group-hover:scale-110 transition-all">
                   <Edit3 className="w-8 h-8" />
                 </div>
                 <div className="space-y-2">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">
+                  <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">
                     Session Closure Pending
                   </p>
-                  <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">
+                  <p className="text-sm font-bold text-slate-300 uppercase tracking-widest">
                     Commence Daily Debrief
                   </p>
                 </div>
@@ -3264,11 +3453,35 @@ const HabitsView = () => {
   };
 
   const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
-  const [editingHabitData, setEditingHabitData] = useState<{ title: string; frequency: string; notificationEnabled: boolean; notificationTime: string }>({ title: "", frequency: "daily", notificationEnabled: false, notificationTime: "09:00" });
+  const [editingHabitData, setEditingHabitData] = useState<{ 
+    title: string; 
+    frequency: string; 
+    notificationEnabled: boolean; 
+    notificationTime: string;
+    notificationSchedule: 'once' | 'daily' | 'weekly' | 'specific_days';
+    notificationDays: number[];
+    notificationDate: string;
+  }>({ 
+    title: "", 
+    frequency: "daily", 
+    notificationEnabled: false, 
+    notificationTime: "09:00",
+    notificationSchedule: 'daily',
+    notificationDays: [1, 2, 3, 4, 5],
+    notificationDate: ""
+  });
 
   const startEditingHabit = (habit: any) => {
     setEditingHabitId(habit.id);
-    setEditingHabitData({ title: habit.title, frequency: habit.frequency || "daily", notificationEnabled: habit.notificationEnabled || false, notificationTime: habit.notificationTime || "09:00" });
+    setEditingHabitData({ 
+      title: habit.title, 
+      frequency: habit.frequency || "daily", 
+      notificationEnabled: habit.notificationEnabled || false, 
+      notificationTime: habit.notificationTime || "09:00",
+      notificationSchedule: habit.notificationSchedule || 'daily',
+      notificationDays: habit.notificationDays || [1, 2, 3, 4, 5],
+      notificationDate: habit.notificationDate || ""
+    });
   };
 
   const saveEditingHabit = () => {
@@ -3319,7 +3532,7 @@ const HabitsView = () => {
           <h2 className="text-4xl md:text-5xl lg:text-6xl font-display font-black tracking-tighter text-white">
             Habits.
           </h2>
-          <p className="text-slate-400 font-medium">
+          <p className="text-slate-300 font-medium">
             Build unbreakable streaks. Calibrate your daily systems.
           </p>
         </div>
@@ -3328,7 +3541,7 @@ const HabitsView = () => {
           <Tooltip text="View older weeks">
             <button
               onClick={() => setWeekOffset((prev) => prev + 1)}
-              className="p-3 text-slate-400 hover:text-white transition-all"
+              className="p-3 text-slate-300 hover:text-white transition-all"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
@@ -3340,7 +3553,7 @@ const HabitsView = () => {
             <button
               disabled={weekOffset === 0}
               onClick={() => setWeekOffset((prev) => prev - 1)}
-              className="p-3 text-slate-400 hover:text-white transition-all disabled:opacity-20"
+              className="p-3 text-slate-300 hover:text-white transition-all disabled:opacity-20"
             >
               <ChevronRight className="w-5 h-5" />
             </button>
@@ -3359,7 +3572,7 @@ const HabitsView = () => {
             onChange={(e) => setNewTitle(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAdd()}
             placeholder="Initialize new behavioral routine..."
-            className="flex-1 w-full sm:w-auto text-center sm:text-left bg-transparent border-none focus:ring-0 text-white text-xl sm:text-2xl placeholder:text-slate-400 font-display font-black"
+            className="flex-1 w-full sm:w-auto text-center sm:text-left bg-transparent border-none focus:ring-0 text-white text-xl sm:text-2xl placeholder:text-slate-300 font-display font-black"
           />
           <button
             onClick={handleAdd}
@@ -3413,29 +3626,19 @@ const HabitsView = () => {
                             <option value="daily">Daily</option>
                             <option value="weekly">Weekly</option>
                           </select>
-                          <label className="flex items-center gap-2 bg-white/5 border border-white/20 rounded-xl px-3 py-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={editingHabitData.notificationEnabled}
-                              onChange={(e) => {
-                                setEditingHabitData({ ...editingHabitData, notificationEnabled: e.target.checked });
-                                if (e.target.checked && Notification.permission !== "granted") {
-                                  Notification.requestPermission();
-                                }
-                              }}
-                              className="accent-blue-500"
-                            />
-                            <span className="text-xs text-white uppercase">Notify</span>
-                          </label>
                         </div>
-                        {editingHabitData.notificationEnabled && (
-                           <input
-                            type="time"
-                            value={editingHabitData.notificationTime}
-                            onChange={(e) => setEditingHabitData({ ...editingHabitData, notificationTime: e.target.value })}
-                            className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-white text-sm"
-                           />
-                        )}
+                        <NotificationEditor
+                          enabled={editingHabitData.notificationEnabled}
+                          setEnabled={(b) => setEditingHabitData({ ...editingHabitData, notificationEnabled: b })}
+                          time={editingHabitData.notificationTime}
+                          setTime={(t) => setEditingHabitData({ ...editingHabitData, notificationTime: t })}
+                          schedule={editingHabitData.notificationSchedule}
+                          setSchedule={(s) => setEditingHabitData({ ...editingHabitData, notificationSchedule: s })}
+                          days={editingHabitData.notificationDays}
+                          setDays={(d) => setEditingHabitData({ ...editingHabitData, notificationDays: d })}
+                          date={editingHabitData.notificationDate}
+                          setDate={(d) => setEditingHabitData({ ...editingHabitData, notificationDate: d })}
+                        />
                       </div>
                     ) : (
                       <>
@@ -3443,8 +3646,9 @@ const HabitsView = () => {
                           {habit.title}
                         </h4>
                         <div className="flex items-center space-x-3 mt-1">
-                          <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest font-mono">
-                            Streak: {(() => {
+                          <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest font-mono flex items-center gap-1">
+                            <Flame className="w-3 h-3 fill-rose-500" />
+                            STREAK: {(() => {
                               const history = habit.completedHistory || {};
                               let currentStreak = 0;
                               let d = new Date();
@@ -3461,10 +3665,10 @@ const HabitsView = () => {
                                 }
                               }
                               return currentStreak;
-                            })()} Days
+                            })()} DAYS
                           </span>
                           <div className="w-1 h-1 rounded-full bg-slate-700" />
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                          <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
                             Success Rate: {Math.round(
                                 (() => {
                                   const history = habit.completedHistory || {};
@@ -3499,7 +3703,7 @@ const HabitsView = () => {
                       key={day.date}
                       className="flex flex-col items-center space-y-3 min-w-[64px]"
                     >
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                      <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">
                         {day.label}
                       </span>
                       <Tooltip text={isCompleted ? "Mark missed" : "Mark completed"}>
@@ -3523,7 +3727,7 @@ const HabitsView = () => {
                           )}
                         </button>
                       </Tooltip>
-                      <span className="text-[9px] font-bold text-slate-400 uppercase">
+                      <span className="text-[9px] font-bold text-slate-300 uppercase">
                         {day.fullDate}
                       </span>
                     </div>
@@ -3547,7 +3751,7 @@ const HabitsView = () => {
                     <Tooltip text="Make Today's Task">
                       <button
                         onClick={() => handleMakeTask(habit)}
-                        className="p-3 text-slate-400 hover:text-orange-500 hover:bg-orange-500/10 rounded-xl transition-all"
+                        className="p-3 text-slate-300 hover:text-orange-500 hover:bg-orange-500/10 rounded-xl transition-all"
                       >
                         <Plus className="w-5 h-5" />
                       </button>
@@ -3567,7 +3771,7 @@ const HabitsView = () => {
                   <Tooltip text="Edit habit">
                     <button
                       onClick={() => startEditingHabit(habit)}
-                      className="p-3 text-slate-400 hover:text-blue-500 transition-all"
+                      className="p-3 text-slate-300 hover:text-blue-500 transition-all"
                     >
                       <Edit3 className="w-5 h-5" />
                     </button>
@@ -3576,7 +3780,7 @@ const HabitsView = () => {
                 <Tooltip text="Delete habit">
                   <button
                     onClick={() => deleteHabit(habit.id)}
-                    className="p-3 text-slate-400 hover:text-red-500 transition-all"
+                    className="p-3 text-slate-300 hover:text-red-500 transition-all"
                   >
                     <Trash2 className="w-5 h-5" />
                   </button>
@@ -3598,7 +3802,7 @@ const HabitsView = () => {
               <Activity className="w-8 h-8 text-blue-500" />
             </div>
             <h3 className="text-xl sm:text-2xl font-display font-black text-slate-300">Design Your Daily Protocol</h3>
-            <p className="text-slate-400 max-w-xl mx-auto text-sm leading-relaxed">
+            <p className="text-slate-300 max-w-xl mx-auto text-sm leading-relaxed">
               Habits are the foundation of consistency. Whether you want to "Meditate for 10m" or "Read 10 pages", establish the building blocks of your routine here. Add a new habit above to start tracking your daily streaks and consistency.
             </p>
           </div>
@@ -3608,10 +3812,10 @@ const HabitsView = () => {
 };
 
 const TrojanChat = () => {
-  const { tasks, goals, habits, addHabit, updateGoal, updateTask, updateHabit, addTask, addTaskSubtask, addGoal, addSubtask, toggleTask, deleteTask, toggleGoal, deleteGoal, bulkAddTaskSubtasks, bulkAddGoalSubtasks } = useHub();
+  const { tasks, goals, habits, addHabit, updateGoal, updateTask, updateHabit, addTask, addTaskSubtask, addGoal, addSubtask, toggleTask, deleteTask, toggleGoal, deleteGoal, bulkAddTaskSubtasks, bulkAddGoalSubtasks, updateTaskSubtask, deleteTaskSubtask, updateGoalSubtask, deleteSubtask } = useHub();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<{ role: "user" | "model"; parts: { text: string }[] }[]>([
-    { role: "model", parts: [{ text: "Trojan AI initialized. I can help you prioritize or create tasks and goals. What's your objective?" }] }
+    { role: "model", parts: [{ text: "Trojan AI initialized.\n\nI recommend Oliver Burkeman's daily framework: Aim for 3 hours of deep work, 3 urgent/important tasks, and 3 maintenance tasks to cap a productive day without burning out.\n\nWhat are your top 3 tasks for today?" }] }
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -3639,16 +3843,19 @@ const TrojanChat = () => {
     }
   }, [messages, isOpen]);
 
-  const handleSend = async () => {
-    if (!input.trim() || loading || quotaWaitTime > 0) return;
-    const userMsg = { role: "user" as const, parts: [{ text: input.trim() }] };
+  const handleSend = async (textOverride?: string | React.MouseEvent) => {
+    const textToSend = typeof textOverride === 'string' ? textOverride.trim() : input.trim();
+    if (!textToSend || loading || quotaWaitTime > 0) return;
+    const userMsg = { role: "user" as const, parts: [{ text: textToSend }] };
     setMessages(prev => [...prev, userMsg]);
-    setInput("");
+    if (typeof textOverride !== 'string') {
+      setInput("");
+    }
     setLoading(true);
 
     const history = messages.slice(-10); // Limit history for performance but keep enough for context
 
-    const response = await getTrojanChatResponse(userMsg.parts[0].text, history, tasks, goals, habits);
+    const response = await getTrojanChatResponse(textToSend, history, tasks, goals, habits);
 
     if (response?.isQuotaError) {
       setQuotaWaitTime(60);
@@ -3740,6 +3947,30 @@ const TrojanChat = () => {
               functionResponses.push(`Updated goal id: ${id}`);
             }
           }
+        } else if (call.name === "updateTaskSubtask") {
+          let { taskId, subtaskId, title } = call.args;
+          if (taskId && subtaskId && title) {
+            updateTaskSubtask(taskId, subtaskId, title);
+            functionResponses.push(`Updated task subtask: ${subtaskId} to ${title}`);
+          }
+        } else if (call.name === "deleteTaskSubtask") {
+          let { taskId, subtaskId } = call.args;
+          if (taskId && subtaskId) {
+            deleteTaskSubtask(taskId, subtaskId);
+            functionResponses.push(`Deleted task subtask: ${subtaskId}`);
+          }
+        } else if (call.name === "updateGoalSubtask") {
+          let { goalId, subtaskId, title } = call.args;
+          if (goalId && subtaskId && title) {
+            updateGoalSubtask(goalId, subtaskId, title);
+            functionResponses.push(`Updated goal subtask: ${subtaskId} to ${title}`);
+          }
+        } else if (call.name === "deleteGoalSubtask") {
+          let { goalId, subtaskId } = call.args;
+          if (goalId && subtaskId) {
+            deleteSubtask(goalId, subtaskId);
+            functionResponses.push(`Deleted goal subtask: ${subtaskId}`);
+          }
         } else if (call.name === "updateHabit") {
           let { id, title, frequency } = call.args;
           if (id) {
@@ -3830,7 +4061,7 @@ const TrojanChat = () => {
                 </div>
               </div>
               <Tooltip text="Close Chat">
-                <button onClick={() => setIsOpen(false)} className="p-2 text-slate-400 hover:text-white transition-colors">
+                <button onClick={() => setIsOpen(false)} className="p-2 text-slate-300 hover:text-white transition-colors">
                   <CloseIcon className="w-5 h-5" />
                 </button>
               </Tooltip>
@@ -3859,6 +4090,38 @@ const TrojanChat = () => {
             </div>
 
             <div className="p-4 border-t border-white/10 bg-black/20 flex-shrink-0">
+              <div className="flex overflow-x-auto gap-2 mb-3 pb-1 hide-scrollbar">
+                <button
+                  onClick={() => handleSend("Let's do the Morning AI journal. Ask me 3 questions to set my intention for today.")}
+                  className="flex-none bg-orange-600/20 text-orange-300 text-[10px] sm:text-xs px-3 py-1.5 rounded-full hover:bg-orange-600/40 transition-colors whitespace-nowrap"
+                >
+                  🌅 Morning Journal
+                </button>
+                <button
+                  onClick={() => handleSend("What should I do today based on priority?")}
+                  className="flex-none bg-blue-600/20 text-blue-300 text-[10px] sm:text-xs px-3 py-1.5 rounded-full hover:bg-blue-600/40 transition-colors whitespace-nowrap"
+                >
+                  ☀️ Daily Plan
+                </button>
+                <button
+                  onClick={() => handleSend("Analyze my progress and tell me what to improve")}
+                  className="flex-none bg-emerald-600/20 text-emerald-300 text-[10px] sm:text-xs px-3 py-1.5 rounded-full hover:bg-emerald-600/40 transition-colors whitespace-nowrap"
+                >
+                  📊 Analyze Progress
+                </button>
+                <button
+                  onClick={() => setInput("Suggest some habits I should form ")}
+                  className="flex-none bg-purple-600/20 text-purple-300 text-[10px] sm:text-xs px-3 py-1.5 rounded-full hover:bg-purple-600/40 transition-colors whitespace-nowrap"
+                >
+                  💡 Suggest Habits
+                </button>
+                <button
+                  onClick={() => setInput("Create a task to ")}
+                  className="flex-none bg-orange-600/20 text-orange-300 text-[10px] sm:text-xs px-3 py-1.5 rounded-full hover:bg-orange-600/40 transition-colors whitespace-nowrap"
+                >
+                  ➕ Add Task
+                </button>
+              </div>
               <div className="flex items-center space-x-2">
                 <div className="relative flex-1 group">
                   <input
@@ -3867,7 +4130,7 @@ const TrojanChat = () => {
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                     placeholder={quotaWaitTime > 0 ? `Uplink blocked. Resuming in ${quotaWaitTime}s...` : "Command Trojan..."}
-                    className={`w-full bg-white/5 border border-white/10 rounded-full px-4 py-2.5 text-sm text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500/50 ${quotaWaitTime > 0 ? 'opacity-50' : ''}`}
+                    className={`w-full bg-white/5 border border-white/10 rounded-full px-4 py-2.5 text-sm text-white placeholder:text-slate-300 focus:outline-none focus:border-blue-500/50 ${quotaWaitTime > 0 ? 'opacity-50' : ''}`}
                     disabled={loading || quotaWaitTime > 0}
                   />
                 </div>
@@ -3888,6 +4151,32 @@ const TrojanChat = () => {
   );
 };
 
+const shouldNotifyToday = (
+  schedule: string | undefined,
+  days: number[] | undefined,
+  itemDate: string | undefined,
+  now: Date
+) => {
+  if (!schedule || schedule === 'daily') return true;
+
+  if (schedule === 'once') {
+    const todayStr = toLocalDateStr(now);
+    if (itemDate && itemDate !== todayStr) return false;
+  }
+
+  if (schedule === 'weekly') {
+    if (now.getDay() !== 1) return false;
+  }
+
+  if (schedule === 'specific_days') {
+    if (days && days.length > 0) {
+      if (!days.includes(now.getDay())) return false;
+    }
+  }
+
+  return true;
+};
+
 const NotificationEngine = () => {
   const { goals, habits, tasks } = useHub();
   const notifiedSet = useRef<Set<string>>(new Set());
@@ -3904,6 +4193,8 @@ const NotificationEngine = () => {
 
       goals.forEach(goal => {
         if (goal.notificationEnabled && goal.notificationTime === currentTimeStr && !goal.completed) {
+          if (!shouldNotifyToday(goal.notificationSchedule, goal.notificationDays, goal.notificationDate, now)) return;
+
           const key = `goal-${goal.id}-${todayStr}-${currentTimeStr}`;
           if (!notifiedSet.current.has(key)) {
             new Notification("🎯 Target Locked", { body: `Time to execute on your goal: ${goal.title}` });
@@ -3914,6 +4205,8 @@ const NotificationEngine = () => {
 
       habits.forEach(habit => {
         if (habit.notificationEnabled && habit.notificationTime === currentTimeStr) {
+           if (!shouldNotifyToday(habit.notificationSchedule, habit.notificationDays, habit.notificationDate, now)) return;
+
            const history = habit.completedHistory || {};
            if (!history[todayStr]) {
             const key = `habit-${habit.id}-${todayStr}-${currentTimeStr}`;
@@ -3924,10 +4217,22 @@ const NotificationEngine = () => {
            }
         }
       });
+
+      tasks.forEach(task => {
+        if (task.notificationEnabled && task.notificationTime === currentTimeStr && !task.completed) {
+          if (!shouldNotifyToday(task.notificationSchedule, task.notificationDays, task.notificationDate || task.date, now)) return;
+          
+          const key = `task-${task.id}-${todayStr}-${currentTimeStr}`;
+          if (!notifiedSet.current.has(key)) {
+             new Notification("📋 Task Pending", { body: `Time to execute: ${task.title}` });
+             notifiedSet.current.add(key);
+          }
+        }
+      });
     }, 30000); // Check every 30 seconds
 
     return () => clearInterval(interval);
-  }, [goals, habits]);
+  }, [goals, habits, tasks]);
 
   return null;
 };
@@ -3987,7 +4292,7 @@ const AppContent = ({
             <h1 className="text-3xl font-black text-white tracking-widest uppercase mb-2">
               Drive OS
             </h1>
-            <p className="text-slate-400 font-medium text-sm">
+            <p className="text-slate-300 font-medium text-sm">
               Synchronize your life and achieve deep focus.
             </p>
           </div>
@@ -4045,7 +4350,7 @@ const AppContent = ({
           <Tooltip text="Sign Out">
             <button
               onClick={signOut}
-              className="text-xs font-bold text-slate-400 hover:text-white px-4 py-2 border border-white/10 rounded-xl bg-white/[0.02]"
+              className="text-xs font-bold text-slate-300 hover:text-white px-4 py-2 border border-white/10 rounded-xl bg-white/[0.02]"
             >
               SIGN OUT
             </button>
@@ -4078,7 +4383,7 @@ const AppContent = ({
                 <h1 className="text-2xl font-display font-black text-white tracking-widest uppercase mb-1">
                   Drive
                 </h1>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
                   Navigation Control
                 </p>
               </div>
@@ -4131,7 +4436,7 @@ const AppContent = ({
                 />
 
                 <div className="pt-8 mt-8 border-t border-white/5 space-y-4">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
                     Environment
                   </p>
                   <div className="relative group/tooltip z-50 hover:z-[100]">
@@ -4143,7 +4448,7 @@ const AppContent = ({
                           setIsSidebarOpen(false);
                         }
                       }}
-                      className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all border ${isZenMode ? "bg-blue-600/10 border-blue-500/50 text-blue-400" : "bg-white/5 border-white/10 text-slate-400 hover:text-white"}`}
+                      className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all border ${isZenMode ? "bg-blue-600/10 border-blue-500/50 text-blue-400" : "bg-white/5 border-white/10 text-slate-300 hover:text-white"}`}
                     >
                       <div className="flex items-center space-x-3">
                         <Zap className="w-4 h-4" />
@@ -4183,7 +4488,7 @@ const AppContent = ({
                       Pilot Phase 1
                     </p>
                   </div>
-                  <Settings className="w-4 h-4 text-slate-400 group-hover:text-white transition-colors" />
+                  <Settings className="w-4 h-4 text-slate-300 group-hover:text-white transition-colors" />
                 </div>
               </div>
             </motion.aside>
@@ -4194,7 +4499,7 @@ const AppContent = ({
       <main
         className={`transition-all duration-1000 ease-[0.22, 1, 0.36, 1] pt-32 ${isZenMode ? "scale-[0.96] opacity-80 blur-sm pointer-events-none" : "scale-100"}`}
       >
-        <div className="max-w-6xl mx-auto px-6 md:px-12 lg:px-16 pb-40">
+        <div className="max-w-6xl mx-auto px-4 md:px-12 lg:px-16 pb-40">
           <AnimatePresence>
             {focusTaskId && (
               <motion.div
@@ -4227,6 +4532,39 @@ const AppContent = ({
           </AnimatePresence>
         </div>
       </main>
+
+      {/* Mobile Bottom Navigation - Only visible on small screens */}
+      {!isZenMode && (
+        <nav className="md:hidden fixed bottom-6 left-6 right-6 z-[60]">
+          <div className="bg-[#0a0505]/95 backdrop-blur-3xl border border-white/10 rounded-3xl p-2 flex items-center justify-between shadow-2xl safe-area-pb">
+            {[
+              { id: "home", icon: Home, label: "Home" },
+              { id: "goals", icon: Target, label: "Goals" },
+              { id: "tasks", icon: CheckSquare, label: "Tasks" },
+              { id: "habits", icon: Flame, label: "Habits" },
+              { id: "insights", icon: PieChart, label: "Pulse" }
+            ].map(({ id, icon: Icon, label }) => {
+              const isActive = activeView === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => setActiveView(id)}
+                  className={`flex flex-col items-center justify-center w-12 h-12 rounded-2xl transition-all ${
+                    isActive 
+                      ? "bg-blue-600/10 text-blue-500" 
+                      : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                  }`}
+                >
+                  <Icon className={`w-5 h-5 ${isActive ? "scale-110" : ""}`} />
+                  <span className={`text-[8px] font-black uppercase mt-1 tracking-wider ${isActive ? "opacity-100" : "opacity-0 h-0"}`}>
+                    {label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      )}
 
       {isZenMode && <ZenTimer onExit={() => setIsZenMode(false)} />}
     </div>
