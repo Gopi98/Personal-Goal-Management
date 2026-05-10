@@ -531,7 +531,7 @@ const HomeView = () => {
   const completedToday = todayTasks.filter((t) => t.completed).length;
 
   const focusTimeToday = focusSessions
-    .filter((s) => s.type === "work" && s.date === toLocalDateStr())
+    .filter((s) => s.type === "work" && s.date.includes(toLocalDateStr()))
     .reduce((acc, s) => acc + s.duration, 0);
 
   const deepWorkHours = +(focusTimeToday / 60).toFixed(1);
