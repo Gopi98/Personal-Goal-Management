@@ -9,6 +9,8 @@ export interface Goal {
   createdAt: string;
   parentGoalId?: string;
   parentGoalTitle?: string;
+  notificationEnabled?: boolean;
+  notificationTime?: string;
 }
 
 export interface Subtask {
@@ -37,8 +39,12 @@ export interface Task {
 export interface Habit {
   id: string;
   title: string;
+  frequency?: string;
   streak: number;
   completedHistory: Record<string, boolean>; // date string -> boolean
+  order?: number;
+  notificationEnabled?: boolean;
+  notificationTime?: string;
 }
 
 export interface FocusSession {

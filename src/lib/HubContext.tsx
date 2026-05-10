@@ -58,12 +58,14 @@ interface HubContextType {
   toggleSubtask: (goalId: string, subtaskId: string) => void;
   updateGoal: (goalId: string, updates: any) => void;
   deleteSubtask: (goalId: string, subtaskId: string) => void;
+  updateGoalSubtask: (goalId: string, subtaskId: string, title: string) => void;
   addTask: (task: Omit<Task, 'id' | 'completed' | 'subtasks'> & { subtasks?: any[] }) => Promise<string | undefined>;
   updateTask: (taskId: string, updates: any) => void;
   addTaskSubtask: (taskId: string, title: string) => void;
   bulkAddTaskSubtasks: (taskId: string, subtasks: string[]) => void;
   toggleTaskSubtask: (taskId: string, subtaskId: string) => void;
   deleteTaskSubtask: (taskId: string, subtaskId: string) => void;
+  updateTaskSubtask: (taskId: string, subtaskId: string, title: string) => void;
   addHabit: (title: string, frequency?: string) => void;
   updateHabit: (habitId: string, updates: any) => void;
   toggleGoal: (id: string) => void;
@@ -74,6 +76,7 @@ interface HubContextType {
   postponeTask: (id: string) => void;
   deleteHabit: (id: string) => void;
   reorderTasks: (startIndex: number, endIndex: number) => void;
+  reorderHabits: (startIndex: number, endIndex: number) => void;
 }
 
 const HubContext = createContext<HubContextType | undefined>(undefined);
@@ -217,6 +220,15 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try { await updateDoc(docRef, updates); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
+  const updateGoalSubtask = async (goalId: string, subtaskId: string, title: string) => {
+    if (!user) return;
+    const g = goals.find(x => x.id === goalId);
+    if (!g) return;
+    const subtasks = g.subtasks.map(s => s.id === subtaskId ? { ...s, title } : s);
+    const docRef = doc(db, `users/${user.uid}/goals`, goalId);
+    try { await updateDoc(docRef, { subtasks }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
+  };
+
   const deleteSubtask = async (goalId: string, subtaskId: string) => {
     if (!user) return;
     const g = goals.find(x => x.id === goalId);
@@ -282,6 +294,15 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const t = tasks.find(x => x.id === taskId);
     if (!t) return;
     const subtasks = t.subtasks.map(s => s.id === subtaskId ? { ...s, completed: !s.completed } : s);
+    const docRef = doc(db, `users/${user.uid}/tasks`, taskId);
+    try { await updateDoc(docRef, { subtasks }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
+  };
+
+  const updateTaskSubtask = async (taskId: string, subtaskId: string, title: string) => {
+    if (!user) return;
+    const t = tasks.find(x => x.id === taskId);
+    if (!t) return;
+    const subtasks = t.subtasks.map(s => s.id === subtaskId ? { ...s, title } : s);
     const docRef = doc(db, `users/${user.uid}/tasks`, taskId);
     try { await updateDoc(docRef, { subtasks }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
@@ -431,16 +452,34 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try { await batch.commit(); } catch(e) { console.error('Reorder update failed', e); }
   };
 
+  const reorderHabits = async (startIndex: number, endIndex: number) => {
+    if (!user) return;
+    const sortedHabits = [...habits].sort((a, b) => (a.order || 0) - (b.order || 0));
+    
+    if (startIndex < 0 || startIndex >= sortedHabits.length || endIndex < 0 || endIndex >= sortedHabits.length) return;
+    
+    const result = Array.from(sortedHabits);
+    const [removed] = result.splice(startIndex, 1);
+    result.splice(endIndex, 0, removed);
+    
+    const batch = writeBatch(db);
+    result.forEach((h, i) => {
+      const docRef = doc(db, `users/${user.uid}/habits`, h.id!);
+      batch.update(docRef, { order: i });
+    });
+    try { await batch.commit(); } catch(e) { console.error('Reorder habits failed', e); }
+  };
+
   return (
     <HubContext.Provider value={{ 
       user, signIn, signOut: signOutUser,
       goals, tasks, habits, selectedMood, setSelectedMood, reflections, addReflection,
       focusTaskId, setFocusTaskId, focusSessions, addFocusSession, smartPrioritizeTasks,
-      addGoal, addSubtask, bulkAddGoalSubtasks, toggleSubtask, updateGoal, deleteSubtask,
-      addTask, updateTask, addTaskSubtask, bulkAddTaskSubtasks, toggleTaskSubtask, deleteTaskSubtask,
+      addGoal, addSubtask, bulkAddGoalSubtasks, toggleSubtask, updateGoal, deleteSubtask, updateGoalSubtask,
+      addTask, updateTask, addTaskSubtask, bulkAddTaskSubtasks, toggleTaskSubtask, deleteTaskSubtask, updateTaskSubtask,
       addHabit, updateHabit,
       toggleGoal, toggleTask, toggleHabit,
-      deleteGoal, deleteTask, postponeTask, deleteHabit, reorderTasks
+      deleteGoal, deleteTask, postponeTask, deleteHabit, reorderTasks, reorderHabits
     }}>
       {children}
     </HubContext.Provider>

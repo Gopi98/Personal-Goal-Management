@@ -1,5 +1,5 @@
 import { toLocalDateStr } from './lib/dateUtils';
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, forwardRef } from "react";
 import {
   Home,
   Target,
@@ -46,7 +46,6 @@ import {
   Send,
   Bot,
   X as CloseIcon,
-  Activity,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -122,22 +121,21 @@ const SidebarItem = ({
   </Tooltip>
 );
 
-const GlassCard = ({
-  children,
-  className = "",
-  onClick,
-}: {
+const GlassCard = forwardRef<HTMLDivElement, {
   children: React.ReactNode;
   className?: string;
   onClick?: () => void;
-}) => (
+  [key: string]: any;
+}>(({ children, className = "", onClick, ...props }, ref) => (
   <div
+    ref={ref}
     onClick={onClick}
-    className={`glass-card p-6 ${className} ${onClick ? "cursor-pointer" : ""}`}
+    className={`glass-card ${!className.includes('p-') ? 'p-6' : ''} ${className} ${onClick ? "cursor-pointer" : ""}`}
+    {...props}
   >
     {children}
   </div>
-);
+));
 
 const Tooltip = ({
   children,
@@ -1067,8 +1065,8 @@ const HomeView = () => {
 
         {/* Chart Card */}
         <div className="lg:col-span-12">
-          <GlassCard className="p-10">
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-10">
+          <GlassCard className="p-6 md:p-8">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
               <div className="space-y-2">
                 <p className="text-[10px] font-black text-blue-500 tracking-[0.4em] uppercase font-mono">
                   Operations Log
@@ -1168,12 +1166,16 @@ const GoalsView = () => {
     addSubtask,
     toggleSubtask,
     deleteSubtask,
+    updateGoalSubtask,
     bulkAddGoalSubtasks,
   } = useHub();
   const [newTitle, setNewTitle] = useState("");
   const [newSubtask, setNewSubtask] = useState<{ [key: string]: string }>({});
+  const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
+  const [editingSubtaskTitle, setEditingSubtaskTitle] = useState("");
   const [priority, setPriority] = useState<"A" | "B" | "C" | "D">("B");
   const [filter, setFilter] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [promotionFeedback, setPromotionFeedback] = useState<string | null>(
     null,
@@ -1186,11 +1188,11 @@ const GoalsView = () => {
   const [isGettingAdvice, setIsGettingAdvice] = useState(false);
 
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
-  const [editingGoalData, setEditingGoalData] = useState<{ title: string; priority: string; type: string }>({ title: "", priority: "B", type: "weekly" });
+  const [editingGoalData, setEditingGoalData] = useState<{ title: string; priority: string; type: string; notificationEnabled: boolean; notificationTime: string }>({ title: "", priority: "B", type: "weekly", notificationEnabled: false, notificationTime: "09:00" });
 
   const startEditingGoal = (goal: any) => {
     setEditingGoalId(goal.id);
-    setEditingGoalData({ title: goal.title, priority: goal.priority, type: goal.type });
+    setEditingGoalData({ title: goal.title, priority: goal.priority, type: goal.type, notificationEnabled: goal.notificationEnabled || false, notificationTime: goal.notificationTime || "09:00" });
   };
 
   const saveEditingGoal = () => {
@@ -1216,10 +1218,11 @@ const GoalsView = () => {
     setIsSplitting({ ...isSplitting, [goal.id]: false });
   };
 
-  const filteredGoals =
-    filter === "All"
-      ? goals
-      : goals.filter((g) => g.type === filter.toLowerCase());
+  const filteredGoals = goals.filter((g) => {
+    const matchesFilter = filter === "All" || g.type === filter.toLowerCase();
+    const matchesSearch = g.title.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesFilter && matchesSearch;
+  });
 
   const displayGoals = [...filteredGoals].sort((a,b) => a.priority.localeCompare(b.priority));
 
@@ -1258,7 +1261,7 @@ const GoalsView = () => {
   const renderGoal = (goal: any, index: number, isDraggable = false) => {
     const cardContent = (
       <div className="p-8 space-y-6">
-        <div className="flex items-start justify-between">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <Tooltip text={goal.completed ? "Mark incomplete" : "Mark complete"}>
             <button
               onClick={() => toggleGoal(goal.id)}
@@ -1271,7 +1274,7 @@ const GoalsView = () => {
               )}
             </button>
           </Tooltip>
-          <div className="flex items-center space-x-1">
+          <div className="flex flex-wrap items-center gap-1">
             {!goal.completed && (
               <Tooltip text="Promote to task">
                 <button
@@ -1324,7 +1327,7 @@ const GoalsView = () => {
 
         <div className="space-y-2">
           {editingGoalId === goal.id ? (
-            <div className="space-y-3">
+            <div className="space-y-3 relative z-10">
               <input
                 type="text"
                 value={editingGoalData.title}
@@ -1333,7 +1336,7 @@ const GoalsView = () => {
                 placeholder="Goal Title"
                 autoFocus
               />
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <select
                   value={editingGoalData.type}
                   onChange={(e) => setEditingGoalData({ ...editingGoalData, type: e.target.value })}
@@ -1353,12 +1356,34 @@ const GoalsView = () => {
                   <option value="C">Priority C</option>
                   <option value="D">Priority D</option>
                 </select>
+                <label className="flex items-center gap-2 bg-white/5 border border-white/20 rounded-xl px-3 py-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingGoalData.notificationEnabled}
+                    onChange={(e) => {
+                      setEditingGoalData({ ...editingGoalData, notificationEnabled: e.target.checked });
+                      if (e.target.checked && Notification.permission !== "granted") {
+                        Notification.requestPermission();
+                      }
+                    }}
+                    className="accent-blue-500"
+                  />
+                  <span className="text-xs text-white uppercase">Notify</span>
+                </label>
+                {editingGoalData.notificationEnabled && (
+                  <input
+                    type="time"
+                    value={editingGoalData.notificationTime}
+                    onChange={(e) => setEditingGoalData({ ...editingGoalData, notificationTime: e.target.value })}
+                    className="bg-white/5 border border-white/20 rounded-xl px-3 py-1.5 text-white text-sm"
+                  />
+                )}
               </div>
             </div>
           ) : (
             <>
               <h4
-                className={`text-2xl font-display font-black tracking-tight ${goal.completed ? "line-through text-slate-600" : "text-white"}`}
+                className={`text-2xl font-display font-black tracking-tight break-words ${goal.completed ? "line-through text-slate-600" : "text-white"}`}
               >
                 {goal.title}
               </h4>
@@ -1424,7 +1449,7 @@ const GoalsView = () => {
                     e.key === "Enter" && handleAddSub(goal.id)
                   }
                   placeholder="Add subtask..."
-                  className="flex-1 bg-white/5 border border-white/5 rounded-[20px] px-6 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500/20"
+                  className="flex-1 min-w-0 bg-white/5 border border-white/5 rounded-[20px] px-6 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500/20"
                 />
                 <Tooltip text="Auto-split with AI">
                   <button
@@ -1458,14 +1483,54 @@ const GoalsView = () => {
                           )}
                         </button>
                       </Tooltip>
-                      <span
-                        className={`text-sm font-bold flex-1 min-w-0 break-words text-left ${sub.completed ? "text-slate-600 line-through" : "text-slate-300"}`}
-                      >
-                        {sub.title}
-                      </span>
+                      {editingSubtaskId === sub.id ? (
+                        <div className="flex-1 min-w-0 flex items-center space-x-2">
+                          <input
+                            type="text"
+                            value={editingSubtaskTitle}
+                            onChange={(e) => setEditingSubtaskTitle(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                updateGoalSubtask(goal.id, sub.id, editingSubtaskTitle);
+                                setEditingSubtaskId(null);
+                              }
+                            }}
+                            className="bg-white/10 text-white text-sm px-2 py-1 rounded w-full min-w-0 outline-none"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => {
+                              updateGoalSubtask(goal.id, sub.id, editingSubtaskTitle);
+                              setEditingSubtaskId(null);
+                            }}
+                            className="text-green-500 hover:text-green-400 p-1"
+                          >
+                            <CheckSquare className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <span
+                          className={`text-sm font-bold flex-1 min-w-0 break-words text-left ${sub.completed ? "text-slate-600 line-through" : "text-slate-300"}`}
+                        >
+                          {sub.title}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center space-x-2 shrink-0 opacity-100 sm:opacity-0 sm:group-hover/sub:opacity-100 transition-all">
-                      {!sub.completed && (
+                      {editingSubtaskId !== sub.id && (
+                        <Tooltip text="Edit subtask">
+                          <button
+                            onClick={() => {
+                              setEditingSubtaskId(sub.id);
+                              setEditingSubtaskTitle(sub.title);
+                            }}
+                            className="text-slate-500 hover:text-blue-400 p-1"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                        </Tooltip>
+                      )}
+                      {!sub.completed && editingSubtaskId !== sub.id && (
                         <Tooltip text="Promote to individual task">
                           <button
                             onClick={() => handlePromote(goal, sub, true)}
@@ -1498,7 +1563,7 @@ const GoalsView = () => {
         <motion.div
            layout
            key={goal.id}
-           className={`glass-card group hover:border-white/20 transition-all ${goal.completed ? "opacity-60 grayscale-[0.5]" : ""} p-1 rounded-[32px]`}
+           className={`glass-card group hover:border-white/20 transition-all ${goal.completed ? "opacity-60 grayscale-[0.5]" : ""} p-1 rounded-[32px] overflow-hidden`}
          >
            {cardContent}
          </motion.div>
@@ -1512,7 +1577,7 @@ const GoalsView = () => {
             ref={provided.innerRef}
             {...provided.draggableProps}
             {...provided.dragHandleProps}
-            className={`glass-card group hover:border-white/20 transition-all ${goal.completed ? "opacity-60 grayscale-[0.5]" : ""} p-1 rounded-[32px] mb-6 ${snapshot.isDragging ? "shadow-2xl ring-2 ring-blue-500" : ""}`}
+            className={`glass-card group hover:border-white/20 transition-all ${goal.completed ? "opacity-60 grayscale-[0.5]" : ""} p-1 rounded-[32px] mb-6 overflow-hidden ${snapshot.isDragging ? "shadow-2xl ring-2 ring-blue-500" : ""}`}
             style={provided.draggableProps.style}
           >
             {cardContent}
@@ -1610,21 +1675,33 @@ const GoalsView = () => {
           </p>
         </div>
 
-        <div className="flex flex-wrap bg-white/[0.03] border border-white/10 rounded-3xl p-1 gap-1">
-          {["All", "Yearly", "Monthly", "Weekly"].map((t) => (
-            <button
-              key={t}
-              onClick={() => setFilter(t)}
-              className={`px-4 py-3 sm:px-6 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all flex-1 text-center min-w-[80px] ${filter === t ? "bg-white text-black shadow-lg" : "text-slate-500 hover:text-white hover:bg-white/5"}`}
-            >
-              {t}
-            </button>
-          ))}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full md:w-auto">
+          <div className="flex-1 sm:min-w-[200px] xl:min-w-[300px]">
+             <input
+                type="text"
+                placeholder="Search goals..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-white/[0.03] border border-white/10 rounded-[20px] px-4 py-3 sm:py-4 text-white text-sm focus:outline-none focus:border-blue-500/50 transition-colors"
+                style={{ appearance: 'none', WebkitAppearance: 'none' }}
+             />
+          </div>
+          <div className="flex bg-white/[0.03] border border-white/10 rounded-3xl p-1 gap-1 overflow-x-auto no-scrollbar max-w-full">
+            {["All", "Yearly", "Monthly", "Weekly"].map((t) => (
+              <button
+                key={t}
+                onClick={() => setFilter(t)}
+                className={`px-4 py-3 sm:px-6 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all flex-none sm:flex-1 text-center min-w-[80px] whitespace-nowrap ${filter === t ? "bg-white text-black shadow-lg" : "text-slate-500 hover:text-white hover:bg-white/5"}`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      <GlassCard className="p-1 max-w-4xl mx-auto !rounded-[40px] overflow-hidden group focus-within:border-blue-500/30 transition-all shadow-2xl">
-        <div className="p-10 space-y-8">
+      <GlassCard className="p-1 max-w-4xl w-full mx-auto !rounded-[40px] overflow-hidden group focus-within:border-blue-500/30 transition-all shadow-2xl">
+        <div className="p-6 md:p-8 space-y-6 md:space-y-8">
           <input
             type="text"
             value={newTitle}
@@ -1723,7 +1800,7 @@ const GoalsView = () => {
             {["Yearly", "Monthly", "Weekly"].map((colType) => {
               const colGoals = displayGoals.filter((g) => g.type === colType.toLowerCase());
               return (
-                <div key={colType} className="flex flex-col space-y-4">
+                <div key={colType} className="flex flex-col space-y-4 min-w-[280px]">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-display font-black text-white px-2 uppercase tracking-widest">{colType}</h3>
                     <span className="text-xs bg-white/10 text-white font-mono px-2 py-0.5 rounded-full">{colGoals.length}</span>
@@ -1777,6 +1854,7 @@ const TasksView = () => {
     addTaskSubtask,
     toggleTaskSubtask,
     deleteTaskSubtask,
+    updateTaskSubtask,
     bulkAddTaskSubtasks,
     focusTaskId,
     setFocusTaskId,
@@ -1785,6 +1863,8 @@ const TasksView = () => {
   } = useHub();
   const [newTitle, setNewTitle] = useState("");
   const [newSubtask, setNewSubtask] = useState<{ [key: string]: string }>({});
+  const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
+  const [editingSubtaskTitle, setEditingSubtaskTitle] = useState("");
   const [priority, setPriority] = useState<"A" | "B" | "C" | "D">("B");
   const [duration, setDuration] = useState("30m");
   const [startTime, setStartTime] = useState("09:00");
@@ -1974,9 +2054,9 @@ const TasksView = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="glass-card p-6 sm:p-10 border-blue-500/20"
+            className="glass-card p-6 sm:p-8 border-blue-500/20"
           >
-            <div className="flex items-center justify-between mb-10">
+            <div className="flex items-center justify-between mb-8">
               <div className="space-y-1">
                 <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">
                   AI Engine
@@ -2076,6 +2156,21 @@ const TasksView = () => {
                 onChange={(e) => setEndTime(e.target.value)}
                 className="bg-transparent border-none p-0 focus:ring-0 cursor-pointer w-16"
               />
+            </div>
+            
+            <div className="flex items-center bg-white/5 rounded-2xl px-5 py-3 border border-white/5 text-[10px] font-black">
+              <span className="text-slate-400 mr-2 uppercase tracking-widest opacity-50">PRIORITY</span>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as any)}
+                className="bg-transparent border-none p-0 focus:ring-0 text-white font-bold cursor-pointer"
+                style={{ appearance: 'none', WebkitAppearance: 'none' }}
+              >
+                <option value="A" className="text-black">A - CRITICAL</option>
+                <option value="B" className="text-black">B - HIGH</option>
+                <option value="C" className="text-black">C - MEDIUM</option>
+                <option value="D" className="text-black">D - LOW</option>
+              </select>
             </div>
 
             <button
@@ -2201,7 +2296,7 @@ const TasksView = () => {
                                 placeholder="Task Title"
                                 autoFocus
                               />
-                              <div className="flex gap-2">
+                              <div className="flex flex-wrap gap-2">
                                 <select
                                   value={editingTaskData.priority}
                                   onChange={(e) => setEditingTaskData({ ...editingTaskData, priority: e.target.value })}
@@ -2317,7 +2412,7 @@ const TasksView = () => {
                                       e.key === "Enter" && handleAddSub(task.id)
                                     }
                                     placeholder="Add a step..."
-                                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-white/20"
+                                    className="flex-1 min-w-0 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-white/20"
                                   />
                                   <Tooltip text="Add manual step">
                                     <button
@@ -2373,22 +2468,64 @@ const TasksView = () => {
                                           )}
                                         </button>
                                       </Tooltip>
-                                      <span
-                                        className={`text-sm flex-1 min-w-0 break-words text-left ${sub.completed ? "text-slate-600 line-through" : "text-slate-300"}`}
-                                      >
-                                        {sub.title}
-                                      </span>
+                                      {editingSubtaskId === sub.id ? (
+                                        <div className="flex-1 min-w-0 flex items-center space-x-2">
+                                          <input
+                                            type="text"
+                                            value={editingSubtaskTitle}
+                                            onChange={(e) => setEditingSubtaskTitle(e.target.value)}
+                                            onKeyDown={(e) => {
+                                              if (e.key === "Enter") {
+                                                updateTaskSubtask(task.id, sub.id, editingSubtaskTitle);
+                                                setEditingSubtaskId(null);
+                                              }
+                                            }}
+                                            className="bg-white/10 text-white text-sm px-2 py-1 rounded w-full min-w-0 outline-none"
+                                            autoFocus
+                                          />
+                                          <button
+                                            onClick={() => {
+                                              updateTaskSubtask(task.id, sub.id, editingSubtaskTitle);
+                                              setEditingSubtaskId(null);
+                                            }}
+                                            className="text-green-500 hover:text-green-400 p-1"
+                                          >
+                                            <CheckSquare className="w-4 h-4" />
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <span
+                                          className={`text-sm flex-1 min-w-0 break-words text-left ${sub.completed ? "text-slate-600 line-through" : "text-slate-300"}`}
+                                        >
+                                          {sub.title}
+                                        </span>
+                                      )}
                                     </div>
-                                    <Tooltip text="Remove step">
-                                      <button
-                                        onClick={() =>
-                                          deleteTaskSubtask(task.id, sub.id)
-                                        }
-                                        className="shrink-0 opacity-100 lg:opacity-0 lg:group-hover/sub:opacity-100 transition-opacity text-slate-700 hover:text-red-400"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
-                                    </Tooltip>
+                                    <div className="flex items-center space-x-2 shrink-0 opacity-100 lg:opacity-0 lg:group-hover/sub:opacity-100 transition-opacity">
+                                      {editingSubtaskId !== sub.id && (
+                                        <Tooltip text="Edit subtask">
+                                          <button
+                                            onClick={() => {
+                                              setEditingSubtaskId(sub.id);
+                                              setEditingSubtaskTitle(sub.title);
+                                            }}
+                                            className="text-slate-500 hover:text-blue-400 p-1"
+                                          >
+                                            <Edit3 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </Tooltip>
+                                      )}
+                                      <Tooltip text="Remove step">
+                                        <button
+                                          onClick={() =>
+                                            deleteTaskSubtask(task.id, sub.id)
+                                          }
+                                          className="text-slate-700 hover:text-red-400 p-1"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </Tooltip>
+                                    </div>
                                   </div>
                                 ))}
                                 {(task.subtasks || []).length === 0 && (
@@ -2633,7 +2770,7 @@ const InsightsView = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <GlassCard className="p-1 !rounded-[40px]">
-          <div className="p-10 space-y-8">
+          <div className="p-6 md:p-8 space-y-6 md:space-y-8">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <Sparkles className="w-5 h-5 text-blue-500" />
@@ -2666,7 +2803,7 @@ const InsightsView = () => {
                     ))}
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center p-12 text-center space-y-6">
+                <div className="flex flex-col items-center justify-center p-8 text-center space-y-6">
                   <div className="w-20 h-20 rounded-full bg-white/[0.02] border border-white/[0.05] flex items-center justify-center">
                     <Sparkles className="w-8 h-8 text-slate-800" />
                   </div>
@@ -2681,7 +2818,7 @@ const InsightsView = () => {
         </GlassCard>
 
         <GlassCard className="p-1 !rounded-[40px]">
-          <div className="p-10 space-y-8 h-full">
+          <div className="p-6 md:p-8 space-y-6 md:space-y-8 h-full">
             <div className="flex items-center space-x-3">
               <TrendingUp className="w-5 h-5 text-purple-500" />
               <span className="text-[10px] font-black text-slate-500 tracking-[0.3em] uppercase font-mono">
@@ -2736,7 +2873,7 @@ const InsightsView = () => {
       </div>
 
       <GlassCard className="p-1 !rounded-[40px]">
-        <div className="p-10 space-y-8">
+        <div className="p-6 md:p-8 space-y-6 md:space-y-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <Calendar className="w-5 h-5 text-orange-500" />
@@ -2881,7 +3018,7 @@ const InsightsView = () => {
           </div>
 
           {isReflecting ? (
-            <GlassCard className="p-10 !rounded-[40px] space-y-8 animate-in slide-in-from-right-4 duration-500">
+            <GlassCard className="p-6 md:p-8 !rounded-[40px] space-y-6 md:space-y-8 animate-in slide-in-from-right-4 duration-500">
               <div className="space-y-2">
                 <p className="text-xl font-display font-black text-white">
                   Identify your primary victory.
@@ -2930,7 +3067,7 @@ const InsightsView = () => {
             <div className="space-y-6">
               <GlassCard
                 onClick={() => setIsReflecting(true)}
-                className="p-16 !rounded-[40px] border-dashed border-white/10 hover:border-blue-500/30 group transition-all cursor-pointer flex flex-col items-center justify-center text-center space-y-6"
+                className="p-10 !rounded-[40px] border-dashed border-white/10 hover:border-blue-500/30 group transition-all cursor-pointer flex flex-col items-center justify-center text-center space-y-6"
               >
                 <div className="w-16 h-16 rounded-full bg-white/[0.03] border border-white/[0.05] flex items-center justify-center text-slate-800 group-hover:text-blue-500 group-hover:scale-110 transition-all">
                   <Edit3 className="w-8 h-8" />
@@ -2988,10 +3125,17 @@ const InsightsView = () => {
 // --- Main Layout ---
 
 const HabitsView = () => {
-  const { habits, addHabit, updateHabit, toggleHabit, deleteHabit, addTask, tasks } = useHub();
+  const { habits, addHabit, updateHabit, toggleHabit, deleteHabit, addTask, tasks, reorderHabits } = useHub();
   const [newTitle, setNewTitle] = useState("");
   const [weekOffset, setWeekOffset] = useState(0);
   const today = toLocalDateStr();
+  
+  const displayHabits = [...habits].sort((a,b) => (a.order || 0) - (b.order || 0));
+
+  const handleDragEnd = (result: DropResult) => {
+    if (!result.destination) return;
+    reorderHabits(result.source.index, result.destination.index);
+  };
 
   const [taskCreatedId, setTaskCreatedId] = useState<string | null>(null);
 
@@ -3011,11 +3155,11 @@ const HabitsView = () => {
   };
 
   const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
-  const [editingHabitData, setEditingHabitData] = useState<{ title: string; frequency: string }>({ title: "", frequency: "daily" });
+  const [editingHabitData, setEditingHabitData] = useState<{ title: string; frequency: string; notificationEnabled: boolean; notificationTime: string }>({ title: "", frequency: "daily", notificationEnabled: false, notificationTime: "09:00" });
 
   const startEditingHabit = (habit: any) => {
     setEditingHabitId(habit.id);
-    setEditingHabitData({ title: habit.title, frequency: habit.frequency || "daily" });
+    setEditingHabitData({ title: habit.title, frequency: habit.frequency || "daily", notificationEnabled: habit.notificationEnabled || false, notificationTime: habit.notificationTime || "09:00" });
   };
 
   const saveEditingHabit = () => {
@@ -3117,18 +3261,32 @@ const HabitsView = () => {
         </div>
       </GlassCard>
 
-      <div className="grid grid-cols-1 gap-6">
-        {habits.map((habit) => (
-          <GlassCard key={habit.id} className="p-8 !rounded-[32px] group">
-            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8">
-              <div className="space-y-4">
-                <div className="flex items-center space-x-4">
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <Droppable droppableId="habits-list">
+          {(provided) => (
+            <div
+              {...provided.droppableProps}
+              ref={provided.innerRef}
+              className="grid grid-cols-1 gap-4"
+            >
+              {displayHabits.map((habit, index) => (
+                <Draggable key={habit.id} draggableId={habit.id} index={index}>
+                  {(provided, snapshot) => (
+                    <GlassCard
+                      {...provided.draggableProps}
+                      {...provided.dragHandleProps}
+                        ref={provided.innerRef}
+                      className={`p-8 !rounded-[32px] group ${snapshot.isDragging ? "shadow-2xl ring-2 ring-blue-500 bg-black/40" : ""}`}
+                    >
+                      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8">
+                        <div className="space-y-4">
+                          <div className="flex items-center space-x-4">
                   <div className="w-12 h-12 rounded-2xl bg-white/[0.03] border border-white/[0.05] flex items-center justify-center text-blue-500 group-hover:scale-110 transition-transform">
                     <Flame className="w-6 h-6" />
                   </div>
                   <div>
                     {editingHabitId === habit.id ? (
-                      <div className="space-y-2">
+                      <div className="space-y-2 relative z-10 w-full sm:w-64">
                         <input
                           type="text"
                           value={editingHabitData.title}
@@ -3137,14 +3295,38 @@ const HabitsView = () => {
                           placeholder="Habit Title"
                           autoFocus
                         />
-                        <select
-                          value={editingHabitData.frequency}
-                          onChange={(e) => setEditingHabitData({ ...editingHabitData, frequency: e.target.value })}
-                          className="bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-white text-xs uppercase w-full"
-                        >
-                          <option value="daily">Daily</option>
-                          <option value="weekly">Weekly</option>
-                        </select>
+                        <div className="flex flex-wrap gap-2">
+                          <select
+                            value={editingHabitData.frequency}
+                            onChange={(e) => setEditingHabitData({ ...editingHabitData, frequency: e.target.value })}
+                            className="bg-white/5 border border-white/20 rounded-xl px-2 py-2 text-white text-xs uppercase flex-1"
+                          >
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                          </select>
+                          <label className="flex items-center gap-2 bg-white/5 border border-white/20 rounded-xl px-3 py-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={editingHabitData.notificationEnabled}
+                              onChange={(e) => {
+                                setEditingHabitData({ ...editingHabitData, notificationEnabled: e.target.checked });
+                                if (e.target.checked && Notification.permission !== "granted") {
+                                  Notification.requestPermission();
+                                }
+                              }}
+                              className="accent-blue-500"
+                            />
+                            <span className="text-xs text-white uppercase">Notify</span>
+                          </label>
+                        </div>
+                        {editingHabitData.notificationEnabled && (
+                           <input
+                            type="time"
+                            value={editingHabitData.notificationTime}
+                            onChange={(e) => setEditingHabitData({ ...editingHabitData, notificationTime: e.target.value })}
+                            className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-white text-sm"
+                           />
+                        )}
                       </div>
                     ) : (
                       <>
@@ -3287,7 +3469,14 @@ const HabitsView = () => {
               </div>
             </div>
           </GlassCard>
-        ))}
+                  )}
+                </Draggable>
+              ))}
+              {provided.placeholder}
+            </div>
+          )}
+        </Droppable>
+      </DragDropContext>
         {habits.length === 0 && (
           <div className="text-center py-24 bg-white/[0.02] border border-dashed border-white/10 rounded-[40px] px-6 space-y-4">
             <div className="w-16 h-16 rounded-full bg-blue-600/10 flex items-center justify-center mx-auto mb-6">
@@ -3299,7 +3488,6 @@ const HabitsView = () => {
             </p>
           </div>
         )}
-      </div>
     </div>
   );
 };
@@ -3343,7 +3531,7 @@ const TrojanChat = () => {
     setInput("");
     setLoading(true);
 
-    const history = messages; // send history
+    const history = messages.slice(-10); // Limit history for performance but keep enough for context
 
     const response = await getTrojanChatResponse(userMsg.parts[0].text, history, tasks, goals, habits);
 
@@ -3510,7 +3698,7 @@ const TrojanChat = () => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-[500px] glass-card overflow-hidden flex flex-col shadow-[0_0_50px_rgba(37,99,235,0.2)] pointer-events-auto"
+              className="relative w-full max-w-[500px] glass-card p-0 overflow-hidden flex flex-col shadow-[0_0_50px_rgba(37,99,235,0.2)] pointer-events-auto"
               style={{ maxHeight: "calc(100vh - 80px)", height: "600px" }}
             >
               <div className="p-4 bg-[#111116] border-b border-white/10 flex flex-shrink-0 items-center justify-between">
@@ -3557,19 +3745,21 @@ const TrojanChat = () => {
 
             <div className="p-4 border-t border-white/10 bg-black/20 flex-shrink-0">
               <div className="flex items-center space-x-2">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                  placeholder={quotaWaitTime > 0 ? `Uplink blocked. Resuming in ${quotaWaitTime}s...` : "Command Trojan..."}
-                  className={`flex-1 bg-white/5 border border-white/10 rounded-full px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 ${quotaWaitTime > 0 ? 'opacity-50' : ''}`}
-                  disabled={loading || quotaWaitTime > 0}
-                />
+                <div className="relative flex-1 group">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                    placeholder={quotaWaitTime > 0 ? `Uplink blocked. Resuming in ${quotaWaitTime}s...` : "Command Trojan..."}
+                    className={`w-full bg-white/5 border border-white/10 rounded-full px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 ${quotaWaitTime > 0 ? 'opacity-50' : ''}`}
+                    disabled={loading || quotaWaitTime > 0}
+                  />
+                </div>
                 <button
                   onClick={handleSend}
                   disabled={!input.trim() || loading || quotaWaitTime > 0}
-                  className="w-10 h-10 flex-shrink-0 rounded-full bg-blue-600 flex items-center justify-center text-white disabled:opacity-50 hover:bg-blue-500 transition-colors"
+                  className="w-10 h-10 flex-shrink-0 rounded-full bg-blue-600 flex items-center justify-center text-white disabled:opacity-50 hover:bg-blue-500 transition-colors shadow-lg shadow-blue-500/20"
                 >
                   <Send className="w-4 h-4 translate-x-[1px]" />
                 </button>
@@ -3583,6 +3773,50 @@ const TrojanChat = () => {
   );
 };
 
+const NotificationEngine = () => {
+  const { goals, habits, tasks } = useHub();
+  const notifiedSet = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (Notification.permission !== "granted") return;
+
+      const now = new Date();
+      const currentHours = now.getHours().toString().padStart(2, '0');
+      const currentMinutes = now.getMinutes().toString().padStart(2, '0');
+      const currentTimeStr = `${currentHours}:${currentMinutes}`;
+      const todayStr = toLocalDateStr(now);
+
+      goals.forEach(goal => {
+        if (goal.notificationEnabled && goal.notificationTime === currentTimeStr && !goal.completed) {
+          const key = `goal-${goal.id}-${todayStr}-${currentTimeStr}`;
+          if (!notifiedSet.current.has(key)) {
+            new Notification("Goal Reminder", { body: `Time for your goal: ${goal.title}` });
+            notifiedSet.current.add(key);
+          }
+        }
+      });
+
+      habits.forEach(habit => {
+        if (habit.notificationEnabled && habit.notificationTime === currentTimeStr) {
+           const history = habit.completedHistory || {};
+           if (!history[todayStr]) {
+            const key = `habit-${habit.id}-${todayStr}-${currentTimeStr}`;
+            if (!notifiedSet.current.has(key)) {
+              new Notification("Habit Reminder", { body: `Don't forget: ${habit.title}` });
+              notifiedSet.current.add(key);
+            }
+           }
+        }
+      });
+    }, 30000); // Check every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [goals, habits]);
+
+  return null;
+};
+
 export default function App() {
   const [activeView, setActiveView] = useState("home");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -3590,6 +3824,7 @@ export default function App() {
 
   return (
     <HubProvider>
+      <NotificationEngine />
       <AppContent
         activeView={activeView}
         setActiveView={setActiveView}
@@ -3629,7 +3864,7 @@ const AppContent = ({
       >
         <div className="mesh-bg" />
         <div className="noise" />
-        <div className="relative z-10 glass-card p-12 max-w-md w-full text-center space-y-8 rounded-[40px] border border-white/10 bg-white/[0.02]">
+        <div className="relative z-10 glass-card p-8 sm:p-10 max-w-md w-full text-center space-y-8 rounded-[40px] border border-white/10 bg-white/[0.02]">
           <div className="w-20 h-20 bg-blue-600 rounded-3xl mx-auto flex items-center justify-center shadow-[0_0_50px_rgba(37,99,235,0.4)]">
             <Zap className="w-10 h-10 text-white" />
           </div>
@@ -3719,9 +3954,9 @@ const AppContent = ({
               animate={{ x: 0 }}
               exit={{ x: -320 }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="fixed inset-y-0 left-0 w-80 bg-[#050505] border-r border-white/5 z-[80] p-10 flex flex-col shadow-[40px_0_100px_rgba(0,0,0,0.8)]"
+              className="fixed inset-y-0 left-0 w-[280px] sm:w-80 bg-[#050505] border-r border-white/5 z-[80] p-6 lg:p-8 flex flex-col shadow-2xl"
             >
-              <div className="mb-16">
+              <div className="mb-12">
                 <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center mb-6">
                   <Zap className="w-7 h-7 text-white" />
                 </div>
