@@ -76,8 +76,9 @@ interface HubContextType {
   deleteTask: (id: string) => void;
   postponeTask: (id: string) => void;
   deleteHabit: (id: string) => void;
-  reorderTasks: (startIndex: number, endIndex: number) => void;
-  reorderHabits: (startIndex: number, endIndex: number) => void;
+  reorderTasks: (id: string, direction: 'up' | 'down') => void;
+  reorderHabits: (id: string, direction: 'up' | 'down') => void;
+  reorderGoals: (id: string, direction: 'up' | 'down') => void;
 }
 
 const HubContext = createContext<HubContextType | undefined>(undefined);
@@ -101,8 +102,13 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const signIn = async () => {
-    const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (error: any) {
+      console.error("Sign-in error:", error);
+      alert(`Sign in failed. If you are viewing this in an iframe/preview, try opening the app in a new tab. Error: ${error.message}`);
+    }
   };
   
   const signOutUser = async () => {
@@ -453,42 +459,32 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const reorderTasks = async (startIndex: number, endIndex: number) => {
+  const moveOrder = async (collectionName: string, items: any[], id: string, direction: 'up'|'down') => {
     if (!user) return;
-    const today = toLocalDateStr();
-    const todayTasks = tasks.filter(t => t.date === today && !t.completed).sort((a, b) => (a.order || 0) - (b.order || 0));
     
-    if (startIndex < 0 || startIndex >= todayTasks.length || endIndex < 0 || endIndex >= todayTasks.length) return;
+    // Sort all items uniformly
+    const sorted = [...items].sort((a,b) => (a.order || 0) - (b.order || 0));
+    const index = sorted.findIndex(item => item.id === id);
+    if (index === -1) return;
     
-    const result = Array.from(todayTasks);
-    const [removed] = result.splice(startIndex, 1);
-    result.splice(endIndex, 0, removed);
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= sorted.length) return;
+    
+    // Swap items in memory
+    const temp = sorted[index];
+    sorted[index] = sorted[targetIndex];
+    sorted[targetIndex] = temp;
     
     const batch = writeBatch(db);
-    result.forEach((t, i) => {
-      const docRef = doc(db, `users/${user.uid}/tasks`, t.id!);
-      batch.update(docRef, { order: i });
+    sorted.forEach((item, i) => {
+      batch.update(doc(db, `users/${user.uid}/${collectionName}`, item.id), { order: i });
     });
-    try { await batch.commit(); } catch(e) { console.error('Reorder update failed', e); }
+    try { await batch.commit(); } catch(e) { console.error(`Move order failed for ${collectionName}`, e); }
   };
 
-  const reorderHabits = async (startIndex: number, endIndex: number) => {
-    if (!user) return;
-    const sortedHabits = [...habits].sort((a, b) => (a.order || 0) - (b.order || 0));
-    
-    if (startIndex < 0 || startIndex >= sortedHabits.length || endIndex < 0 || endIndex >= sortedHabits.length) return;
-    
-    const result = Array.from(sortedHabits);
-    const [removed] = result.splice(startIndex, 1);
-    result.splice(endIndex, 0, removed);
-    
-    const batch = writeBatch(db);
-    result.forEach((h, i) => {
-      const docRef = doc(db, `users/${user.uid}/habits`, h.id!);
-      batch.update(docRef, { order: i });
-    });
-    try { await batch.commit(); } catch(e) { console.error('Reorder habits failed', e); }
-  };
+  const reorderTasks = async (id: string, direction: 'up' | 'down') => moveOrder('tasks', tasks.filter(t => !t.completed), id, direction);
+  const reorderGoals = async (id: string, direction: 'up' | 'down') => moveOrder('goals', goals.filter(g => !g.completed), id, direction);
+  const reorderHabits = async (id: string, direction: 'up' | 'down') => moveOrder('habits', habits, id, direction);
 
   return (
     <HubContext.Provider value={{ 
@@ -499,7 +495,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addTask, updateTask, addTaskSubtask, bulkAddTaskSubtasks, toggleTaskSubtask, deleteTaskSubtask, updateTaskSubtask,
       addHabit, updateHabit,
       toggleGoal, toggleTask, toggleHabit,
-      deleteGoal, deleteTask, postponeTask, deleteHabit, reorderTasks, reorderHabits
+      deleteGoal, deleteTask, postponeTask, deleteHabit, reorderTasks, reorderHabits, reorderGoals
     }}>
       {children}
     </HubContext.Provider>

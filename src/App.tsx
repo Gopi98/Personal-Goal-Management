@@ -16,6 +16,7 @@ import {
   Plus,
   Bell,
   ChevronDown,
+  ChevronUp,
   Flame,
   Sparkles,
   TrendingUp,
@@ -50,12 +51,6 @@ import {
   X as CloseIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import {
-  DragDropContext,
-  Droppable,
-  Draggable,
-  DropResult,
-} from "@hello-pangea/dnd";
 import { GoogleGenAI, Modality } from "@google/genai";
 import confetti from "canvas-confetti";
 
@@ -426,6 +421,84 @@ const ZenTimer = ({ onExit }: { onExit: () => void }) => {
   );
 };
 
+const TaskTimeEditor = ({ task, updateTask, tasksForDate }: any) => {
+  const [localDur, setLocalDur] = useState((task.duration || "30").replace("m", ""));
+  
+  useEffect(() => {
+    setLocalDur((task.duration || "30").replace("m", ""));
+  }, [task.duration]);
+
+  return (
+    <div className="w-24 sm:w-32 flex flex-col items-end pt-2 shrink-0 text-right">
+      <input
+        type="time"
+        value={task.startTime || "09:00"}
+        onChange={(e) => {
+          const newStart = e.target.value;
+          updateTask(task.id, { startTime: newStart });
+          
+          // Chain Reschedule: Shift subsequent tasks
+          let currentTime = newStart;
+          const [h, m] = currentTime.split(":").map(Number);
+          const d = new Date();
+          d.setHours(h, m + parseInt(task.duration || "30") + 5);
+          currentTime = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+
+          const sortedRemaining = [...tasksForDate]
+            .sort((a,b) => (a.startTime || "00:00").localeCompare(b.startTime || "00:00"))
+            .filter(t => (t.startTime || "00:00") > (task.startTime || "00:00") && t.id !== task.id);
+
+          for (const t of sortedRemaining) {
+            updateTask(t.id, { startTime: currentTime });
+            const [th, tm] = currentTime.split(":").map(Number);
+            const td = new Date();
+            td.setHours(th, tm + parseInt(t.duration || "30") + 5);
+            currentTime = `${String(td.getHours()).padStart(2, "0")}:${String(td.getMinutes()).padStart(2, "0")}`;
+          }
+        }}
+        className="text-sm sm:text-base font-black text-white font-mono tracking-tight leading-none bg-transparent border-none p-0 focus:ring-0 w-full text-right cursor-pointer hover:text-blue-400 transition-colors"
+      />
+      <div className="flex items-center gap-0.5 mt-1 justify-end text-slate-400 focus-within:text-white transition-colors">
+        <input
+          type="number"
+          value={localDur}
+          onChange={(e) => setLocalDur(e.target.value)}
+          onBlur={(e) => {
+            let val = e.target.value;
+            if (!val || parseInt(val) <= 0) val = "1";
+            setLocalDur(val);
+            const newDur = val + "m";
+            if (newDur === task.duration) return;
+            updateTask(task.id, { duration: newDur });
+            
+            // Chain Reschedule: Shift subsequent tasks based on new duration
+            const durMins = parseInt(val) || 30;
+            let currentTime = task.startTime || "09:00";
+            const [h, m] = currentTime.split(":").map(Number);
+            const d = new Date();
+            d.setHours(h, m + durMins + 5);
+            currentTime = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+
+            const sortedRemaining = [...tasksForDate]
+              .sort((a,b) => (a.startTime || "00:00").localeCompare(b.startTime || "00:00"))
+              .filter(t => (t.startTime || "00:00") > (task.startTime || "00:00") && t.id !== task.id);
+
+            for (const t of sortedRemaining) {
+              updateTask(t.id, { startTime: currentTime });
+              const [th, tm] = currentTime.split(":").map(Number);
+              const td = new Date();
+              td.setHours(th, tm + parseInt(t.duration || "30") + 5);
+              currentTime = `${String(td.getHours()).padStart(2, "0")}:${String(td.getMinutes()).padStart(2, "0")}`;
+            }
+          }}
+          className="text-[10px] sm:text-xs font-bold uppercase tracking-widest bg-transparent border-none p-0 focus:ring-0 w-8 text-right"
+        />
+        <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest leading-none mt-px">M</span>
+      </div>
+    </div>
+  );
+};
+
 const PomodoroTimer = ({
   onComplete,
   length = 25,
@@ -670,7 +743,7 @@ const MiniCalendar = ({ tasks, onDateClick }: { tasks: any[], onDateClick?: (dat
           let dateStr = "";
           if (d) {
             dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            hasTasks = tasks.some(t => t.date === dateStr);
+            hasTasks = tasks.some(t => t.date === dateStr && !t.completed);
           }
           const isToday = d && new Date().getDate() === d && new Date().getMonth() === month && new Date().getFullYear() === year;
           return (
@@ -697,17 +770,19 @@ const MiniCalendar = ({ tasks, onDateClick }: { tasks: any[], onDateClick?: (dat
   );
 };
 
-const HomeView = () => {
-  const { goals, tasks, habits, selectedMood, setSelectedMood, reflections, focusSessions, toggleTask, addTask } = useHub();
+const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetStateAction<string>> }) => {
+  const { goals, tasks, habits, selectedMood, setSelectedMood, reflections, focusSessions, toggleTask, addTask, deleteTask, updateTask, updateTaskSubtask } = useHub();
   const [motivation, setMotivation] = useState<string | null>(null);
 
   const [isRefreshingQuote, setIsRefreshingQuote] = useState(false);
   const [taskCreateDate, setTaskCreateDate] = useState<string|null>(null);
   const [taskCreateTitle, setTaskCreateTitle] = useState("");
+  const [taskCreatePriority, setTaskCreatePriority] = useState<"A" | "B" | "C" | "D">("A");
 
   const handleDateClick = (dateStr: string) => {
     setTaskCreateDate(dateStr);
     setTaskCreateTitle("");
+    setTaskCreatePriority("A");
   };
 
   const handleCreateTask = () => {
@@ -715,11 +790,12 @@ const HomeView = () => {
     addTask({
       title: taskCreateTitle,
       date: taskCreateDate,
-      priority: "B",
+      priority: taskCreatePriority,
       type: "one-off"
     });
     setTaskCreateDate(null);
     setTaskCreateTitle("");
+    setActiveView("tasks");
   };
 
   const fetchMotivation = async () => {
@@ -1294,6 +1370,56 @@ const HomeView = () => {
                   <h3 className="text-xl font-display font-black text-white">Create Task</h3>
                   <p className="text-sm text-slate-400">Scheduled for {taskCreateDate}</p>
                 </div>
+                
+                {(() => {
+                  const dayTasks = tasks.filter(t => t.date === taskCreateDate && !t.completed);
+                  if (dayTasks.length === 0) return (
+                    <div className="py-4 text-center border-y border-white/5 border-dashed">
+                      <p className="text-sm text-slate-400 font-bold">No pending tasks for this date.</p>
+                    </div>
+                  );
+                  return (
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                      <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-3">Pending Tasks</p>
+                      {dayTasks.map(t => (
+                        <div key={t.id} className="group relative flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors gap-3">
+                           <div className="flex items-center gap-3 min-w-0 flex-1">
+                             <button
+                               onClick={() => toggleTask(t.id)}
+                               className={`w-5 h-5 rounded flex items-center justify-center border transition-colors flex-shrink-0 ${
+                                 t.completed ? 'bg-blue-500 border-blue-500' : 'border-slate-500'
+                               }`}
+                             >
+                               {t.completed && <Check className="w-3 h-3 text-white" />}
+                             </button>
+                             <div className="min-w-0">
+                               <p className={`text-sm truncate font-bold ${t.completed ? 'line-through text-slate-500' : 'text-slate-200'}`}>
+                                 {t.title}
+                               </p>
+                               <span className={`text-[10px] uppercase font-black tracking-wider px-2 py-0.5 rounded ${
+                                 t.priority === 'A' ? 'bg-rose-500/20 text-rose-400' :
+                                 t.priority === 'B' ? 'bg-orange-500/20 text-orange-400' :
+                                 t.priority === 'C' ? 'bg-blue-500/20 text-blue-400' :
+                                 'bg-slate-500/20 text-slate-400'
+                               }`}>
+                                 Priority {t.priority}
+                               </span>
+                             </div>
+                           </div>
+                           <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                             <button
+                               onClick={() => deleteTask(t.id)}
+                               className="p-1.5 text-slate-400 hover:text-red-400 transition-colors rounded hover:bg-white/5"
+                             >
+                               <Trash2 className="w-4 h-4" />
+                             </button>
+                           </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+
                 <div className="space-y-4">
                   <input
                     autoFocus
@@ -1306,6 +1432,17 @@ const HomeView = () => {
                     placeholder="E.g., Read 10 pages..."
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                   />
+                  <div className="flex bg-white/5 rounded-[20px] p-1 border border-white/10">
+                    {["A", "B", "C", "D"].map((p) => (
+                      <button
+                        key={p}
+                        onClick={() => setTaskCreatePriority(p as any)}
+                        className={`flex-1 min-w-0 py-2 rounded-2xl font-bold text-sm transition-all flex items-center justify-center ${taskCreatePriority === p ? 'bg-blue-600 border border-blue-500 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
                   <button
                     onClick={handleCreateTask}
                     disabled={!taskCreateTitle.trim()}
@@ -1336,6 +1473,7 @@ const GoalsView = () => {
     deleteSubtask,
     updateGoalSubtask,
     bulkAddGoalSubtasks,
+    reorderGoals,
   } = useHub();
   const [newTitle, setNewTitle] = useState("");
   const [newSubtask, setNewSubtask] = useState<{ [key: string]: string }>({});
@@ -1449,14 +1587,7 @@ const GoalsView = () => {
     setParentGoalId(undefined);
   };
 
-  const handleDragEnd = (result: DropResult) => {
-    if (!result.destination) return;
-    const { source, destination, draggableId } = result;
 
-    if (source.droppableId !== destination.droppableId) {
-      updateGoal(draggableId, { type: destination.droppableId.toLowerCase() });
-    }
-  };
 
   const renderGoal = (goal: any, index: number, isDraggable = false) => {
     const cardContent = (
@@ -1764,32 +1895,22 @@ const GoalsView = () => {
       </div>
     );
 
-    if (!isDraggable) {
-      return (
+    return (
         <motion.div
            layout
            key={goal.id}
-           className={`glass-card group hover:border-white/20 transition-all ${goal.completed ? "opacity-60 grayscale-[0.5]" : ""} p-1 rounded-[32px] overflow-hidden`}
+           className={`glass-card group hover:border-white/20 transition-all ${goal.completed ? "opacity-60 grayscale-[0.5]" : ""} p-1 rounded-[32px] overflow-hidden relative mb-6`}
          >
+           <div className="absolute top-4 -left-4 xl:-left-6 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-50">
+             <button onClick={() => reorderGoals(goal.id, 'up')} className="p-1 text-slate-500 hover:text-white bg-[#050505] rounded-lg border border-white/10 hover:border-white/30 backdrop-blur-md transition-all shadow-xl">
+               <ChevronUp className="w-4 h-4" />
+             </button>
+             <button onClick={() => reorderGoals(goal.id, 'down')} className="p-1 text-slate-500 hover:text-white bg-[#050505] rounded-lg border border-white/10 hover:border-white/30 backdrop-blur-md transition-all shadow-xl">
+               <ChevronDown className="w-4 h-4" />
+             </button>
+           </div>
            {cardContent}
          </motion.div>
-      );
-    }
-
-    return (
-      <Draggable key={goal.id} draggableId={goal.id} index={index}>
-        {(provided, snapshot) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.draggableProps}
-            {...provided.dragHandleProps}
-            className={`glass-card group hover:border-white/20 transition-all ${goal.completed ? "opacity-60 grayscale-[0.5]" : ""} p-1 rounded-[32px] mb-6 overflow-hidden ${snapshot.isDragging ? "shadow-2xl ring-2 ring-blue-500" : ""}`}
-            style={provided.draggableProps.style}
-          >
-            {cardContent}
-          </div>
-        )}
-      </Draggable>
     );
   };
 
@@ -2001,7 +2122,6 @@ const GoalsView = () => {
       </div>
 
       {filter === "All" ? (
-        <DragDropContext onDragEnd={handleDragEnd}>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-x-auto pb-8">
             {["Yearly", "Monthly", "Weekly"].map((colType) => {
               const colGoals = incompleteGoals.filter((g) => g.type === colType.toLowerCase());
@@ -2011,23 +2131,15 @@ const GoalsView = () => {
                     <h3 className="font-display font-black text-white px-2 uppercase tracking-widest">{colType}</h3>
                     <span className="text-xs bg-white/10 text-white font-mono px-2 py-0.5 rounded-full">{colGoals.length}</span>
                   </div>
-                  <Droppable droppableId={colType}>
-                    {(provided, snapshot) => (
                       <div
-                        ref={provided.innerRef}
-                        {...provided.droppableProps}
-                        className={`flex-1 min-h-[400px] bg-white/[0.02] border border-white/5 rounded-[40px] p-2 transition-colors ${snapshot.isDraggingOver ? "bg-white/[0.05] border-blue-500/50" : ""}`}
+                        className={`flex-1 min-h-[400px] bg-white/[0.02] border border-white/5 rounded-[40px] p-2 transition-colors`}
                       >
                         {colGoals.map((goal, index) => renderGoal(goal, index, true))}
-                        {provided.placeholder}
                       </div>
-                    )}
-                  </Droppable>
                 </div>
               );
             })}
           </div>
-        </DragDropContext>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {incompleteGoals.map((goal, index) => renderGoal(goal, index, false))}
@@ -2122,7 +2234,7 @@ const TasksView = () => {
   const [freeTime, setFreeTime] = useState({ start: "09:00", end: "18:00" });
   const [isSplitting, setIsSplitting] = useState<{ [key: string]: boolean }>({});
   const [isPrioritizing, setIsPrioritizing] = useState(false);
-  const [viewMode, setViewMode] = useState<"list" | "matrix">("list");
+  const [viewMode, setViewMode] = useState<"list" | "matrix" | "planning">("list");
   const [focusAdvice, setFocusAdvice] = useState<string | null>(null);
   const [isGettingAdvice, setIsGettingAdvice] = useState(false);
 
@@ -2150,6 +2262,36 @@ const TasksView = () => {
 
   const handleApplySmartPrioritize = async () => {
     setIsPrioritizing(true);
+    if (viewMode === "planning") {
+      // Group tasks by date to reschedule within each day
+      const grouped = incompleteTasks.reduce((acc, task) => {
+        const d = task.date || toLocalDateStr();
+        if (!acc[d]) acc[d] = [];
+        acc[d].push(task);
+        return acc;
+      }, {} as Record<string, typeof incompleteTasks>);
+
+      for (const dateStr of Object.keys(grouped)) {
+        let currentTime = freeTime.start || "09:00";
+        const sorted = grouped[dateStr].sort((a,b) => {
+          if (a.priority !== b.priority) return a.priority.localeCompare(b.priority);
+          return (a.order || 0) - (b.order || 0);
+        });
+
+        for (const task of sorted) {
+          const durationMins = parseInt(task.duration || "30");
+          const [h, m] = currentTime.split(":").map(Number);
+          
+          updateTask(task.id, { startTime: currentTime });
+          
+          const dateObj = new Date();
+          dateObj.setHours(h, m + durationMins + 5);
+          currentTime = `${String(dateObj.getHours()).padStart(2, "0")}:${String(dateObj.getMinutes()).padStart(2, "0")}`;
+        }
+      }
+      setIsPrioritizing(false);
+      return;
+    }
     await smartPrioritizeTasks();
     setIsPrioritizing(false);
   };
@@ -2172,15 +2314,12 @@ const TasksView = () => {
 
   const [showCompleted, setShowCompleted] = useState(false);
   const displayTasks = [...tasks].sort((a,b) => {
-    return a.priority.localeCompare(b.priority) || (a.order || 0) - (b.order || 0);
+    return (a.order || 0) - (b.order || 0);
   });
   const incompleteTasks = displayTasks.filter(t => !t.completed);
   const completedTasks = displayTasks.filter(t => t.completed);
 
-  const handleDragEnd = (result: DropResult) => {
-    if (!result.destination) return;
-    reorderTasks(result.source.index, result.destination.index);
-  };
+
 
   const [taskError, setTaskError] = useState("");
 
@@ -2284,15 +2423,21 @@ const TasksView = () => {
           <div className="flex bg-white/5 rounded-[24px] p-1 border border-white/10">
             <button
               onClick={() => setViewMode("list")}
-              className={`px-4 py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === "list" ? "bg-white text-black shadow-md" : "text-slate-300 hover:text-white"}`}
+              className={`px-4 py-2 sm:px-4 sm:py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === "list" ? "bg-white text-black shadow-md" : "text-slate-300 hover:text-white"}`}
             >
               List
             </button>
             <button
               onClick={() => setViewMode("matrix")}
-              className={`px-4 py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === "matrix" ? "bg-white text-black shadow-md" : "text-slate-300 hover:text-white"}`}
+              className={`px-4 py-2 sm:px-4 sm:py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === "matrix" ? "bg-white text-black shadow-md" : "text-slate-300 hover:text-white"}`}
             >
               Matrix
+            </button>
+            <button
+              onClick={() => setViewMode("planning")}
+              className={`px-4 py-2 sm:px-4 sm:py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === "planning" ? "bg-white text-black shadow-md" : "text-slate-300 hover:text-white"}`}
+            >
+              Planning
             </button>
           </div>
         </div>
@@ -2371,82 +2516,84 @@ const TasksView = () => {
         )}
       </AnimatePresence>
 
-      <GlassCard className="p-1 max-w-4xl mx-auto !rounded-[32px] sm:!rounded-[40px] overflow-hidden group focus-within:border-blue-500/30 transition-all shadow-2xl">
-        <div className="p-4 sm:p-8 space-y-6">
-          <input
-            type="text"
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            placeholder="What is your next task?"
-            className="w-full bg-transparent border-none focus:ring-0 text-white text-xl sm:text-3xl placeholder:text-slate-300 font-display font-black text-center"
-          />
-          <div className="flex flex-wrap gap-2 sm:gap-3 items-center justify-center">
-            <div className="flex items-center bg-white/5 rounded-2xl px-5 py-3 border border-white/5 text-[10px] font-black text-slate-300">
-              <Calendar className="w-4 h-4 mr-2 opacity-30" />
-              <span>
-                {new Date().toLocaleDateString("en-US", {
-                  day: "numeric",
-                  month: "short",
-                })}
-              </span>
-            </div>
+      {viewMode !== "planning" && (
+        <GlassCard className="p-1 max-w-4xl mx-auto !rounded-[32px] sm:!rounded-[40px] overflow-hidden group focus-within:border-blue-500/30 transition-all shadow-2xl">
+          <div className="p-4 sm:p-8 space-y-6">
+            <input
+              type="text"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              placeholder="What is your next task?"
+              className="w-full bg-transparent border-none focus:ring-0 text-white text-xl sm:text-3xl placeholder:text-slate-300 font-display font-black text-center"
+            />
+            <div className="flex flex-wrap gap-2 sm:gap-3 items-center justify-center">
+              <div className="flex items-center bg-white/5 rounded-2xl px-5 py-3 border border-white/5 text-[10px] font-black text-slate-300">
+                <Calendar className="w-4 h-4 mr-2 opacity-30" />
+                <span>
+                  {new Date().toLocaleDateString("en-US", {
+                    day: "numeric",
+                    month: "short",
+                  })}
+                </span>
+              </div>
 
-            <div className="flex items-center bg-white/5 rounded-2xl px-5 py-3 border border-white/5 text-[10px] font-black text-slate-300">
-              <Clock className="w-4 h-4 mr-2 opacity-30" />
-              <input
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="bg-transparent border-none p-0 focus:ring-0 cursor-pointer w-16"
-              />
-              <span className="mx-2 opacity-20">-</span>
-              <input
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="bg-transparent border-none p-0 focus:ring-0 cursor-pointer w-16"
-              />
-            </div>
-            
-            <div className="flex items-center bg-white/5 rounded-2xl px-5 py-3 border border-white/5 text-[10px] font-black">
-              <span className="text-slate-300 mr-2 uppercase tracking-widest opacity-50">PRIORITY</span>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as any)}
-                className="bg-transparent border-none p-0 focus:ring-0 text-white font-bold cursor-pointer"
-                style={{ appearance: 'none', WebkitAppearance: 'none' }}
+              <div className="flex items-center bg-white/5 rounded-2xl px-5 py-3 border border-white/5 text-[10px] font-black text-slate-300">
+                <Clock className="w-4 h-4 mr-2 opacity-30" />
+                <input
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className="bg-transparent border-none p-0 focus:ring-0 cursor-pointer w-16"
+                />
+                <span className="mx-2 opacity-20">-</span>
+                <input
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className="bg-transparent border-none p-0 focus:ring-0 cursor-pointer w-16"
+                />
+              </div>
+              
+              <div className="flex items-center bg-white/5 rounded-2xl px-5 py-3 border border-white/5 text-[10px] font-black">
+                <span className="text-slate-300 mr-2 uppercase tracking-widest opacity-50">PRIORITY</span>
+                <select
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value as any)}
+                  className="bg-transparent border-none p-0 focus:ring-0 text-white font-bold cursor-pointer"
+                  style={{ appearance: 'none', WebkitAppearance: 'none' }}
+                >
+                  <option value="A" className="text-black">A - CRITICAL</option>
+                  <option value="B" className="text-black">B - HIGH</option>
+                  <option value="C" className="text-black">C - MEDIUM</option>
+                  <option value="D" className="text-black">D - LOW</option>
+                </select>
+              </div>
+
+              <button
+                onClick={handleAdd}
+                className="w-full sm:w-auto bg-white text-black font-black text-[10px] uppercase tracking-[0.2em] px-10 py-3.5 rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-xl shadow-white/5"
               >
-                <option value="A" className="text-black">A - CRITICAL</option>
-                <option value="B" className="text-black">B - HIGH</option>
-                <option value="C" className="text-black">C - MEDIUM</option>
-                <option value="D" className="text-black">D - LOW</option>
-              </select>
+                + Deploy
+              </button>
             </div>
-
-            <button
-              onClick={handleAdd}
-              className="w-full sm:w-auto bg-white text-black font-black text-[10px] uppercase tracking-[0.2em] px-10 py-3.5 rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-xl shadow-white/5"
-            >
-              + Deploy
-            </button>
+            {taskError && (
+              <motion.p
+                 initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
+                 className="text-red-400 text-[10px] font-black uppercase tracking-widest text-center mt-3 animate-pulse"
+              >
+                {taskError}
+              </motion.p>
+            )}
+            <input
+              type="text"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              placeholder="Tags: #urgent, #deep, #admin"
+              className="w-full bg-transparent border-t border-white/5 pt-6 text-[10px] font-bold text-slate-300 text-center uppercase tracking-widest placeholder:text-slate-300 focus:outline-none"
+            />
           </div>
-          {taskError && (
-            <motion.p
-               initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
-               className="text-red-400 text-[10px] font-black uppercase tracking-widest text-center mt-3 animate-pulse"
-            >
-              {taskError}
-            </motion.p>
-          )}
-          <input
-            type="text"
-            value={tags}
-            onChange={(e) => setTags(e.target.value)}
-            placeholder="Tags: #urgent, #deep, #admin"
-            className="w-full bg-transparent border-t border-white/5 pt-6 text-[10px] font-bold text-slate-300 text-center uppercase tracking-widest placeholder:text-slate-300 focus:outline-none"
-          />
-        </div>
-      </GlassCard>
+        </GlassCard>
+      )}
 
       <div className="max-w-4xl mx-auto w-full space-y-4">
         <Tooltip text="Get AI advice on where to direct your energy next">
@@ -2484,28 +2631,256 @@ const TasksView = () => {
         </AnimatePresence>
       </div>
 
-      {viewMode === "list" ? (
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <Droppable droppableId="tasks-list" direction="horizontal">
-          {(provided) => (
-            <div
-              ref={provided.innerRef}
-              {...provided.droppableProps}
-              className="grid grid-cols-1 md:grid-cols-2 gap-4"
-            >
-               {incompleteTasks.map((task, index) => (
-                 <Draggable key={task.id} draggableId={task.id} index={index}>
-                  {(provided) => (
-                    <div
-                      ref={provided.innerRef}
-                      {...provided.draggableProps}
-                      {...provided.dragHandleProps}
-                      style={{ ...provided.draggableProps.style }}
-                    >
-                      <motion.div
-                        layout
-                        className={`glass-card group hover:border-white/20 transition-all h-full flex flex-col p-6 rounded-[32px] ${focusTaskId === task.id ? "border-blue-500/50 bg-blue-600/[0.03] ring-1 ring-blue-500/20" : ""}`}
-                      >
+      {viewMode === "planning" ? (
+        <div className="space-y-8 max-w-4xl mx-auto w-full">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-4">
+             <div className="flex flex-col">
+               <span className="text-[10px] font-black uppercase tracking-[0.3em] font-mono text-blue-500">Scheduled Slots</span>
+               <h4 className="text-xl font-display font-black text-white">Daily Timeline</h4>
+             </div>
+             
+             <div className="flex flex-wrap items-center gap-4">
+               <div className="flex items-center space-x-2 bg-white/5 px-4 py-2 rounded-xl border border-white/10">
+                 <div className="flex items-center space-x-2">
+                   <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Global Start</span>
+                   <input
+                     type="time"
+                     value={freeTime.start}
+                     onChange={(e) => setFreeTime({ ...freeTime, start: e.target.value })}
+                     className="bg-transparent border-none text-white font-bold text-[10px] focus:ring-0 p-0 w-16"
+                   />
+                 </div>
+               </div>
+               
+               <button
+                 onClick={() => {
+                   // Reschedule all from current global start
+                   let currentTime = freeTime.start || "09:00";
+                   const sorted = [...incompleteTasks].sort((a,b) => (a.date || "").localeCompare(b.date || "") || (a.order || 0) - (b.order || 0));
+                   for (const task of sorted) {
+                     updateTask(task.id, { startTime: currentTime });
+                     const [h, m] = currentTime.split(":").map(Number);
+                     const d = new Date();
+                     d.setHours(h, m + parseInt(task.duration || "30") + 5);
+                     currentTime = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+                   }
+                 }}
+                 className="flex items-center space-x-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-300 hover:text-white transition-all"
+               >
+                 <RotateCcw className="w-3 h-3"/>
+                 <span>Reset Timeline</span>
+               </button>
+
+               <button
+                 onClick={() => {
+                    // Shift all tasks forward by 15 mins (simple break)
+                    const sorted = [...incompleteTasks].sort((a,b) => (a.startTime || "00:00").localeCompare(b.startTime || "00:00"));
+                    sorted.forEach(task => {
+                      if (task.startTime) {
+                        const [h, m] = task.startTime.split(":").map(Number);
+                        const d = new Date();
+                        d.setHours(h, m + 15);
+                        updateTask(task.id, { startTime: `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}` });
+                      }
+                    });
+                 }}
+                 className="flex items-center space-x-2 px-4 py-2 bg-orange-600/10 border border-orange-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-orange-400 hover:bg-orange-600/20 transition-all"
+               >
+                 <Coffee className="w-3 h-3"/>
+                 <span>Add 15m Break</span>
+               </button>
+             </div>
+          </div>
+
+          <div className="space-y-4">
+            {(() => {
+              const tasksForDate = incompleteTasks;
+              
+              if (tasksForDate.length === 0) {
+                return (
+                  <div className="text-center py-20 bg-white/[0.02] border border-dashed border-white/10 rounded-[40px] px-6">
+                     <CalendarRange className="w-10 h-10 text-slate-500 mx-auto mb-4 opacity-50" />
+                     <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">No pending tasks.</p>
+                     <p className="text-xs text-slate-500 mt-2">Deploy some tasks to build your mission timeline.</p>
+                  </div>
+                );
+              }
+
+              return tasksForDate
+                .sort((a, b) => (a.startTime || "00:00").localeCompare(b.startTime || "00:00"))
+                .map((task, idx) => (
+                  <motion.div
+                    key={task.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    className="flex gap-4 sm:gap-8 group"
+                  >
+                    <TaskTimeEditor task={task} updateTask={updateTask} tasksForDate={tasksForDate} />
+
+                          {/* Divider */}
+                          <div className="relative flex flex-col items-center">
+                            <div className="w-3 h-3 rounded-full bg-blue-600 border-4 border-[#0a0a0c] z-10" />
+                            <div className="flex-1 w-px bg-white/10 group-last:bg-transparent" />
+                          </div>
+
+                          {/* Right Column: Task Content */}
+                          <div className="flex-1 pb-10">
+                            <GlassCard className="p-5 sm:p-6 !rounded-[24px] border border-white/5 group-hover:border-white/10 transition-all relative overflow-hidden">
+                              <div className={`absolute top-0 right-0 w-24 h-24 blur-3xl rounded-full opacity-20 ${
+                                task.priority === 'A' ? 'bg-rose-500' :
+                                task.priority === 'B' ? 'bg-blue-500' :
+                                'bg-slate-500'
+                              }`} />
+                              
+                              <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div className="space-y-1 flex-1">
+                                   <div className="flex items-center gap-2">
+                                     <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-widest ${
+                                       task.priority === 'A' ? 'bg-rose-500/20 text-rose-400' :
+                                       task.priority === 'B' ? 'bg-blue-500/20 text-blue-400' :
+                                       'bg-slate-500/20 text-slate-300'
+                                     }`}>
+                                       Priority {task.priority}
+                                     </span>
+                                     {task.parentGoalTitle && (
+                                       <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
+                                         {task.parentGoalTitle}
+                                       </span>
+                                     )}
+                                   </div>
+                                   <input
+                                      value={task.title}
+                                      onChange={(e) => updateTask(task.id, { title: e.target.value })}
+                                      className="text-lg sm:text-xl font-display font-black text-white leading-tight bg-transparent border-none p-0 focus:ring-0 w-full"
+                                   />
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                   <div className="flex flex-col gap-1 mr-2">
+                                     <button
+                                       onClick={() => {
+                                         const sorted = [...tasksForDate].sort((a, b) => (a.startTime || "00:00").localeCompare(b.startTime || "00:00"));
+                                         const index = sorted.findIndex(t => t.id === task.id);
+                                         if (index > 0) {
+                                           const prev = sorted[index - 1];
+                                           let currentTime = prev.startTime || "09:00";
+                                           
+                                           const newSorted = [...sorted];
+                                           newSorted[index - 1] = task;
+                                           newSorted[index] = prev;
+
+                                           for (let i = index - 1; i < newSorted.length; i++) {
+                                             const t = newSorted[i];
+                                             const durMins = parseInt(t.duration || "30");
+                                             updateTask(t.id, { startTime: currentTime });
+                                             const [h, m] = currentTime.split(":").map(Number);
+                                             const d = new Date();
+                                             d.setHours(h, m + durMins + 5);
+                                             currentTime = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+                                           }
+                                         }
+                                       }}
+                                       className="p-1.5 bg-white/5 rounded hover:bg-white/10 text-slate-400 hover:text-white transition-colors disabled:opacity-30"
+                                       disabled={idx === 0}
+                                     >
+                                       <ChevronUp className="w-3 h-3" />
+                                     </button>
+                                     <button
+                                       onClick={() => {
+                                         const sorted = [...tasksForDate].sort((a, b) => (a.startTime || "00:00").localeCompare(b.startTime || "00:00"));
+                                         const index = sorted.findIndex(t => t.id === task.id);
+                                         if (index < sorted.length - 1) {
+                                           const next = sorted[index + 1];
+                                           let currentTime = task.startTime || "09:00";
+                                           
+                                           const newSorted = [...sorted];
+                                           newSorted[index + 1] = task;
+                                           newSorted[index] = next;
+
+                                           for (let i = index; i < newSorted.length; i++) {
+                                             const t = newSorted[i];
+                                             const durMins = parseInt(t.duration || "30");
+                                             updateTask(t.id, { startTime: currentTime });
+                                             const [h, m] = currentTime.split(":").map(Number);
+                                             const d = new Date();
+                                             d.setHours(h, m + durMins + 5);
+                                             currentTime = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+                                           }
+                                         }
+                                       }}
+                                       className="p-1.5 bg-white/5 rounded hover:bg-white/10 text-slate-400 hover:text-white transition-colors disabled:opacity-30"
+                                       disabled={idx === tasksForDate.length - 1}
+                                     >
+                                       <ChevronDown className="w-3 h-3" />
+                                     </button>
+                                   </div>
+                                   <Tooltip text="Mission Control (Pomodoro)">
+                                      <button
+                                        onClick={() => {
+                                          setFocusTaskId(task.id);
+                                        }}
+                                        className="p-2 bg-purple-600/10 border border-purple-500/20 rounded-lg text-purple-400 hover:bg-purple-600/20 transition-all"
+                                      >
+                                        <Zap className="w-4 h-4" />
+                                      </button>
+                                   </Tooltip>
+                                   <Tooltip text="Insert 15m Break After">
+                                      <button
+                                        onClick={() => {
+                                          // Shift all tasks that start AFTER this one
+                                          const sorted = [...tasksForDate].sort((a,b) => (a.startTime || "00:00").localeCompare(b.startTime || "00:00"));
+                                          const index = sorted.findIndex(t => t.id === task.id);
+                                          const following = sorted.slice(index + 1);
+                                          
+                                          following.forEach(t => {
+                                            if (t.startTime) {
+                                              const [h, m] = t.startTime.split(":").map(Number);
+                                              const d = new Date();
+                                              d.setHours(h, m + 15);
+                                              updateTask(t.id, { startTime: `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}` });
+                                            }
+                                          });
+                                        }}
+                                        className="p-2 bg-orange-600/10 border border-orange-500/20 rounded-lg text-orange-400 hover:bg-orange-600/20 transition-all"
+                                      >
+                                        <Coffee className="w-4 h-4" />
+                                      </button>
+                                   </Tooltip>
+                                   <div className="w-px h-6 bg-white/10 mx-1" />
+                                   <Tooltip text="Complete Task">
+                                      <button
+                                        onClick={() => toggleTask(task.id)}
+                                        className="p-2 bg-blue-600/10 border border-blue-500/20 rounded-lg text-blue-400 hover:bg-blue-600/20 transition-all"
+                                      >
+                                        <Check className="w-4 h-4" />
+                                      </button>
+                                   </Tooltip>
+                                </div>
+                              </div>
+                            </GlassCard>
+                          </div>
+                        </motion.div>
+                      ));
+            })()}
+          </div>
+        </div>
+      ) : viewMode === "list" ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {incompleteTasks.map((task, index) => (
+            <div key={task.id}>
+              <motion.div
+                layout
+                className={`glass-card group hover:border-white/20 transition-all h-full flex flex-col p-6 rounded-[32px] relative ${focusTaskId === task.id ? "border-blue-500/50 bg-blue-600/[0.03] ring-1 ring-blue-500/20" : ""}`}
+              >
+                <div className="absolute top-4 -left-4 xl:-left-6 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => reorderTasks(task.id, 'up')} className="p-1 text-slate-500 hover:text-white bg-[#050505] rounded-lg border border-white/10 hover:border-white/30 backdrop-blur-md transition-all shadow-xl">
+                    <ChevronUp className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => reorderTasks(task.id, 'down')} className="p-1 text-slate-500 hover:text-white bg-[#050505] rounded-lg border border-white/10 hover:border-white/30 backdrop-blur-md transition-all shadow-xl">
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                </div>
                         <div className="flex items-start justify-between mb-6">
                           <Tooltip text={task.completed ? "Mark pending" : "Complete task"}>
                             <button
@@ -2806,14 +3181,8 @@ const TasksView = () => {
                         </AnimatePresence>
                       </motion.div>
                     </div>
-                  )}
-                </Draggable>
               ))}
-              {provided.placeholder}
             </div>
-          )}
-        </Droppable>
-      </DragDropContext>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[
@@ -3066,184 +3435,6 @@ const InsightsView = () => {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <GlassCard className="p-1 !rounded-[40px]">
-          <div className="p-6 md:p-8 space-y-6 md:space-y-8">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <Sparkles className="w-5 h-5 text-blue-500" />
-                <span className="text-[10px] font-black text-slate-300 tracking-[0.3em] uppercase font-mono">
-                  Neural Audit
-                </span>
-              </div>
-              <Tooltip text="Run AI Analysis">
-                <button
-                  onClick={handleGetDeepAnalysis}
-                  disabled={isAnalyzing}
-                  className="bg-blue-600/10 border border-blue-500/20 text-[9px] font-black text-blue-400 px-5 py-2.5 rounded-full uppercase tracking-widest hover:bg-blue-600/20 transition-all disabled:opacity-50"
-                >
-                  {isAnalyzing ? "Processing..." : "Engage Audit"}
-                </button>
-              </Tooltip>
-            </div>
-
-            <div className="min-h-[280px] max-h-[350px] overflow-y-auto pr-2 flex justify-center">
-              {deepAnalysis ? (
-                <div className="text-slate-300 text-sm leading-8 font-medium space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-700 w-full py-4">
-                  {deepAnalysis
-                    .split("\n")
-                    .filter(Boolean)
-                    .map((p, i) => (
-                      <div key={i} className="flex gap-4">
-                        <div className="w-1.5 h-1.5 rounded-full bg-blue-600/30 mt-3 shrink-0" />
-                        <p>{p}</p>
-                      </div>
-                    ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center p-8 text-center space-y-6">
-                  <div className="w-20 h-20 rounded-full bg-white/[0.02] border border-white/[0.05] flex items-center justify-center">
-                    <Sparkles className="w-8 h-8 text-slate-300" />
-                  </div>
-                  <p className="text-slate-300 text-xs font-black uppercase tracking-[0.2em] max-w-xs leading-loose">
-                    Waiting for deep analysis initialization. Initiate audit to
-                    begin.
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </GlassCard>
-
-        <GlassCard className="p-1 !rounded-[40px]">
-          <div className="p-6 md:p-8 space-y-6 md:space-y-8 h-full">
-            <div className="flex items-center space-x-3">
-              <TrendingUp className="w-5 h-5 text-purple-500" />
-              <span className="text-[10px] font-black text-slate-300 tracking-[0.3em] uppercase font-mono">
-                Priority Distribution
-              </span>
-            </div>
-
-            <div className="flex-1 min-h-[300px] w-full flex items-center justify-center">
-              {priorityData.length > 0 ? (
-                <ResponsiveContainer
-                  width="100%"
-                  height="100%"
-                  minWidth={0}
-                  minHeight={0}
-                >
-                  <RechartsPieChart>
-                    <Pie
-                      data={priorityData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
-                      paddingAngle={5}
-                      dataKey="value"
-                      stroke="transparent"
-                    >
-                      {priorityData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <ReTooltip
-                      contentStyle={{
-                        backgroundColor: "#0a0a0c",
-                        border: "1px solid rgba(255,255,255,0.05)",
-                        borderRadius: "20px",
-                        fontSize: "12px",
-                        fontWeight: 800,
-                        boxShadow: "0 20px 50px rgba(0,0,0,0.5)",
-                      }}
-                      itemStyle={{ color: "#fff" }}
-                    />
-                  </RechartsPieChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="text-center text-slate-300 text-xs font-bold uppercase tracking-widest">
-                  No tasks available. Add some tasks to see distribution.
-                </div>
-              )}
-            </div>
-          </div>
-        </GlassCard>
-      </div>
-
-      <GlassCard className="p-1 !rounded-[40px]">
-        <div className="p-6 md:p-8 space-y-6 md:space-y-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <Calendar className="w-5 h-5 text-orange-500" />
-              <span className="text-[10px] font-black text-slate-300 tracking-[0.3em] uppercase font-mono">
-                Behavioral Consistency
-              </span>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-[10px] text-slate-300 font-black uppercase tracking-widest">
-                System Load: Moderate
-              </span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-7 md:grid-cols-10 gap-2">
-            {Array.from({ length: 30 }).map((_, i) => {
-              const d = new Date();
-              d.setDate(d.getDate() - (29 - i));
-              const dateStr = toLocalDateStr(d);
-              const sessionsCount = focusSessions.filter((s) =>
-                s.date.includes(dateStr),
-              ).length;
-              const tasksCount = tasks.filter(
-                (t) => t.date === dateStr && t.completed,
-              ).length;
-              const activityLevel = sessionsCount + tasksCount;
-
-              return (
-                <Tooltip
-                  key={i}
-                  text={`${dateStr}: ${activityLevel} Operations`}
-                >
-                  <motion.div
-                    key={i}
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: i * 0.02 }}
-                    className={`aspect-square rounded-xl border border-white/[0.03] transition-all hover:scale-110 active:scale-95 cursor-pointer ${
-                      activityLevel === 0
-                        ? "bg-white/5"
-                        : activityLevel === 1
-                          ? "bg-blue-600/30"
-                          : activityLevel === 2
-                            ? "bg-blue-600/50 shadow-[0_0_15px_rgba(37,99,235,0.2)]"
-                            : activityLevel === 3
-                              ? "bg-blue-600/70 shadow-[0_0_20px_rgba(37,99,235,0.3)]"
-                              : "bg-blue-600 shadow-[0_0_30px_rgba(37,99,235,0.4)]"
-                    }`}
-                  />
-                </Tooltip>
-              );
-            })}
-          </div>
-
-          <div className="flex justify-end items-center space-x-4">
-            <span className="text-[10px] text-slate-300 font-black tracking-widest uppercase">
-              Idle
-            </span>
-            <div className="flex space-x-1.5">
-              {["bg-white/5", "bg-blue-600/30", "bg-blue-600/50", "bg-blue-600/70", "bg-blue-600"].map((cls, idx) => (
-                <div
-                  key={idx}
-                  className={`w-3 h-3 rounded-md ${cls}`}
-                />
-              ))}
-            </div>
-            <span className="text-[10px] text-slate-300 font-black tracking-widest uppercase">
-              Peak
-            </span>
-          </div>
-        </div>
-      </GlassCard>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 pt-12 border-t border-white/5">
         <div className="space-y-8">
@@ -3430,10 +3621,7 @@ const HabitsView = () => {
   
   const displayHabits = [...habits].sort((a,b) => (a.order || 0) - (b.order || 0));
 
-  const handleDragEnd = (result: DropResult) => {
-    if (!result.destination) return;
-    reorderHabits(result.source.index, result.destination.index);
-  };
+
 
   const [taskCreatedId, setTaskCreatedId] = useState<string | null>(null);
 
@@ -3583,23 +3771,18 @@ const HabitsView = () => {
         </div>
       </GlassCard>
 
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <Droppable droppableId="habits-list">
-          {(provided) => (
-            <div
-              {...provided.droppableProps}
-              ref={provided.innerRef}
-              className="grid grid-cols-1 gap-4"
-            >
+            <div className="grid grid-cols-1 gap-4">
               {displayHabits.map((habit, index) => (
-                <Draggable key={habit.id} draggableId={habit.id} index={index}>
-                  {(provided, snapshot) => (
-                    <GlassCard
-                      {...provided.draggableProps}
-                      {...provided.dragHandleProps}
-                        ref={provided.innerRef}
-                      className={`p-8 !rounded-[32px] group ${snapshot.isDragging ? "shadow-2xl ring-2 ring-blue-500 bg-black/40" : ""}`}
-                    >
+                <div key={habit.id} className="relative">
+                  <div className="absolute top-4 -left-4 xl:-left-6 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-50">
+                    <button onClick={() => reorderHabits(habit.id, 'up')} className="p-1 text-slate-500 hover:text-white bg-[#050505] rounded-lg border border-white/10 hover:border-white/30 backdrop-blur-md transition-all shadow-xl">
+                      <ChevronUp className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => reorderHabits(habit.id, 'down')} className="p-1 text-slate-500 hover:text-white bg-[#050505] rounded-lg border border-white/10 hover:border-white/30 backdrop-blur-md transition-all shadow-xl">
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </div>
+                    <GlassCard className="p-8 !rounded-[32px] group">
                       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8">
                         <div className="space-y-4">
                           <div className="flex items-center space-x-4">
@@ -3788,14 +3971,9 @@ const HabitsView = () => {
               </div>
             </div>
           </GlassCard>
-                  )}
-                </Draggable>
-              ))}
-              {provided.placeholder}
-            </div>
-          )}
-        </Droppable>
-      </DragDropContext>
+        </div>
+      ))}
+    </div>
         {habits.length === 0 && (
           <div className="text-center py-24 bg-white/[0.02] border border-dashed border-white/10 rounded-[40px] px-6 space-y-4">
             <div className="w-16 h-16 rounded-full bg-blue-600/10 flex items-center justify-center mx-auto mb-6">
@@ -3818,6 +3996,7 @@ const TrojanChat = () => {
     { role: "model", parts: [{ text: "Trojan AI initialized.\n\nI recommend Oliver Burkeman's daily framework: Aim for 3 hours of deep work, 3 urgent/important tasks, and 3 maintenance tasks to cap a productive day without burning out.\n\nWhat are your top 3 tasks for today?" }] }
   ]);
   const [input, setInput] = useState("");
+  const [chatTaskPriority, setChatTaskPriority] = useState<"A"|"B"|"C"|"D">("A");
   const [loading, setLoading] = useState(false);
   const [quotaWaitTime, setQuotaWaitTime] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -3844,9 +4023,9 @@ const TrojanChat = () => {
   }, [messages, isOpen]);
 
   const handleSend = async (textOverride?: string | React.MouseEvent) => {
-    const textToSend = typeof textOverride === 'string' ? textOverride.trim() : input.trim();
-    if (!textToSend || loading || quotaWaitTime > 0) return;
-    const userMsg = { role: "user" as const, parts: [{ text: textToSend }] };
+    const textToSendVisible = typeof textOverride === 'string' ? textOverride.trim() : input.trim();
+    if (!textToSendVisible || loading || quotaWaitTime > 0) return;
+    const userMsg = { role: "user" as const, parts: [{ text: textToSendVisible }] };
     setMessages(prev => [...prev, userMsg]);
     if (typeof textOverride !== 'string') {
       setInput("");
@@ -3855,7 +4034,9 @@ const TrojanChat = () => {
 
     const history = messages.slice(-10); // Limit history for performance but keep enough for context
 
-    const response = await getTrojanChatResponse(textToSend, history, tasks, goals, habits);
+    const textToSendLLM = textToSendVisible + `\n\n[System Info: User's chosen priority from UI dropdown is ${chatTaskPriority}]`;
+
+    const response = await getTrojanChatResponse(textToSendLLM, history, tasks, goals, habits);
 
     if (response?.isQuotaError) {
       setQuotaWaitTime(60);
@@ -4123,6 +4304,17 @@ const TrojanChat = () => {
                 </button>
               </div>
               <div className="flex items-center space-x-2">
+                <select
+                  value={chatTaskPriority}
+                  onChange={(e) => setChatTaskPriority(e.target.value as any)}
+                  className="bg-white/5 border border-white/10 rounded-full h-10 px-3 text-xs font-black uppercase text-slate-300 focus:outline-none focus:border-blue-500/50 cursor-pointer"
+                  style={{ appearance: 'none', WebkitAppearance: 'none' }}
+                >
+                  <option value="A">Pri A</option>
+                  <option value="B">Pri B</option>
+                  <option value="C">Pri C</option>
+                  <option value="D">Pri D</option>
+                </select>
                 <div className="relative flex-1 group">
                   <input
                     type="text"
@@ -4523,7 +4715,7 @@ const AppContent = ({
               exit={{ opacity: 0, y: -30 }}
               transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
             >
-              {activeView === "home" && <HomeView />}
+              {activeView === "home" && <HomeView setActiveView={setActiveView} />}
               {activeView === "goals" && <GoalsView />}
               {activeView === "tasks" && <TasksView />}
               {activeView === "habits" && <HabitsView />}
