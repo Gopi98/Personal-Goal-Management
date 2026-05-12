@@ -3572,7 +3572,9 @@ const InsightsView = () => {
               </GlassCard>
 
               <div className="space-y-4 max-h-[550px] overflow-y-auto pr-2">
-                {reflections.map((ref) => (
+                {[...reflections]
+                  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                  .map((ref) => (
                   <GlassCard
                     key={ref.id}
                     className="p-8 !rounded-[32px] group relative overflow-hidden hover:border-white/20 transition-all"
