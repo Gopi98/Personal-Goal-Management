@@ -4593,38 +4593,48 @@ const AutomationEngine = () => {
              shouldRun = true;
           }
         } else if (auto.frequency === 'monthly') {
-          if (now.getDate() === auto.dayOfMonth && now.getMonth() !== lastRun.getMonth()) {
+          const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+          const targetDay = Math.min(auto.dayOfMonth || 1, lastDayOfMonth);
+          
+          if (now.getDate() === targetDay && now.getMonth() !== lastRun.getMonth()) {
              shouldRun = true;
           }
         }
         
         if (shouldRun) {
            const src = goals.find(g => g.id === auto.sourceGoalId);
-           if (src && src.subtasks && src.subtasks.length > 0) {
+           if (src && !src.completed) {
               const num = auto.itemsToMove || 1;
-              const toMove = src.subtasks.filter(s => !s.completed).slice(0, num);
-              if (toMove.length === 0) return;
+              const incompleteSubtasks = src.subtasks ? src.subtasks.filter(s => !s.completed) : [];
               
-              const remaining = src.subtasks.filter(s => !toMove.includes(s));
-              updateGoal(src.id, { subtasks: remaining });
+              let toCreate: any[] = [];
+              if (incompleteSubtasks.length > 0) {
+                const toMove = incompleteSubtasks.slice(0, num);
+                const remaining = src.subtasks!.filter(s => !toMove.includes(s));
+                updateGoal(src.id, { subtasks: remaining });
+                toCreate = toMove.map(sub => ({ title: sub.title, fromSubtaskId: sub.id }));
+              } else {
+                updateGoal(src.id, { completed: true });
+                toCreate = [{ title: src.title, fromSubtaskId: undefined }];
+              }
               
-              toMove.forEach(sub => {
+              toCreate.forEach(item => {
                  if (auto.targetType === 'weekly_goal') {
                      addGoal({
-                        title: sub.title,
+                        title: item.title,
                         type: 'weekly',
                         priority: 'B',
                         completed: false,
                         fromGoalId: src.id,
-                        fromSubtaskId: sub.id
+                        fromSubtaskId: item.fromSubtaskId
                      });
                  } else {
                      addTask({
-                        title: sub.title,
+                        title: item.title,
                         date: new Date().toISOString().split('T')[0],
                         priority: 'B',
                         fromGoalId: src.id,
-                        fromSubtaskId: sub.id,
+                        fromSubtaskId: item.fromSubtaskId,
                         tags: ['#auto']
                      });
                  }

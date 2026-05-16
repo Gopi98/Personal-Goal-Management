@@ -10,6 +10,7 @@ export const AutomationsView = () => {
     const [targetType, setTargetType] = useState<'weekly_goal' | 'daily_task'>('weekly_goal');
     const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
     const [dayOfWeek, setDayOfWeek] = useState(1);
+    const [dayOfMonth, setDayOfMonth] = useState(1);
     
     // Check if goal has subtasks
     const sourceGoal = goals.find(g => g.id === sourceGoalId);
@@ -22,7 +23,8 @@ export const AutomationsView = () => {
             frequency,
             itemsToMove: 1,
             isActive: true,
-            ...(frequency === 'weekly' ? { dayOfWeek } : {})
+            ...(frequency === 'weekly' ? { dayOfWeek } : {}),
+            ...(frequency === 'monthly' ? { dayOfMonth } : {})
         });
         setIsCreating(false);
         setSourceGoalId("");
@@ -57,13 +59,13 @@ export const AutomationsView = () => {
                         <div>
                             <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Source Goal</label>
                             <select 
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white appearance-none"
+                                className="w-full bg-[#111116] border border-white/10 rounded-xl px-4 py-3 text-white"
                                 value={sourceGoalId}
                                 onChange={e => setSourceGoalId(e.target.value)}
                             >
-                                <option value="">Select a Goal</option>
+                                <option value="" className="bg-[#111] text-white">Select a Goal</option>
                                 {goals.filter(g => g.type === 'yearly' || g.type === 'monthly').map(g => (
-                                    <option key={g.id} value={g.id}>{g.title} ({g.subtasks?.length || 0} subtasks)</option>
+                                    <option key={g.id} value={g.id} className="bg-[#111] text-white">{g.title} ({g.subtasks?.length || 0} subtasks)</option>
                                 ))}
                             </select>
                         </div>
@@ -72,13 +74,13 @@ export const AutomationsView = () => {
                             <div>
                                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Frequency</label>
                                 <select 
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white appearance-none"
+                                    className="w-full bg-[#111116] border border-white/10 rounded-xl px-4 py-3 text-white"
                                     value={frequency}
                                     onChange={e => setFrequency(e.target.value as any)}
                                 >
-                                    <option value="daily">Daily</option>
-                                    <option value="weekly">Weekly</option>
-                                    <option value="monthly">Monthly</option>
+                                    <option value="daily" className="bg-[#111] text-white">Daily</option>
+                                    <option value="weekly" className="bg-[#111] text-white">Weekly</option>
+                                    <option value="monthly" className="bg-[#111] text-white">Monthly</option>
                                 </select>
                             </div>
                             
@@ -86,12 +88,27 @@ export const AutomationsView = () => {
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Day of Week</label>
                                     <select 
-                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white appearance-none"
+                                        className="w-full bg-[#111116] border border-white/10 rounded-xl px-4 py-3 text-white"
                                         value={dayOfWeek}
                                         onChange={e => setDayOfWeek(Number(e.target.value))}
                                     >
                                         {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((day, idx) => (
-                                            <option key={idx} value={idx}>{day}</option>
+                                            <option key={idx} value={idx} className="bg-[#111] text-white">{day}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            {frequency === 'monthly' && (
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Day of Month</label>
+                                    <select 
+                                        className="w-full bg-[#111116] border border-white/10 rounded-xl px-4 py-3 text-white"
+                                        value={dayOfMonth}
+                                        onChange={e => setDayOfMonth(Number(e.target.value))}
+                                    >
+                                        {Array.from({length: 31}, (_, i) => i + 1).map(day => (
+                                            <option key={day} value={day} className="bg-[#111] text-white">{day}</option>
                                         ))}
                                     </select>
                                 </div>
@@ -101,18 +118,18 @@ export const AutomationsView = () => {
                         <div>
                             <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Target Destination</label>
                             <select 
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white appearance-none"
+                                className="w-full bg-[#111116] border border-white/10 rounded-xl px-4 py-3 text-white"
                                 value={targetType}
                                 onChange={e => setTargetType(e.target.value as any)}
                             >
-                                <option value="weekly_goal">Weekly Goals</option>
-                                <option value="daily_task">Daily Tasks</option>
+                                <option value="weekly_goal" className="bg-[#111] text-white">Weekly Goals</option>
+                                <option value="daily_task" className="bg-[#111] text-white">Daily Tasks</option>
                             </select>
-                            <p className="text-xs text-slate-400 mt-2">One subtask will be popped from the source and promoted to the target destination.</p>
+                            <p className="text-xs text-slate-400 mt-2">One subtask (or the goal itself if no subtasks remain) will be popped from the source and promoted to the target destination.</p>
                         </div>
                         
                         <div className="flex justify-end pt-4 border-t border-white/5">
-                            <button onClick={handleSave} disabled={!sourceGoalId || !sourceGoal?.subtasks?.length} className="px-6 py-2 bg-white text-black font-bold rounded-xl disabled:opacity-50">
+                            <button onClick={handleSave} disabled={!sourceGoalId} className="px-6 py-2 bg-white text-black font-bold rounded-xl disabled:opacity-50">
                                 Save Automation
                             </button>
                         </div>
@@ -135,7 +152,7 @@ export const AutomationsView = () => {
                                     </p>
                                     <p className="text-slate-400 text-sm mt-1 flex items-center gap-1.5">
                                         <Clock className="w-3.5 h-3.5" />
-                                        {auto.frequency === 'daily' ? 'Every day' : auto.frequency === 'weekly' ? `Every ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][auto.dayOfWeek || 0]}` : 'Every month'}
+                                        {auto.frequency === 'daily' ? 'Every day' : auto.frequency === 'weekly' ? `Every ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][auto.dayOfWeek || 0]}` : `On the ${auto.dayOfMonth || 1}${([1, 21, 31].includes(auto.dayOfMonth || 1)) ? 'st' : ([2, 22].includes(auto.dayOfMonth || 1)) ? 'nd' : ([3, 23].includes(auto.dayOfMonth || 1)) ? 'rd' : 'th'} of the month`}
                                         {' '}→ move to{' '}
                                         <span className="font-medium text-slate-300">{auto.targetType === 'weekly_goal' ? 'Weekly Goals' : 'Daily Tasks'}</span>
                                     </p>
