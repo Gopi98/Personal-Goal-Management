@@ -1,5 +1,7 @@
 import { toLocalDateStr, getCountdownText } from './lib/dateUtils';
 import React, { useState, useEffect, useRef, forwardRef } from "react";
+import { HabiticaTestView } from "./components/HabiticaTestView";
+import { LifeGameView } from "./components/LifeGameView";
 import {
   Home,
   Target,
@@ -30,6 +32,7 @@ import {
   Filter,
   Menu,
   ArrowUpRight,
+  ArrowDownLeft,
   ArrowDownRight,
   CornerDownRight,
   CalendarRange,
@@ -48,6 +51,14 @@ import {
   MessageSquare,
   Send,
   Bot,
+  Gamepad2,
+  CloudLightning,
+  Gem,
+  Swords,
+  Sword,
+  Droplets,
+  Cloud,
+  User,
   X as CloseIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -157,7 +168,7 @@ const Tooltip = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 5 }}
             transition={{ duration: 0.1 }}
-            className="absolute z-[100] bottom-full mb-2 left-1/2 -translate-x-1/2 px-2.5 py-1.5 bg-[#1a1a1e] border border-white/10 text-[9px] font-black text-blue-400 uppercase tracking-widest whitespace-normal text-center w-max max-w-xs rounded-md pointer-events-none shadow-2xl backdrop-blur-md"
+            className="absolute z-[100] bottom-full mb-2 left-1/2 -translate-x-1/2 px-2.5 py-1.5 bg-[#1a1a1e] border border-white/10 text-xs font-black text-blue-400 uppercase tracking-widest whitespace-normal text-center w-max max-w-xs rounded-md pointer-events-none shadow-2xl backdrop-blur-md"
           >
             {text}
             <div className="absolute top-full left-1/2 -translate-x-1/2 border-x-4 border-x-transparent border-t-4 border-t-white/10" />
@@ -311,8 +322,8 @@ const NotificationEditor = ({
                     if (days.includes(i)) setDays(days.filter(d => d !== i));
                     else setDays([...days, i]);
                   }}
-                  className={`w-6 h-6 rounded-full text-[10px] font-bold flex items-center justify-center transition-colors ${
-                    days.includes(i) ? "bg-blue-600 text-white" : "bg-white/10 text-slate-400 hover:bg-white/20"
+                  className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center transition-colors ${
+                    days.includes(i) ? "bg-blue-600 text-white" : "bg-white/10 text-slate-300 hover:bg-white/20"
                   }`}
                 >
                   {n}
@@ -328,7 +339,12 @@ const NotificationEditor = ({
 
 const playAIAudio = async (text: string) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey || apiKey === "your_gemini_api_key_here") {
+      console.warn("GEMINI_API_KEY is not set or invalid. Skipping audio.");
+      return;
+    }
+    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: "gemini-3.1-flash-tts-preview",
       contents: [{ parts: [{ text }] }],
@@ -458,7 +474,7 @@ const TaskTimeEditor = ({ task, updateTask, tasksForDate }: any) => {
         }}
         className="text-sm sm:text-base font-black text-white font-mono tracking-tight leading-none bg-transparent border-none p-0 focus:ring-0 w-full text-right cursor-pointer hover:text-blue-400 transition-colors"
       />
-      <div className="flex items-center gap-0.5 mt-1 justify-end text-slate-400 focus-within:text-white transition-colors">
+      <div className="flex items-center gap-0.5 mt-1 justify-end text-slate-300 focus-within:text-white transition-colors">
         <input
           type="number"
           value={localDur}
@@ -491,9 +507,9 @@ const TaskTimeEditor = ({ task, updateTask, tasksForDate }: any) => {
               currentTime = `${String(td.getHours()).padStart(2, "0")}:${String(td.getMinutes()).padStart(2, "0")}`;
             }
           }}
-          className="text-[10px] sm:text-xs font-bold uppercase tracking-widest bg-transparent border-none p-0 focus:ring-0 w-8 text-right"
+          className="text-xs sm:text-xs font-bold uppercase tracking-widest bg-transparent border-none p-0 focus:ring-0 w-8 text-right"
         />
-        <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest leading-none mt-px">M</span>
+        <span className="text-xs sm:text-xs font-bold uppercase tracking-widest leading-none mt-px">M</span>
       </div>
     </div>
   );
@@ -604,7 +620,7 @@ const PomodoroTimer = ({
     <div className="flex flex-col items-center p-6 bg-blue-600/10 border border-blue-500/20 rounded-3xl space-y-6">
       <div className="flex items-center space-x-2">
         <Timer className="w-4 h-4 text-blue-400" />
-        <span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em]">
+        <span className="text-xs font-black text-blue-400 uppercase tracking-[0.2em]">
           {mode === "work" ? "Deep Work" : "Refuel Break"}
         </span>
       </div>
@@ -613,7 +629,7 @@ const PomodoroTimer = ({
           <Tooltip key={mins} text={`Set duration to ${mins}m`}>
             <button
               onClick={() => setTimerLength(mins)}
-              className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${currentLength === mins && mode === "work" ? "bg-blue-600 text-white shadow-md" : "bg-white/5 text-slate-300 hover:text-white"}`}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase transition-all ${currentLength === mins && mode === "work" ? "bg-blue-600 text-white shadow-md" : "bg-white/5 text-slate-300 hover:text-white"}`}
             >
               {mins}m
             </button>
@@ -718,7 +734,7 @@ const MiniCalendar = ({ tasks, onDateClick }: { tasks: any[], onDateClick?: (dat
     <div className="flex flex-col">
       <div className="flex items-center justify-between mb-6">
         <div className="flex flex-col">
-          <span className="text-[10px] font-black uppercase tracking-[0.3em] font-mono text-rose-500 mb-1">Calendar</span>
+          <span className="text-xs font-black uppercase tracking-[0.3em] font-mono text-rose-500 mb-1">Calendar</span>
           <h4 className="text-xl md:text-2xl font-display font-black text-white">{monthNames[month]} {year}</h4>
         </div>
         <div className="flex space-x-2">
@@ -733,7 +749,7 @@ const MiniCalendar = ({ tasks, onDateClick }: { tasks: any[], onDateClick?: (dat
       
       <div className="grid grid-cols-7 gap-2 mb-2">
         {dayNames.map((d, i) => (
-          <div key={i} className="text-[10px] md:text-xs font-black text-slate-400 text-center uppercase tracking-wider">{d}</div>
+          <div key={i} className="text-xs md:text-xs font-black text-slate-300 text-center uppercase tracking-wider">{d}</div>
         ))}
       </div>
       
@@ -824,10 +840,6 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
   const focusTimeToday = focusSessions
     .filter((s) => s.type === "work" && s.date.includes(toLocalDateStr()))
     .reduce((acc, s) => acc + s.duration, 0);
-
-  const deepWorkHours = +(focusTimeToday / 60).toFixed(1);
-  const urgentComplete = todayTasks.filter(t => t.completed && (t.priority === "A" || t.priority === "B")).length;
-  const maintenanceComplete = todayTasks.filter(t => t.completed && (t.priority === "C" || t.priority === "D")).length;
 
   const incompleteTasks = tasks.filter(t => !t.completed);
   
@@ -924,7 +936,7 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
             className="flex items-center space-x-2 text-blue-500"
           >
             <Sparkles className="w-4 h-4" />
-            <span className="text-[10px] font-black uppercase tracking-[0.4em] font-mono">
+            <span className="text-xs font-black uppercase tracking-[0.4em] font-mono">
               Task Status
             </span>
           </motion.div>
@@ -953,7 +965,7 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
               {selectedMood === "Tired" && "☕"}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-black text-blue-500 uppercase tracking-[0.2em] mb-1">
+              <p className="text-xs font-black text-blue-500 uppercase tracking-[0.2em] mb-1">
                 Intelligence
               </p>
               <p className="text-sm text-slate-200 font-medium leading-snug">
@@ -976,7 +988,7 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
           <div className="flex flex-col items-center space-y-2 relative">
             <div className="flex items-center space-x-3 text-blue-500">
               <Quote className="w-5 h-5 opacity-40" />
-              <span className="text-[10px] font-black uppercase tracking-[0.5em] font-mono opacity-60">
+              <span className="text-xs font-black uppercase tracking-[0.5em] font-mono opacity-60">
                 Quote of the Day
               </span>
               <button 
@@ -988,7 +1000,7 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
                 <RotateCcw className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
+            <p className="text-xs font-black text-slate-300 uppercase tracking-widest">
               Cognitive Priming Protocol
             </p>
           </div>
@@ -999,7 +1011,7 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
             <div className="h-[2px] w-12 bg-gradient-to-r from-transparent to-white/10" />
             <div className="flex items-center space-x-3">
               <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-              <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em] leading-none">
+              <span className="text-xs font-black text-slate-300 uppercase tracking-[0.3em] leading-none">
                 Intelligence Signal Active
               </span>
             </div>
@@ -1011,7 +1023,7 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
       {/* Quick Access Grid */}
       <div className="space-y-6">
         <div className="flex items-center space-x-2 px-2">
-          <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-300">Current State Sequence</h2>
+          <h2 className="text-xs font-black uppercase tracking-[0.2em] text-slate-300">Current State Sequence</h2>
           <div className="relative group/tooltip z-50 hover:z-[100]">
             <Info className="w-3 h-3 text-slate-300 cursor-help" />
             <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 p-3 bg-slate-700 text-xs text-slate-300 rounded-lg shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all z-50 pointer-events-none font-sans font-normal tracking-normal normal-case">
@@ -1044,7 +1056,7 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
                     {m === "Tired" && "☕"}
                   </span>
                   <span
-                    className={`text-[10px] font-black uppercase tracking-widest ${selectedMood === m ? "text-white" : "text-slate-300"}`}
+                    className={`text-xs font-black uppercase tracking-widest ${selectedMood === m ? "text-white" : "text-slate-300"}`}
                   >
                     {m}
                   </span>
@@ -1065,7 +1077,7 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
             <div>
               <div className={`flex items-center space-x-2 ${sStyle.text} mb-4`}>
                 {React.createElement(suggestionIcon, { className: "w-5 h-5" })}
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] font-mono">{suggestionTitle}</span>
+                <span className="text-xs font-black uppercase tracking-[0.3em] font-mono">{suggestionTitle}</span>
                 <div className="relative group/tooltip z-50 hover:z-[100]">
                   <Info className="w-3 h-3 cursor-help opacity-50" />
                   <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-48 p-3 bg-slate-700 text-xs text-slate-300 rounded-lg shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all z-50 pointer-events-none font-sans font-normal tracking-normal normal-case">
@@ -1098,50 +1110,11 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
             </div>
             {suggestedTask && (
               <div className="flex items-center space-x-4">
-                <span className={`px-3 py-1 ${sStyle.pillBg} border ${sStyle.pillBorder} ${sStyle.text} text-[10px] uppercase font-black tracking-widest rounded-full`}>
+                <span className={`px-3 py-1 ${sStyle.pillBg} border ${sStyle.pillBorder} ${sStyle.text} text-xs uppercase font-black tracking-widest rounded-full`}>
                   Priority {suggestedTask.priority}
                 </span>
               </div>
             )}
-          </div>
-        </GlassCard>
-
-        {/* 3/3/3 Method Tracker */}
-        <GlassCard className="p-8 overflow-visible">
-          <div className="flex flex-col h-full justify-between space-y-6">
-            <div className="flex items-center space-x-2 text-indigo-400">
-              <PieChart className="w-5 h-5" />
-              <span className="text-[10px] font-black uppercase tracking-[0.3em] font-mono">3/3/3 Method Tracker</span>
-              <div className="relative group/tooltip z-50 hover:z-[100]">
-                <Info className="w-3 h-3 text-indigo-400/50 cursor-help" />
-                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 p-3 bg-slate-700 text-xs text-slate-300 rounded-lg shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all z-50 pointer-events-none">
-                  Oliver Burkeman's daily framework: Aim for 3 hours of deep work, 3 urgent/important tasks, and 3 maintenance tasks to cap a productive day without burning out.
-                  <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-slate-800"></div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="space-y-4">
-              {[
-                { label: "Hours Deep Work", value: deepWorkHours, target: 3 },
-                { label: "Urgent Tasks", value: urgentComplete, target: 3 },
-                { label: "Maintenance Tasks", value: maintenanceComplete, target: 3 }
-              ].map((metric, idx) => (
-                <div key={idx} className="space-y-2">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="font-bold text-slate-300">{metric.label}</span>
-                    <span className="text-indigo-400 font-black">{metric.value} <span className="text-slate-300">/ {metric.target}</span></span>
-                  </div>
-                  <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${Math.min(100, (metric.value / metric.target) * 100)}%` }}
-                      className="h-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         </GlassCard>
       </div>
@@ -1152,7 +1125,7 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
         <div className="lg:col-span-12 grid grid-cols-1 gap-6">
           <GlassCard className="p-8 flex flex-col justify-between overflow-visible">
             <div className="flex items-center space-x-2 mb-8">
-              <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
+              <p className="text-xs font-black text-slate-300 uppercase tracking-widest">
                 Performance Score
               </p>
               <div className="relative group/tooltip z-50 hover:z-[100]">
@@ -1188,7 +1161,7 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
         </div>
 
         {/* Detailed Analytics Grid */}
-        <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
           {[
             {
               label: "ACTIVE GOALS",
@@ -1199,28 +1172,12 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
               desc: "Total number of uncompleted goals remaining in the system. Represents your long-term focus.",
             },
             {
-              label: "OP VELOCITY",
-              value: `${completedToday}/${todayTasks.length}`,
-              icon: CheckSquare,
-              color: "text-orange-400",
-              sub: "Today Completion",
-              desc: "Proportion of today's scheduled tasks that have been completed. Measures daily execution speed.",
-            },
-            {
               label: "SYNC STREAK",
               value: `${Math.max(1, habits.filter(h => h.completedHistory[toLocalDateStr()]).length)}`,
               icon: Flame,
               color: "text-rose-400",
               sub: "Habit Consistency",
               desc: "Number of active habits completed today. Establishes your baseline operational habit.",
-            },
-            {
-              label: "DEEP WORK",
-              value: `${deepWorkHours}h`,
-              icon: Timer,
-              color: "text-blue-400",
-              sub: "Focus Duration",
-              desc: "Total hours invested in uninterrupted, high-concentration focus sessions today.",
             },
           ].map((card, i) => (
             <GlassCard
@@ -1234,14 +1191,14 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
               </div>
               <div className="space-y-1">
                 <Tooltip text={card.desc}>
-                  <p className="text-[10px] w-max font-black text-slate-300 uppercase tracking-widest cursor-help border-b border-dashed border-slate-500/50 pb-0.5 inline-block">
+                  <p className="text-xs w-max font-black text-slate-300 uppercase tracking-widest cursor-help border-b border-dashed border-slate-500/50 pb-0.5 inline-block">
                     {card.label}
                   </p>
                 </Tooltip>
                 <h4 className="text-3xl font-display font-black text-white">
                   {card.value}
                 </h4>
-                <p className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter mt-2">
+                <p className="text-xs font-bold text-slate-300 uppercase tracking-tighter mt-2">
                   {card.sub}
                 </p>
               </div>
@@ -1254,7 +1211,7 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
           <GlassCard className="p-6 md:p-8">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
               <div className="space-y-2">
-                <p className="text-[10px] font-black text-blue-500 tracking-[0.4em] uppercase font-mono">
+                <p className="text-xs font-black text-blue-500 tracking-[0.4em] uppercase font-mono">
                   Operations Log
                 </p>
                 <h3 className="text-3xl font-display font-black text-white">
@@ -1264,13 +1221,13 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
               <div className="flex items-center space-x-6">
                 <div className="flex items-center space-x-2">
                   <div className="w-2 h-2 rounded-full bg-blue-600" />
-                  <span className="text-[10px] font-black text-slate-300 uppercase">
+                  <span className="text-xs font-black text-slate-300 uppercase">
                     Completed
                   </span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <div className="w-2 h-2 rounded-full bg-white/10" />
-                  <span className="text-[10px] font-black text-slate-300 uppercase">
+                  <span className="text-xs font-black text-slate-300 uppercase">
                     Backlog
                   </span>
                 </div>
@@ -1297,7 +1254,7 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
                       if (active && payload && payload.length) {
                         return (
                           <div className="bg-[#0c0c0e] border border-white/10 px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-xl">
-                            <p className="text-[10px] font-black text-blue-400 uppercase mb-1 tracking-widest">
+                            <p className="text-xs font-black text-blue-400 uppercase mb-1 tracking-widest">
                               {payload[0].payload.name} Statistics
                             </p>
                             <div className="space-y-1">
@@ -1307,7 +1264,7 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
                               <p className="text-sm font-bold text-slate-300">
                                 {payload[0].payload.backlog} Backlog Tasks
                               </p>
-                              <p className="text-[9px] text-slate-300 uppercase">
+                              <p className="text-xs text-slate-300 uppercase">
                                 Total Capacity: {payload[0].payload.total}
                               </p>
                             </div>
@@ -1362,25 +1319,25 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
               <GlassCard className="p-6 space-y-6 relative overflow-visible">
                 <button
                   onClick={() => setTaskCreateDate(null)}
-                  className="absolute -top-3 -right-3 w-8 h-8 bg-slate-800 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 transition-colors border border-white/10"
+                  className="absolute -top-3 -right-3 w-8 h-8 bg-slate-800 rounded-full flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-700 transition-colors border border-white/10"
                 >
                   <CloseIcon className="w-4 h-4" />
                 </button>
                 <div>
                   <h3 className="text-xl font-display font-black text-white">Create Task</h3>
-                  <p className="text-sm text-slate-400">Scheduled for {taskCreateDate}</p>
+                  <p className="text-sm text-slate-300">Scheduled for {taskCreateDate}</p>
                 </div>
                 
                 {(() => {
                   const dayTasks = tasks.filter(t => t.date === taskCreateDate && !t.completed);
                   if (dayTasks.length === 0) return (
                     <div className="py-4 text-center border-y border-white/5 border-dashed">
-                      <p className="text-sm text-slate-400 font-bold">No pending tasks for this date.</p>
+                      <p className="text-sm text-slate-300 font-bold">No pending tasks for this date.</p>
                     </div>
                   );
                   return (
                     <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                      <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-3">Pending Tasks</p>
+                      <p className="text-xs font-black uppercase tracking-widest text-slate-300 mb-3">Pending Tasks</p>
                       {dayTasks.map(t => (
                         <div key={t.id} className="group relative flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors gap-3">
                            <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -1393,14 +1350,14 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
                                {t.completed && <Check className="w-3 h-3 text-white" />}
                              </button>
                              <div className="min-w-0">
-                               <p className={`text-sm truncate font-bold ${t.completed ? 'line-through text-slate-500' : 'text-slate-200'}`}>
+                               <p className={`text-sm truncate font-bold ${t.completed ? 'line-through text-slate-300' : 'text-slate-200'}`}>
                                  {t.title}
                                </p>
-                               <span className={`text-[10px] uppercase font-black tracking-wider px-2 py-0.5 rounded ${
+                               <span className={`text-xs uppercase font-black tracking-wider px-2 py-0.5 rounded ${
                                  t.priority === 'A' ? 'bg-rose-500/20 text-rose-400' :
                                  t.priority === 'B' ? 'bg-orange-500/20 text-orange-400' :
                                  t.priority === 'C' ? 'bg-blue-500/20 text-blue-400' :
-                                 'bg-slate-500/20 text-slate-400'
+                                 'bg-slate-500/20 text-slate-300'
                                }`}>
                                  Priority {t.priority}
                                </span>
@@ -1408,8 +1365,8 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
                            </div>
                            <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
                              <button
-                               onClick={() => deleteTask(t.id)}
-                               className="p-1.5 text-slate-400 hover:text-red-400 transition-colors rounded hover:bg-white/5"
+                               onClick={() => { if (window.confirm("Are you sure you want to delete this task?")) deleteTask(t.id); }}
+                               className="p-1.5 text-slate-300 hover:text-red-400 transition-colors rounded hover:bg-white/5"
                              >
                                <Trash2 className="w-4 h-4" />
                              </button>
@@ -1437,7 +1394,7 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
                       <button
                         key={p}
                         onClick={() => setTaskCreatePriority(p as any)}
-                        className={`flex-1 min-w-0 py-2 rounded-2xl font-bold text-sm transition-all flex items-center justify-center ${taskCreatePriority === p ? 'bg-blue-600 border border-blue-500 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                        className={`flex-1 min-w-0 py-2 rounded-2xl font-bold text-sm transition-all flex items-center justify-center ${taskCreatePriority === p ? 'bg-blue-600 border border-blue-500 text-white shadow-lg' : 'text-slate-300 hover:text-white'}`}
                       >
                         {p}
                       </button>
@@ -1446,7 +1403,7 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
                   <button
                     onClick={handleCreateTask}
                     disabled={!taskCreateTitle.trim()}
-                    className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-white/5 disabled:text-slate-500 text-white font-bold py-3 rounded-xl transition-all"
+                    className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-white/5 disabled:text-slate-300 text-white font-bold py-3 rounded-xl transition-all"
                   >
                     Add Task
                   </button>
@@ -1456,6 +1413,139 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+};
+
+// Helper to render nested subtasks
+const RecursiveSubtaskList = ({ 
+  subtasks, 
+  onToggle, 
+  onEdit, 
+  onDelete, 
+  onPromote,
+  onAddChild,
+  editingId, 
+  editingTitle, 
+  setEditingTitle, 
+  setEditingId, 
+  saveEdit,
+  depth = 0
+}: { 
+  subtasks: any[]; 
+  onToggle: (id: string) => void;
+  onEdit: (id: string, title: string) => void;
+  onDelete: (id: string) => void;
+  onPromote?: (sub: any, parentId?: string) => void;
+  onAddChild?: (parentId: string, title: string) => void;
+  editingId: string | null;
+  editingTitle: string;
+  setEditingTitle: (t: string) => void;
+  setEditingId: (id: string | null) => void;
+  saveEdit: (id: string, title: string) => void;
+  depth?: number;
+}) => {
+  const sorted = [...(subtasks || [])].sort((a: any, b: any) => Number(a.completed || false) - Number(b.completed || false));
+  const [addingToId, setAddingToId] = useState<string | null>(null);
+  const [newChildTitle, setNewChildTitle] = useState("");
+
+  return (
+    <div className="space-y-2">
+      {sorted.map(sub => (
+        <div key={sub.id}>
+          <div className={`flex items-center justify-between p-3 bg-white/[0.02] border border-white/[0.04] rounded-xl group/sub hover:bg-white/[0.04] transition-all gap-3 ${depth > 0 ? 'ml-6 border-l-2 border-l-white/10' : ''}`}>
+            <div className="flex items-start space-x-3 min-w-0 flex-1">
+              <Tooltip text="Toggle completion">
+                <button
+                  onClick={() => onToggle(sub.id)}
+                  className={`w-4 h-4 mt-0.5 shrink-0 rounded border transition-all flex items-center justify-center ${sub.completed ? "bg-blue-600 border-blue-600 text-white" : "border-white/20"}`}
+                >
+                  {sub.completed && <CheckSquare className="w-3 h-3" />}
+                </button>
+              </Tooltip>
+              {editingId === sub.id ? (
+                <div className="flex-1 min-w-0 flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={editingTitle}
+                    onChange={(e) => setEditingTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        saveEdit(sub.id, editingTitle);
+                        setEditingId(null);
+                      }
+                    }}
+                    className="bg-white/10 text-white text-sm px-2 py-1 rounded w-full min-w-0 outline-none"
+                    autoFocus
+                  />
+                  <button onClick={() => { saveEdit(sub.id, editingTitle); setEditingId(null); }} className="text-green-500 hover:text-green-400 p-1">
+                    <CheckSquare className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <span className={`text-sm flex-1 min-w-0 break-words text-left ${sub.completed ? "text-slate-300 line-through" : "text-slate-300 font-medium"}`}>
+                  {sub.title}
+                </span>
+              )}
+            </div>
+            <div className={`flex items-center space-x-2 shrink-0 transition-opacity opacity-100 sm:opacity-0 sm:group-hover/sub:opacity-100`}>
+              {editingId !== sub.id && (
+                <Tooltip text="Edit subtask">
+                  <button onClick={() => { setEditingId(sub.id); setEditingTitle(sub.title); }} className="text-slate-300 hover:text-blue-400 p-1">
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+                </Tooltip>
+              )}
+              {onAddChild && !sub.completed && (
+                 <Tooltip text="Add child step">
+                   <button onClick={() => setAddingToId(sub.id)} className="text-slate-300 hover:text-emerald-400 p-1">
+                     <Plus className="w-3.5 h-3.5" />
+                   </button>
+                 </Tooltip>
+              )}
+              {onPromote && !sub.completed && editingId !== sub.id && (
+                <Tooltip text="Promote">
+                  <button onClick={() => onPromote(sub)} className="text-slate-300 hover:text-blue-400 p-1">
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                  </button>
+                </Tooltip>
+              )}
+              <Tooltip text="Delete">
+                <button onClick={() => { if (window.confirm('Are you sure you want to delete this subtask?')) onDelete(sub.id); }} className="text-slate-300 hover:text-red-500 p-1">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </Tooltip>
+            </div>
+          </div>
+          {addingToId === sub.id && (
+            <div className={`mt-2 flex items-center space-x-2 ${depth >= 0 ? 'ml-12' : ''}`}>
+              <input
+                 type="text"
+                 placeholder="Child subtask title..."
+                 className="flex-1 bg-white/5 border border-white/10 rounded px-3 py-1 text-sm text-white focus:outline-none"
+                 value={newChildTitle}
+                 onChange={(e) => setNewChildTitle(e.target.value)}
+                 onKeyDown={(e) => {
+                   if (e.key === 'Enter' && newChildTitle.trim().length > 0) {
+                      onAddChild?.(sub.id, newChildTitle.trim());
+                      setNewChildTitle("");
+                      setAddingToId(null);
+                   } else if (e.key === 'Escape') {
+                      setAddingToId(null);
+                      setNewChildTitle("");
+                   }
+                 }}
+                 autoFocus
+              />
+            </div>
+          )}
+          {sub.subtasks && sub.subtasks.length > 0 && (
+            <div className="mt-2">
+              <RecursiveSubtaskList subtasks={sub.subtasks} onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} onPromote={onPromote ? ((childSub, pId) => onPromote(childSub, pId || sub.id)) : undefined} onAddChild={onAddChild} editingId={editingId} setEditingId={setEditingId} editingTitle={editingTitle} setEditingTitle={setEditingTitle} saveEdit={saveEdit} depth={depth + 1} />
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 };
@@ -1473,6 +1563,7 @@ const GoalsView = () => {
     deleteSubtask,
     updateGoalSubtask,
     bulkAddGoalSubtasks,
+    addGoalChildSubtask,
     reorderGoals,
   } = useHub();
   const [newTitle, setNewTitle] = useState("");
@@ -1607,12 +1698,22 @@ const GoalsView = () => {
           </Tooltip>
           <div className="flex flex-wrap items-center gap-1">
             {!goal.completed && (
-              <Tooltip text="Promote to task">
+              <Tooltip text="Promote scope (to Task)">
                 <button
                   onClick={() => handlePromote(goal, { title: goal.title })}
                   className="p-3 bg-white/5 rounded-xl text-blue-400 hover:bg-blue-500/10 transition-colors"
                 >
                   <ArrowUpRight className="w-5 h-5" />
+                </button>
+              </Tooltip>
+            )}
+            {!goal.completed && (goal.type === "weekly" || goal.type === "monthly") && (
+              <Tooltip text={`Send back to ${goal.type === "weekly" ? "Monthly" : "Yearly"} scope`}>
+                <button
+                  onClick={() => handleDemote(goal)}
+                  className="p-3 bg-white/5 rounded-xl text-orange-400 hover:bg-orange-500/10 transition-colors"
+                >
+                  <ArrowDownLeft className="w-5 h-5" />
                 </button>
               </Tooltip>
             )}
@@ -1647,7 +1748,7 @@ const GoalsView = () => {
             )}
             <Tooltip text="Delete goal">
               <button
-                onClick={() => deleteGoal(goal.id)}
+                onClick={() => { if (window.confirm('Are you sure you want to delete this goal?')) deleteGoal(goal.id); }}
                 className="p-3 hover:text-red-500 transition-colors text-slate-300"
               >
                 <Trash2 className="w-5 h-5" />
@@ -1715,10 +1816,10 @@ const GoalsView = () => {
                 </p>
               )}
               <div className="flex items-center space-x-3">
-                <span className="text-[9px] font-black bg-blue-600/20 text-blue-400 px-3 py-1 rounded-full uppercase tracking-widest">
+                <span className="text-xs font-black bg-blue-600/20 text-blue-400 px-3 py-1 rounded-full uppercase tracking-widest">
                   {goal.type}
                 </span>
-                <span className="text-[9px] font-black bg-white/10 text-slate-300 px-3 py-1 rounded-full uppercase tracking-widest">
+                <span className="text-xs font-black bg-white/10 text-slate-300 px-3 py-1 rounded-full uppercase tracking-widest">
                   Priority {goal.priority}
                 </span>
                 {!goal.completed && (
@@ -1726,7 +1827,7 @@ const GoalsView = () => {
                     const text = getCountdownText(goal.type);
                     const isOverdue = text === "Overdue";
                     return (
-                      <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest flex items-center gap-1 ${isOverdue ? 'bg-red-500/10 text-red-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                      <span className={`text-xs font-black px-3 py-1 rounded-full uppercase tracking-widest flex items-center gap-1 ${isOverdue ? 'bg-red-500/10 text-red-500' : 'bg-amber-500/10 text-amber-500'}`}>
                         <Timer className="w-3 h-3" />
                         {text}
                       </span>
@@ -1740,10 +1841,10 @@ const GoalsView = () => {
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
+            <span className="text-xs font-black text-slate-300 uppercase tracking-widest">
               Progress
             </span>
-            <span className="text-[10px] font-black text-white font-mono">
+            <span className="text-xs font-black text-white font-mono">
               {goal.progress}% COMPLETE
             </span>
           </div>
@@ -1804,90 +1905,19 @@ const GoalsView = () => {
               </div>
 
               <div className="space-y-3">
-                {(!!goal.subtasks && goal.subtasks.length > 0 ? [...goal.subtasks].sort((a: any, b: any) => Number(a.completed || false) - Number(b.completed || false)) : []).map((sub: any) => (
-                  <div
-                    key={sub.id}
-                    className="flex items-center justify-between p-4 bg-white/[0.02] border border-white/[0.04] rounded-2xl group/sub hover:bg-white/[0.04] transition-all gap-4"
-                  >
-                    <div className="flex items-start space-x-4 min-w-0 flex-1">
-                      <Tooltip text="Toggle completion">
-                        <button
-                          onClick={() => toggleSubtask(goal.id, sub.id)}
-                          className={`w-5 h-5 shrink-0 mt-0.5 rounded-lg border transition-all flex items-center justify-center ${sub.completed ? "bg-blue-600 border-blue-600 text-white" : "border-white/10"}`}
-                        >
-                          {sub.completed && (
-                            <CheckSquare className="w-3.5 h-3.5" />
-                          )}
-                        </button>
-                      </Tooltip>
-                      {editingSubtaskId === sub.id ? (
-                        <div className="flex-1 min-w-0 flex items-center space-x-2">
-                          <input
-                            type="text"
-                            value={editingSubtaskTitle}
-                            onChange={(e) => setEditingSubtaskTitle(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                updateGoalSubtask(goal.id, sub.id, editingSubtaskTitle);
-                                setEditingSubtaskId(null);
-                              }
-                            }}
-                            className="bg-white/10 text-white text-sm px-2 py-1 rounded w-full min-w-0 outline-none"
-                            autoFocus
-                          />
-                          <button
-                            onClick={() => {
-                              updateGoalSubtask(goal.id, sub.id, editingSubtaskTitle);
-                              setEditingSubtaskId(null);
-                            }}
-                            className="text-green-500 hover:text-green-400 p-1"
-                          >
-                            <CheckSquare className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <span
-                          className={`text-sm font-bold flex-1 min-w-0 break-words text-left ${sub.completed ? "text-slate-300 line-through" : "text-slate-300"}`}
-                        >
-                          {sub.title}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center space-x-2 shrink-0 opacity-100 sm:opacity-0 sm:group-hover/sub:opacity-100 transition-all">
-                      {editingSubtaskId !== sub.id && (
-                        <Tooltip text="Edit subtask">
-                          <button
-                            onClick={() => {
-                              setEditingSubtaskId(sub.id);
-                              setEditingSubtaskTitle(sub.title);
-                            }}
-                            className="text-slate-300 hover:text-blue-400 p-1"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                        </Tooltip>
-                      )}
-                      {!sub.completed && editingSubtaskId !== sub.id && (
-                        <Tooltip text="Promote to individual task">
-                          <button
-                            onClick={() => handlePromote(goal, sub, true)}
-                            className="text-slate-300 hover:text-blue-400 p-1"
-                          >
-                            <ArrowUpRight className="w-4 h-4" />
-                          </button>
-                        </Tooltip>
-                      )}
-                      <Tooltip text="Delete subtask">
-                        <button
-                          onClick={() => deleteSubtask(goal.id, sub.id)}
-                          className="text-slate-300 hover:text-red-500 p-1"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </Tooltip>
-                    </div>
-                  </div>
-                ))}
+                <RecursiveSubtaskList 
+                   subtasks={goal.subtasks}
+                   onToggle={(id) => toggleSubtask(goal.id, id)}
+                   onEdit={(id, title) => updateGoalSubtask(goal.id, id, title)}
+                   onDelete={(id) => deleteSubtask(goal.id, id)}
+                   onPromote={(sub, parentId) => handlePromote(goal, sub, true, parentId)}
+                   editingId={editingSubtaskId}
+                   editingTitle={editingSubtaskTitle}
+                   setEditingId={setEditingSubtaskId}
+                   setEditingTitle={setEditingSubtaskTitle}
+                   saveEdit={(id, title) => updateGoalSubtask(goal.id, id, title)}
+                   onAddChild={(parentId, title) => addGoalChildSubtask(goal.id, parentId, title)}
+                />
               </div>
             </motion.div>
           )}
@@ -1902,10 +1932,10 @@ const GoalsView = () => {
            className={`glass-card group hover:border-white/20 transition-all ${goal.completed ? "opacity-60 grayscale-[0.5]" : ""} p-1 rounded-[32px] overflow-hidden relative mb-6`}
          >
            <div className="absolute top-4 -left-4 xl:-left-6 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-50">
-             <button onClick={() => reorderGoals(goal.id, 'up')} className="p-1 text-slate-500 hover:text-white bg-[#050505] rounded-lg border border-white/10 hover:border-white/30 backdrop-blur-md transition-all shadow-xl">
+             <button onClick={() => reorderGoals(goal.id, 'up')} className="p-1 text-slate-300 hover:text-white bg-[#050505] rounded-lg border border-white/10 hover:border-white/30 backdrop-blur-md transition-all shadow-xl">
                <ChevronUp className="w-4 h-4" />
              </button>
-             <button onClick={() => reorderGoals(goal.id, 'down')} className="p-1 text-slate-500 hover:text-white bg-[#050505] rounded-lg border border-white/10 hover:border-white/30 backdrop-blur-md transition-all shadow-xl">
+             <button onClick={() => reorderGoals(goal.id, 'down')} className="p-1 text-slate-300 hover:text-white bg-[#050505] rounded-lg border border-white/10 hover:border-white/30 backdrop-blur-md transition-all shadow-xl">
                <ChevronDown className="w-4 h-4" />
              </button>
            </div>
@@ -1921,20 +1951,62 @@ const GoalsView = () => {
     setNewSubtask({ ...newSubtask, [goalId]: "" });
   };
 
+  const handleDemote = (goal: any) => {
+    let nextType = "";
+    if (goal.fromGoalId && goals.some((g: any) => g.id === goal.fromGoalId)) {
+       bulkAddGoalSubtasks(goal.fromGoalId, [{
+           id: Math.random().toString(36).substr(2, 9),
+           title: goal.title,
+           completed: goal.completed || false,
+           subtasks: goal.subtasks || []
+       }], goal.fromSubtaskId);
+       nextType = "parent Goal's subtasks";
+    } else if (goal.type === "weekly") {
+      addGoal({
+        title: goal.title,
+        type: "monthly",
+        priority: goal.priority,
+        completed: false,
+        subtasks: goal.subtasks || [],
+      });
+      nextType = "Monthly Goal";
+    } else if (goal.type === "monthly") {
+      addGoal({
+        title: goal.title,
+        type: "yearly",
+        priority: goal.priority,
+        completed: false,
+        subtasks: goal.subtasks || [],
+      });
+      nextType = "Yearly Goal";
+    }
+    
+    if (nextType) {
+      deleteGoal(goal.id);
+      setPromotionFeedback(`Sent back to ${nextType}!`);
+      setTimeout(() => setPromotionFeedback(null), 3000);
+    }
+  };
+
   const handlePromote = (
     goal: any,
-    item: { title: string; id?: string },
+    item: { title: string; id?: string; subtasks?: any[] },
     isSubtask: boolean = false,
+    parentId?: string
   ) => {
     let nextType = "";
+    const fromGoalId = isSubtask ? goal.id : undefined;
+    const promotedSubtasks = isSubtask && item.subtasks ? item.subtasks : (!isSubtask ? goal.subtasks : []);
+
     if (goal.type === "yearly") {
       addGoal({
         title: item.title,
         type: "monthly",
         priority: goal.priority,
         completed: false,
-        subtasks: !isSubtask ? goal.subtasks : [],
+        subtasks: promotedSubtasks,
         parentGoalTitle: !isSubtask ? undefined : goal.title,
+        fromGoalId,
       });
       nextType = "Monthly Goal";
     } else if (goal.type === "monthly") {
@@ -1943,8 +2015,9 @@ const GoalsView = () => {
         type: "weekly",
         priority: goal.priority,
         completed: false,
-        subtasks: !isSubtask ? goal.subtasks : [],
+        subtasks: promotedSubtasks,
         parentGoalTitle: !isSubtask ? undefined : goal.title,
+        fromGoalId,
       });
       nextType = "Weekly Goal";
     } else if (goal.type === "weekly") {
@@ -1954,8 +2027,10 @@ const GoalsView = () => {
         priority: goal.priority,
         type: "one-off",
         tags: ["#from-goals"],
-        subtasks: !isSubtask ? goal.subtasks : [],
+        subtasks: promotedSubtasks,
         parentGoalTitle: !isSubtask ? undefined : goal.title,
+        fromGoalId,
+        fromSubtaskId: parentId,
       });
       nextType = "Daily Task";
     }
@@ -1990,7 +2065,7 @@ const GoalsView = () => {
         <div className="space-y-3">
           <div className="flex items-center space-x-2 text-blue-500">
             <Target className="w-4 h-4" />
-            <span className="text-[10px] font-black uppercase tracking-[0.4em] font-mono opacity-60">
+            <span className="text-xs font-black uppercase tracking-[0.4em] font-mono opacity-60">
               Strategic Layer
             </span>
           </div>
@@ -2015,7 +2090,7 @@ const GoalsView = () => {
 
           <div className="flex flex-wrap items-center justify-center gap-4">
             <div className="flex items-center space-x-3 bg-white/5 rounded-2xl px-5 py-3 border border-white/10">
-              <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
+              <span className="text-xs font-black text-slate-300 uppercase tracking-widest">
                 Priority
               </span>
               <select
@@ -2032,19 +2107,19 @@ const GoalsView = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full sm:w-auto">
               <button
                 onClick={() => handleAdd("yearly")}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] sm:text-[9px] font-black uppercase tracking-widest px-6 py-4 sm:py-3.5 rounded-2xl transition-all shadow-lg active:scale-95 w-full"
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-xs font-black uppercase tracking-widest px-6 py-4 sm:py-3.5 rounded-2xl transition-all shadow-lg active:scale-95 w-full"
               >
                 Yearly
               </button>
               <button
                 onClick={() => handleAdd("monthly")}
-                className="bg-orange-600 hover:bg-orange-700 text-white text-[10px] sm:text-[9px] font-black uppercase tracking-widest px-6 py-4 sm:py-3.5 rounded-2xl transition-all shadow-lg active:scale-95 w-full"
+                className="bg-orange-600 hover:bg-orange-700 text-white text-xs sm:text-xs font-black uppercase tracking-widest px-6 py-4 sm:py-3.5 rounded-2xl transition-all shadow-lg active:scale-95 w-full"
               >
                 Monthly
               </button>
               <button
                 onClick={() => handleAdd("weekly")}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] sm:text-[9px] font-black uppercase tracking-widest px-6 py-4 sm:py-3.5 rounded-2xl transition-all shadow-lg active:scale-95 w-full"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-xs font-black uppercase tracking-widest px-6 py-4 sm:py-3.5 rounded-2xl transition-all shadow-lg active:scale-95 w-full"
               >
                 Weekly
               </button>
@@ -2053,7 +2128,7 @@ const GoalsView = () => {
           {goalError && (
             <motion.p
               initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
-              className="text-red-400 text-[10px] font-black uppercase tracking-widest text-center mt-3 animate-pulse"
+              className="text-red-400 text-xs font-black uppercase tracking-widest text-center mt-3 animate-pulse"
             >
               {goalError}
             </motion.p>
@@ -2113,7 +2188,7 @@ const GoalsView = () => {
             <button
               key={t}
               onClick={() => setFilter(t)}
-              className={`px-4 py-3 sm:px-6 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all flex-none sm:flex-1 text-center min-w-[80px] whitespace-nowrap ${filter === t ? "bg-white text-black shadow-lg" : "text-slate-300 hover:text-white hover:bg-white/5"}`}
+              className={`px-4 py-3 sm:px-6 text-xs font-black uppercase tracking-widest rounded-2xl transition-all flex-none sm:flex-1 text-center min-w-[80px] whitespace-nowrap ${filter === t ? "bg-white text-black shadow-lg" : "text-slate-300 hover:text-white hover:bg-white/5"}`}
             >
               {t}
             </button>
@@ -2181,13 +2256,13 @@ const GoalsView = () => {
                       </Tooltip>
                       <span className="text-sm font-medium text-slate-300 line-through line-clamp-2">{goal.title}</span>
                     </div>
-                    <button onClick={() => deleteGoal(goal.id)} className="text-slate-300 hover:text-red-400 p-1 shrink-0 ml-2">
+                    <button onClick={() => { if (window.confirm('Are you sure you want to delete this goal?')) deleteGoal(goal.id); }} className="text-slate-300 hover:text-red-400 p-1 shrink-0 ml-2">
                        <Trash2 className="w-4 h-4"/>
                     </button>
                   </div>
                   <div className="flex space-x-2 mt-3 pl-9">
-                    <span className="text-[10px] font-black uppercase tracking-widest bg-white/5 px-2 py-1 rounded-md text-slate-300">{goal.type}</span>
-                    <span className="text-[10px] font-black uppercase tracking-widest bg-white/5 px-2 py-1 rounded-md text-slate-300">{goal.priority}</span>
+                    <span className="text-xs font-black uppercase tracking-widest bg-white/5 px-2 py-1 rounded-md text-slate-300">{goal.type}</span>
+                    <span className="text-xs font-black uppercase tracking-widest bg-white/5 px-2 py-1 rounded-md text-slate-300">{goal.priority}</span>
                   </div>
                 </div>
               ))}
@@ -2212,11 +2287,14 @@ const TasksView = () => {
     toggleTaskSubtask,
     deleteTaskSubtask,
     updateTaskSubtask,
+    addTaskChildSubtask,
     bulkAddTaskSubtasks,
     focusTaskId,
     setFocusTaskId,
     smartPrioritizeTasks,
     reorderTasks,
+    addGoal,
+    bulkAddGoalSubtasks,
   } = useHub();
   const [newTitle, setNewTitle] = useState("");
   const [newSubtask, setNewSubtask] = useState<{ [key: string]: string }>({});
@@ -2237,6 +2315,7 @@ const TasksView = () => {
   const [viewMode, setViewMode] = useState<"list" | "matrix" | "planning">("list");
   const [focusAdvice, setFocusAdvice] = useState<string | null>(null);
   const [isGettingAdvice, setIsGettingAdvice] = useState(false);
+  const [promotionFeedback, setPromotionFeedback] = useState<string | null>(null);
 
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTaskData, setEditingTaskData] = useState<{ title: string; priority: string }>({ title: "", priority: "B" });
@@ -2384,6 +2463,31 @@ const TasksView = () => {
     postponeTask(task.id);
   };
 
+  const handleDemote = (task: any) => {
+    let nextType = "";
+    if (task.fromGoalId && goals.some(g => g.id === task.fromGoalId)) {
+        bulkAddGoalSubtasks(task.fromGoalId, [{
+            id: Math.random().toString(36).substr(2, 9),
+            title: task.title,
+            completed: task.completed || false,
+            subtasks: task.subtasks || []
+        }], task.fromSubtaskId);
+        nextType = "parent Goal's subtasks";
+    } else {
+        addGoal({
+            title: task.title,
+            type: "weekly",
+            priority: task.priority || "B",
+            completed: task.completed || false,
+            subtasks: task.subtasks || []
+        });
+        nextType = "Weekly Goal";
+    }
+    deleteTask(task.id);
+    setPromotionFeedback(`Sent back to ${nextType}!`);
+    setTimeout(() => setPromotionFeedback(null), 3000);
+  };
+
   const handleAutoSchedule = async () => {
     const data = {
       pendingTasks: tasks.filter((t) => !t.completed).map((t) => t.title),
@@ -2398,6 +2502,19 @@ const TasksView = () => {
 
   return (
     <div className="space-y-12 animate-in fade-in duration-700">
+      <AnimatePresence>
+        {promotionFeedback && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="fixed bottom-12 left-1/2 -translate-x-1/2 z-[100] bg-orange-600 text-white px-8 py-4 rounded-full shadow-[0_20px_50px_rgba(234,88,12,0.4)] flex items-center space-x-4 font-black text-xs uppercase tracking-widest"
+          >
+            <ArrowDownLeft className="w-5 h-5 text-orange-200" />
+            <span>{promotionFeedback}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Header Section */}
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
         <div className="space-y-3">
@@ -2407,7 +2524,7 @@ const TasksView = () => {
             className="flex items-center space-x-2 text-rose-500"
           >
             <CheckCircle2 className="w-4 h-4" />
-            <span className="text-[10px] font-black uppercase tracking-[0.4em] font-mono opacity-60">
+            <span className="text-xs font-black uppercase tracking-[0.4em] font-mono opacity-60">
               Operational Duty
             </span>
           </motion.div>
@@ -2423,19 +2540,19 @@ const TasksView = () => {
           <div className="flex bg-white/5 rounded-[24px] p-1 border border-white/10">
             <button
               onClick={() => setViewMode("list")}
-              className={`px-4 py-2 sm:px-4 sm:py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === "list" ? "bg-white text-black shadow-md" : "text-slate-300 hover:text-white"}`}
+              className={`px-4 py-2 sm:px-4 sm:py-3 rounded-[20px] text-xs font-black uppercase tracking-widest transition-all ${viewMode === "list" ? "bg-white text-black shadow-md" : "text-slate-300 hover:text-white"}`}
             >
               List
             </button>
             <button
               onClick={() => setViewMode("matrix")}
-              className={`px-4 py-2 sm:px-4 sm:py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === "matrix" ? "bg-white text-black shadow-md" : "text-slate-300 hover:text-white"}`}
+              className={`px-4 py-2 sm:px-4 sm:py-3 rounded-[20px] text-xs font-black uppercase tracking-widest transition-all ${viewMode === "matrix" ? "bg-white text-black shadow-md" : "text-slate-300 hover:text-white"}`}
             >
               Matrix
             </button>
             <button
               onClick={() => setViewMode("planning")}
-              className={`px-4 py-2 sm:px-4 sm:py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === "planning" ? "bg-white text-black shadow-md" : "text-slate-300 hover:text-white"}`}
+              className={`px-4 py-2 sm:px-4 sm:py-3 rounded-[20px] text-xs font-black uppercase tracking-widest transition-all ${viewMode === "planning" ? "bg-white text-black shadow-md" : "text-slate-300 hover:text-white"}`}
             >
               Planning
             </button>
@@ -2453,7 +2570,7 @@ const TasksView = () => {
           >
             <div className="flex items-center justify-between mb-8">
               <div className="space-y-1">
-                <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">
+                <p className="text-xs font-black text-blue-500 uppercase tracking-widest">
                   AI Engine
                 </p>
                 <h4 className="text-2xl font-display font-black text-white">
@@ -2469,7 +2586,7 @@ const TasksView = () => {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
+                <label className="text-xs font-black text-slate-300 uppercase tracking-widest">
                   Window Access
                 </label>
                 <div className="flex items-center space-x-2 bg-white/5 p-2 rounded-2xl border border-white/5">
@@ -2493,7 +2610,7 @@ const TasksView = () => {
                 </div>
               </div>
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
+                <label className="text-xs font-black text-slate-300 uppercase tracking-widest">
                   Block Size (M)
                 </label>
                 <input
@@ -2506,7 +2623,7 @@ const TasksView = () => {
               <div className="flex items-end">
                 <button
                   onClick={handleAutoSchedule}
-                  className="w-full h-14 bg-white text-black font-black text-[10px] uppercase tracking-widest rounded-2xl hover:bg-blue-50 transition shadow-2xl active:scale-95"
+                  className="w-full h-14 bg-white text-black font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-blue-50 transition shadow-2xl active:scale-95"
                 >
                   Regenerate Routine
                 </button>
@@ -2527,7 +2644,7 @@ const TasksView = () => {
               className="w-full bg-transparent border-none focus:ring-0 text-white text-xl sm:text-3xl placeholder:text-slate-300 font-display font-black text-center"
             />
             <div className="flex flex-wrap gap-2 sm:gap-3 items-center justify-center">
-              <div className="flex items-center bg-white/5 rounded-2xl px-5 py-3 border border-white/5 text-[10px] font-black text-slate-300">
+              <div className="flex items-center bg-white/5 rounded-2xl px-5 py-3 border border-white/5 text-xs font-black text-slate-300">
                 <Calendar className="w-4 h-4 mr-2 opacity-30" />
                 <span>
                   {new Date().toLocaleDateString("en-US", {
@@ -2537,7 +2654,7 @@ const TasksView = () => {
                 </span>
               </div>
 
-              <div className="flex items-center bg-white/5 rounded-2xl px-5 py-3 border border-white/5 text-[10px] font-black text-slate-300">
+              <div className="flex items-center bg-white/5 rounded-2xl px-5 py-3 border border-white/5 text-xs font-black text-slate-300">
                 <Clock className="w-4 h-4 mr-2 opacity-30" />
                 <input
                   type="time"
@@ -2554,7 +2671,7 @@ const TasksView = () => {
                 />
               </div>
               
-              <div className="flex items-center bg-white/5 rounded-2xl px-5 py-3 border border-white/5 text-[10px] font-black">
+              <div className="flex items-center bg-white/5 rounded-2xl px-5 py-3 border border-white/5 text-xs font-black">
                 <span className="text-slate-300 mr-2 uppercase tracking-widest opacity-50">PRIORITY</span>
                 <select
                   value={priority}
@@ -2571,7 +2688,7 @@ const TasksView = () => {
 
               <button
                 onClick={handleAdd}
-                className="w-full sm:w-auto bg-white text-black font-black text-[10px] uppercase tracking-[0.2em] px-10 py-3.5 rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-xl shadow-white/5"
+                className="w-full sm:w-auto bg-white text-black font-black text-xs uppercase tracking-[0.2em] px-10 py-3.5 rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-xl shadow-white/5"
               >
                 + Deploy
               </button>
@@ -2579,7 +2696,7 @@ const TasksView = () => {
             {taskError && (
               <motion.p
                  initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
-                 className="text-red-400 text-[10px] font-black uppercase tracking-widest text-center mt-3 animate-pulse"
+                 className="text-red-400 text-xs font-black uppercase tracking-widest text-center mt-3 animate-pulse"
               >
                 {taskError}
               </motion.p>
@@ -2589,7 +2706,7 @@ const TasksView = () => {
               value={tags}
               onChange={(e) => setTags(e.target.value)}
               placeholder="Tags: #urgent, #deep, #admin"
-              className="w-full bg-transparent border-t border-white/5 pt-6 text-[10px] font-bold text-slate-300 text-center uppercase tracking-widest placeholder:text-slate-300 focus:outline-none"
+              className="w-full bg-transparent border-t border-white/5 pt-6 text-xs font-bold text-slate-300 text-center uppercase tracking-widest placeholder:text-slate-300 focus:outline-none"
             />
           </div>
         </GlassCard>
@@ -2635,19 +2752,19 @@ const TasksView = () => {
         <div className="space-y-8 max-w-4xl mx-auto w-full">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-4">
              <div className="flex flex-col">
-               <span className="text-[10px] font-black uppercase tracking-[0.3em] font-mono text-blue-500">Scheduled Slots</span>
+               <span className="text-xs font-black uppercase tracking-[0.3em] font-mono text-blue-500">Scheduled Slots</span>
                <h4 className="text-xl font-display font-black text-white">Daily Timeline</h4>
              </div>
              
              <div className="flex flex-wrap items-center gap-4">
                <div className="flex items-center space-x-2 bg-white/5 px-4 py-2 rounded-xl border border-white/10">
                  <div className="flex items-center space-x-2">
-                   <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Global Start</span>
+                   <span className="text-xs font-black text-slate-300 uppercase tracking-widest">Global Start</span>
                    <input
                      type="time"
                      value={freeTime.start}
                      onChange={(e) => setFreeTime({ ...freeTime, start: e.target.value })}
-                     className="bg-transparent border-none text-white font-bold text-[10px] focus:ring-0 p-0 w-16"
+                     className="bg-transparent border-none text-white font-bold text-xs focus:ring-0 p-0 w-16"
                    />
                  </div>
                </div>
@@ -2665,7 +2782,7 @@ const TasksView = () => {
                      currentTime = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
                    }
                  }}
-                 className="flex items-center space-x-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-300 hover:text-white transition-all"
+                 className="flex items-center space-x-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-xs font-black uppercase tracking-widest text-slate-300 hover:text-white transition-all"
                >
                  <RotateCcw className="w-3 h-3"/>
                  <span>Reset Timeline</span>
@@ -2684,7 +2801,7 @@ const TasksView = () => {
                       }
                     });
                  }}
-                 className="flex items-center space-x-2 px-4 py-2 bg-orange-600/10 border border-orange-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-orange-400 hover:bg-orange-600/20 transition-all"
+                 className="flex items-center space-x-2 px-4 py-2 bg-orange-600/10 border border-orange-500/20 rounded-xl text-xs font-black uppercase tracking-widest text-orange-400 hover:bg-orange-600/20 transition-all"
                >
                  <Coffee className="w-3 h-3"/>
                  <span>Add 15m Break</span>
@@ -2699,9 +2816,9 @@ const TasksView = () => {
               if (tasksForDate.length === 0) {
                 return (
                   <div className="text-center py-20 bg-white/[0.02] border border-dashed border-white/10 rounded-[40px] px-6">
-                     <CalendarRange className="w-10 h-10 text-slate-500 mx-auto mb-4 opacity-50" />
-                     <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">No pending tasks.</p>
-                     <p className="text-xs text-slate-500 mt-2">Deploy some tasks to build your mission timeline.</p>
+                     <CalendarRange className="w-10 h-10 text-slate-300 mx-auto mb-4 opacity-50" />
+                     <p className="text-slate-300 font-bold uppercase tracking-widest text-sm">No pending tasks.</p>
+                     <p className="text-xs text-slate-300 mt-2">Deploy some tasks to build your mission timeline.</p>
                   </div>
                 );
               }
@@ -2736,7 +2853,7 @@ const TasksView = () => {
                               <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                 <div className="space-y-1 flex-1">
                                    <div className="flex items-center gap-2">
-                                     <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-widest ${
+                                     <span className={`text-xs font-black px-2 py-0.5 rounded uppercase tracking-widest ${
                                        task.priority === 'A' ? 'bg-rose-500/20 text-rose-400' :
                                        task.priority === 'B' ? 'bg-blue-500/20 text-blue-400' :
                                        'bg-slate-500/20 text-slate-300'
@@ -2744,7 +2861,7 @@ const TasksView = () => {
                                        Priority {task.priority}
                                      </span>
                                      {task.parentGoalTitle && (
-                                       <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
+                                       <span className="text-xs text-slate-300 font-bold uppercase tracking-wider">
                                          {task.parentGoalTitle}
                                        </span>
                                      )}
@@ -2781,7 +2898,7 @@ const TasksView = () => {
                                            }
                                          }
                                        }}
-                                       className="p-1.5 bg-white/5 rounded hover:bg-white/10 text-slate-400 hover:text-white transition-colors disabled:opacity-30"
+                                       className="p-1.5 bg-white/5 rounded hover:bg-white/10 text-slate-300 hover:text-white transition-colors disabled:opacity-30"
                                        disabled={idx === 0}
                                      >
                                        <ChevronUp className="w-3 h-3" />
@@ -2809,7 +2926,7 @@ const TasksView = () => {
                                            }
                                          }
                                        }}
-                                       className="p-1.5 bg-white/5 rounded hover:bg-white/10 text-slate-400 hover:text-white transition-colors disabled:opacity-30"
+                                       className="p-1.5 bg-white/5 rounded hover:bg-white/10 text-slate-300 hover:text-white transition-colors disabled:opacity-30"
                                        disabled={idx === tasksForDate.length - 1}
                                      >
                                        <ChevronDown className="w-3 h-3" />
@@ -2874,10 +2991,10 @@ const TasksView = () => {
                 className={`glass-card group hover:border-white/20 transition-all h-full flex flex-col p-6 rounded-[32px] relative ${focusTaskId === task.id ? "border-blue-500/50 bg-blue-600/[0.03] ring-1 ring-blue-500/20" : ""}`}
               >
                 <div className="absolute top-4 -left-4 xl:-left-6 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => reorderTasks(task.id, 'up')} className="p-1 text-slate-500 hover:text-white bg-[#050505] rounded-lg border border-white/10 hover:border-white/30 backdrop-blur-md transition-all shadow-xl">
+                  <button onClick={() => reorderTasks(task.id, 'up')} className="p-1 text-slate-300 hover:text-white bg-[#050505] rounded-lg border border-white/10 hover:border-white/30 backdrop-blur-md transition-all shadow-xl">
                     <ChevronUp className="w-4 h-4" />
                   </button>
-                  <button onClick={() => reorderTasks(task.id, 'down')} className="p-1 text-slate-500 hover:text-white bg-[#050505] rounded-lg border border-white/10 hover:border-white/30 backdrop-blur-md transition-all shadow-xl">
+                  <button onClick={() => reorderTasks(task.id, 'down')} className="p-1 text-slate-300 hover:text-white bg-[#050505] rounded-lg border border-white/10 hover:border-white/30 backdrop-blur-md transition-all shadow-xl">
                     <ChevronDown className="w-4 h-4" />
                   </button>
                 </div>
@@ -2948,11 +3065,11 @@ const TasksView = () => {
                               )}
                               <div className="flex flex-wrap gap-2 mt-4">
                                 {task.startTime && (
-                                  <span className="text-[9px] font-black bg-blue-600/20 text-blue-400 px-3 py-1 rounded-full uppercase">
+                                  <span className="text-xs font-black bg-blue-600/20 text-blue-400 px-3 py-1 rounded-full uppercase">
                                     {task.startTime} - {task.endTime || "??:??"}
                                   </span>
                                 )}
-                                <span className="text-[9px] font-black bg-white/10 text-slate-300 px-3 py-1 rounded-full uppercase">
+                                <span className="text-xs font-black bg-white/10 text-slate-300 px-3 py-1 rounded-full uppercase">
                                   {task.duration || "30m"}
                                 </span>
                                 {!task.completed && (
@@ -2960,7 +3077,7 @@ const TasksView = () => {
                                     const text = getCountdownText('daily', task.date);
                                     const isOverdue = text === "Overdue";
                                     return (
-                                      <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase flex items-center gap-1 ${isOverdue ? 'bg-red-500/10 text-red-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                                      <span className={`text-xs font-black px-3 py-1 rounded-full uppercase flex items-center gap-1 ${isOverdue ? 'bg-red-500/10 text-red-500' : 'bg-amber-500/10 text-amber-500'}`}>
                                         <Timer className="w-3 h-3" />
                                         {text}
                                       </span>
@@ -3015,9 +3132,19 @@ const TasksView = () => {
                                 </button>
                               </Tooltip>
                             )}
+                            {!task.completed && (
+                              <Tooltip text="Send back to Weekly Goals">
+                                <button
+                                  onClick={() => handleDemote(task)}
+                                  className="p-2 text-orange-400 hover:text-orange-300 transition-colors"
+                                >
+                                  <ArrowDownLeft className="w-4 h-4" />
+                                </button>
+                              </Tooltip>
+                            )}
                             <Tooltip text="Delete task">
                               <button
-                                onClick={() => deleteTask(task.id)}
+                                onClick={() => { if (window.confirm("Are you sure you want to delete this task?")) deleteTask(task.id); }}
                                 className="p-2 text-slate-300 hover:text-red-500 transition-colors"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -3064,7 +3191,7 @@ const TasksView = () => {
                                   <button
                                     onClick={() => handleTaskAutoSplit(task)}
                                     disabled={isSplitting[task.id]}
-                                    className="flex items-center space-x-1 px-3 py-2 bg-blue-600/10 border border-blue-500/20 rounded-xl text-[10px] font-black uppercase tracking-tighter text-blue-400 hover:bg-blue-600/20 transition-all disabled:opacity-50"
+                                    className="flex items-center space-x-1 px-3 py-2 bg-blue-600/10 border border-blue-500/20 rounded-xl text-xs font-black uppercase tracking-tighter text-blue-400 hover:bg-blue-600/20 transition-all disabled:opacity-50"
                                   >
                                     {isSplitting[task.id] ? (
                                       <Clock className="w-3 h-3 animate-spin" />
@@ -3081,90 +3208,18 @@ const TasksView = () => {
                               </div>
 
                               <div className="space-y-2">
-                                {(!!task.subtasks && task.subtasks.length > 0 ? [...task.subtasks].sort((a: any, b: any) => Number(a.completed || false) - Number(b.completed || false)) : []).map((sub: any) => (
-                                  <div
-                                    key={sub.id}
-                                    className="flex items-center justify-between group/sub gap-3"
-                                  >
-                                    <div className="flex items-start space-x-3 min-w-0 flex-1">
-                                      <Tooltip
-                                        text={
-                                          sub.completed
-                                            ? "Mark step pending"
-                                            : "Complete step"
-                                        }
-                                      >
-                                        <button
-                                          onClick={() =>
-                                            toggleTaskSubtask(task.id, sub.id)
-                                          }
-                                          className={`w-4 h-4 mt-0.5 shrink-0 rounded border transition-all ${sub.completed ? "bg-blue-600 border-blue-600 text-white" : "border-white/20"}`}
-                                        >
-                                          {sub.completed && (
-                                            <CheckSquare className="w-3 h-3 mx-auto" />
-                                          )}
-                                        </button>
-                                      </Tooltip>
-                                      {editingSubtaskId === sub.id ? (
-                                        <div className="flex-1 min-w-0 flex items-center space-x-2">
-                                          <input
-                                            type="text"
-                                            value={editingSubtaskTitle}
-                                            onChange={(e) => setEditingSubtaskTitle(e.target.value)}
-                                            onKeyDown={(e) => {
-                                              if (e.key === "Enter") {
-                                                updateTaskSubtask(task.id, sub.id, editingSubtaskTitle);
-                                                setEditingSubtaskId(null);
-                                              }
-                                            }}
-                                            className="bg-white/10 text-white text-sm px-2 py-1 rounded w-full min-w-0 outline-none"
-                                            autoFocus
-                                          />
-                                          <button
-                                            onClick={() => {
-                                              updateTaskSubtask(task.id, sub.id, editingSubtaskTitle);
-                                              setEditingSubtaskId(null);
-                                            }}
-                                            className="text-green-500 hover:text-green-400 p-1"
-                                          >
-                                            <CheckSquare className="w-4 h-4" />
-                                          </button>
-                                        </div>
-                                      ) : (
-                                        <span
-                                          className={`text-sm flex-1 min-w-0 break-words text-left ${sub.completed ? "text-slate-300 line-through" : "text-slate-300"}`}
-                                        >
-                                          {sub.title}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center space-x-2 shrink-0 opacity-100 lg:opacity-0 lg:group-hover/sub:opacity-100 transition-opacity">
-                                      {editingSubtaskId !== sub.id && (
-                                        <Tooltip text="Edit subtask">
-                                          <button
-                                            onClick={() => {
-                                              setEditingSubtaskId(sub.id);
-                                              setEditingSubtaskTitle(sub.title);
-                                            }}
-                                            className="text-slate-300 hover:text-blue-400 p-1"
-                                          >
-                                            <Edit3 className="w-3.5 h-3.5" />
-                                          </button>
-                                        </Tooltip>
-                                      )}
-                                      <Tooltip text="Remove step">
-                                        <button
-                                          onClick={() =>
-                                            deleteTaskSubtask(task.id, sub.id)
-                                          }
-                                          className="text-slate-300 hover:text-red-400 p-1"
-                                        >
-                                          <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                      </Tooltip>
-                                    </div>
-                                  </div>
-                                ))}
+                                <RecursiveSubtaskList
+                                  subtasks={task.subtasks}
+                                  onToggle={(subId) => toggleTaskSubtask(task.id, subId)}
+                                  onEdit={(subId, title) => updateTaskSubtask(task.id, subId, title)}
+                                  onDelete={(subId) => deleteTaskSubtask(task.id, subId)}
+                                  editingId={editingSubtaskId}
+                                  editingTitle={editingSubtaskTitle}
+                                  setEditingId={setEditingSubtaskId}
+                                  setEditingTitle={setEditingSubtaskTitle}
+                                  saveEdit={(subId, title) => updateTaskSubtask(task.id, subId, title)}
+                                  onAddChild={(parentId, title) => addTaskChildSubtask(task.id, parentId, title)}
+                                />
                                 {(task.subtasks || []).length === 0 && (
                                   <p className="text-xs text-slate-300 italic">
                                     No steps yet. Break it down for more focus.
@@ -3172,7 +3227,7 @@ const TasksView = () => {
                                 )}
                               </div>
 
-                              <p className="text-[10px] uppercase font-black text-slate-300 tracking-widest pt-4 border-t border-white/5">
+                              <p className="text-xs uppercase font-black text-slate-300 tracking-widest pt-4 border-t border-white/5">
                                 Planned Duration:{" "}
                                 {task.duration}
                               </p>
@@ -3204,11 +3259,18 @@ const TasksView = () => {
                         {task.completed && <CheckSquare className="w-3 h-3" />}
                       </button>
                     </Tooltip>
-                    <span className="text-sm font-medium text-white line-clamp-1">{task.title}</span>
+                    <span className="text-sm font-medium text-white line-clamp-1 flex-1">{task.title}</span>
+                    {!task.completed && (
+                      <Tooltip text="Send back to Weekly Goals">
+                        <button onClick={() => handleDemote(task)} className="text-slate-300 hover:text-orange-400 p-1 flex-shrink-0">
+                          <ArrowDownLeft className="w-4 h-4"/>
+                        </button>
+                      </Tooltip>
+                    )}
                   </div>
                 ))}
                 {incompleteTasks.filter(t => t.priority === quad.priority).length === 0 && (
-                  <p className="text-[10px] uppercase font-black tracking-widest text-slate-300 pt-2">No goals here</p>
+                  <p className="text-xs uppercase font-black tracking-widest text-slate-300 pt-2">No goals here</p>
                 )}
               </div>
             </div>
@@ -3251,8 +3313,8 @@ const TasksView = () => {
                     <span className="text-sm font-medium text-slate-300 line-through truncate">{task.title}</span>
                   </div>
                   <div className="flex items-center space-x-2 shrink-0 pl-4">
-                    <span className="text-[10px] font-black uppercase bg-white/5 px-2 py-1 rounded-md text-slate-300">{task.priority}</span>
-                    <button onClick={() => deleteTask(task.id)} className="text-slate-300 hover:text-red-400 p-1">
+                    <span className="text-xs font-black uppercase bg-white/5 px-2 py-1 rounded-md text-slate-300">{task.priority}</span>
+                    <button onClick={() => { if (window.confirm('Are you sure you want to delete this task?')) deleteTask(task.id); }} className="text-slate-300 hover:text-red-400 p-1">
                       <Trash2 className="w-4 h-4"/>
                     </button>
                   </div>
@@ -3338,6 +3400,15 @@ const InsightsView = () => {
   const focusHours = Math.floor(totalFocusMinutes / 60);
   const focusMins = totalFocusMinutes % 60;
 
+  const todayDateStr = toLocalDateStr();
+  const todayTasks = tasks.filter(
+    (t) => t.date === todayDateStr || (t.date < todayDateStr && !t.completed),
+  );
+  const completedToday = todayTasks.filter((t) => t.completed).length;
+  const deepWorkHours = +(totalFocusMinutes / 60).toFixed(1);
+  const urgentComplete = todayTasks.filter(t => t.completed && (t.priority === "A" || t.priority === "B")).length;
+  const maintenanceComplete = todayTasks.filter(t => t.completed && (t.priority === "C" || t.priority === "D")).length;
+
   const priorityData = [
     { name: "A: Urgent & Important", value: tasks.filter((t) => t.priority === "A").length, color: "#22c55e" },
     { name: "B: Schedule", value: tasks.filter((t) => t.priority === "B").length, color: "#3b82f6" },
@@ -3350,7 +3421,7 @@ const InsightsView = () => {
       <div className="space-y-3">
         <div className="flex items-center space-x-2 text-indigo-500">
           <Zap className="w-4 h-4" />
-          <span className="text-[10px] font-black uppercase tracking-[0.4em] font-mono opacity-60">
+          <span className="text-xs font-black uppercase tracking-[0.4em] font-mono opacity-60">
             Intelligence Layer
           </span>
         </div>
@@ -3362,7 +3433,7 @@ const InsightsView = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {[
           {
             label: "GOAL PROGRESS",
@@ -3381,11 +3452,19 @@ const InsightsView = () => {
             desc: "The percentage of all available tasks that have been completed.",
           },
           {
+            label: "OP VELOCITY",
+            value: `${completedToday}/${todayTasks.length}`,
+            max: "TODAY",
+            icon: Zap,
+            accent: "text-orange-500",
+            desc: "Proportion of today's scheduled tasks that have been completed.",
+          },
+          {
             label: "DEEP WORK",
             value: `${focusHours}H ${focusMins}M`,
             max: "TRACKED",
-            icon: Zap,
-            accent: "text-orange-500",
+            icon: Timer,
+            accent: "text-blue-500",
             desc: "Total duration accumulated in focus sessions today.",
           },
           {
@@ -3410,7 +3489,7 @@ const InsightsView = () => {
                 </div>
                 <div className="text-right">
                   <Tooltip text={stat.desc}>
-                    <p className="text-[9px] w-max ml-auto font-black cursor-help text-slate-300 tracking-widest uppercase mb-1 border-b border-dashed border-slate-500/50 pb-0.5 inline-block">
+                    <p className="text-xs w-max ml-auto font-black cursor-help text-slate-300 tracking-widest uppercase mb-1 border-b border-dashed border-slate-500/50 pb-0.5 inline-block">
                       {stat.label}
                     </p>
                   </Tooltip>
@@ -3433,13 +3512,51 @@ const InsightsView = () => {
             </div>
           </div>
         ))}
+        {/* 3/3/3 Method Tracker */}
+        <div className="glass-card p-1 !rounded-[32px] overflow-visible group lg:col-span-1">
+          <div className="p-8 h-full flex flex-col justify-between">
+            <div className="flex items-center space-x-2 text-indigo-400 mb-6">
+              <PieChart className="w-5 h-5" />
+              <span className="text-xs font-black uppercase tracking-[0.3em] font-mono">3/3/3 Method Tracker</span>
+              <div className="relative group/tooltip z-50 hover:z-[100]">
+                <Info className="w-3 h-3 text-indigo-400/50 cursor-help" />
+                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 p-3 bg-slate-700 text-xs text-slate-300 rounded-lg shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all z-50 pointer-events-none">
+                  Oliver Burkeman's daily framework: Aim for 3 hours of deep work, 3 urgent/important tasks, and 3 maintenance tasks to cap a productive day without burning out.
+                  <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-slate-800"></div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              {[
+                { label: "Hours Deep Work", value: deepWorkHours, target: 3 },
+                { label: "Urgent Tasks", value: urgentComplete, target: 3 },
+                { label: "Maintenance Tasks", value: maintenanceComplete, target: 3 }
+              ].map((metric, idx) => (
+                <div key={idx} className="space-y-2">
+                  <div className="flex justify-between items-center text-xs uppercase font-black tracking-widest">
+                    <span className="text-slate-300">{metric.label}</span>
+                    <span className="text-indigo-400">{metric.value} <span className="text-slate-300">/ {metric.target}</span></span>
+                  </div>
+                  <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(100, (metric.value / metric.target) * 100)}%` }}
+                      className="h-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 pt-12 border-t border-white/5">
         <div className="space-y-8">
           <div className="space-y-2">
-            <span className="text-[10px] font-black text-rose-500 uppercase tracking-[0.4em] font-mono">
+            <span className="text-xs font-black text-rose-500 uppercase tracking-[0.4em] font-mono">
               Real-time Telemetry
             </span>
             <h3 className="text-3xl font-display font-black text-white">
@@ -3476,7 +3593,7 @@ const InsightsView = () => {
                   <div className="flex justify-between items-end">
                     <div>
                       <p className="text-sm font-black text-white uppercase tracking-widest">{stat.label}</p>
-                      <p className="text-[10px] font-bold text-slate-300 tracking-widest mt-1 uppercase">{stat.desc}</p>
+                      <p className="text-xs font-bold text-slate-300 tracking-widest mt-1 uppercase">{stat.desc}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-2xl font-black text-white">{stat.value}</p>
@@ -3498,7 +3615,7 @@ const InsightsView = () => {
 
         <div className="space-y-8">
           <div className="space-y-2">
-            <span className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.4em] font-mono">
+            <span className="text-xs font-black text-emerald-500 uppercase tracking-[0.4em] font-mono">
               Qualitative Analysis
             </span>
             <h3 className="text-3xl font-display font-black text-white">
@@ -3528,7 +3645,7 @@ const InsightsView = () => {
                   <motion.span
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="text-emerald-500 font-black text-[10px] uppercase tracking-widest"
+                    className="text-emerald-500 font-black text-xs uppercase tracking-widest"
                   >
                     Sync Complete
                   </motion.span>
@@ -3536,7 +3653,7 @@ const InsightsView = () => {
                 <Tooltip text="Cancel reflection">
                   <button
                     onClick={() => setIsReflecting(false)}
-                    className="text-[10px] font-black text-slate-300 hover:text-white uppercase tracking-widest transition-colors"
+                    className="text-xs font-black text-slate-300 hover:text-white uppercase tracking-widest transition-colors"
                   >
                     Abort
                   </button>
@@ -3545,7 +3662,7 @@ const InsightsView = () => {
                   <button
                     onClick={handleSave}
                     disabled={showSuccess || !reflection.trim()}
-                    className={`bg-white text-black font-black text-[10px] uppercase tracking-widest px-10 py-4 rounded-2xl transition-all shadow-xl active:scale-95 disabled:opacity-20`}
+                    className={`bg-white text-black font-black text-xs uppercase tracking-widest px-10 py-4 rounded-2xl transition-all shadow-xl active:scale-95 disabled:opacity-20`}
                   >
                     Archive Win
                   </button>
@@ -3562,7 +3679,7 @@ const InsightsView = () => {
                   <Edit3 className="w-8 h-8" />
                 </div>
                 <div className="space-y-2">
-                  <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">
+                  <p className="text-xs font-black text-slate-300 uppercase tracking-[0.3em]">
                     Session Closure Pending
                   </p>
                   <p className="text-sm font-bold text-slate-300 uppercase tracking-widest">
@@ -3582,7 +3699,7 @@ const InsightsView = () => {
                     <div className="flex justify-between items-start mb-6">
                       <div className="flex items-center space-x-3 bg-white/5 px-4 py-2 rounded-full">
                         <Calendar className="w-3.5 h-3.5 text-blue-500" />
-                        <span className="text-[10px] font-black text-slate-200 uppercase tracking-widest">
+                        <span className="text-xs font-black text-slate-200 uppercase tracking-widest">
                           {new Date(ref.date).toLocaleDateString(undefined, {
                             month: "short",
                             day: "numeric",
@@ -3715,7 +3832,7 @@ const HabitsView = () => {
         <div className="space-y-3">
           <div className="flex items-center space-x-2 text-rose-500">
             <Flame className="w-4 h-4" />
-            <span className="text-[10px] font-black uppercase tracking-[0.4em] font-mono opacity-60">
+            <span className="text-xs font-black uppercase tracking-[0.4em] font-mono opacity-60">
               Consistency Layer
             </span>
           </div>
@@ -3736,7 +3853,7 @@ const HabitsView = () => {
               <ChevronLeft className="w-5 h-5" />
             </button>
           </Tooltip>
-          <span className="px-6 text-[10px] font-black text-slate-200 uppercase tracking-widest min-w-[120px] text-center">
+          <span className="px-6 text-xs font-black text-slate-200 uppercase tracking-widest min-w-[120px] text-center">
             {weekOffset === 0 ? "Active Now" : `${weekOffset}W AGO`}
           </span>
           <Tooltip text="View newer weeks">
@@ -3766,7 +3883,7 @@ const HabitsView = () => {
           />
           <button
             onClick={handleAdd}
-            className="w-full sm:w-auto bg-white text-black font-black text-[10px] uppercase tracking-widest px-8 py-4 rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl"
+            className="w-full sm:w-auto bg-white text-black font-black text-xs uppercase tracking-widest px-8 py-4 rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl"
           >
             Engage Habit
           </button>
@@ -3777,10 +3894,10 @@ const HabitsView = () => {
               {displayHabits.map((habit, index) => (
                 <div key={habit.id} className="relative">
                   <div className="absolute top-4 -left-4 xl:-left-6 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-50">
-                    <button onClick={() => reorderHabits(habit.id, 'up')} className="p-1 text-slate-500 hover:text-white bg-[#050505] rounded-lg border border-white/10 hover:border-white/30 backdrop-blur-md transition-all shadow-xl">
+                    <button onClick={() => reorderHabits(habit.id, 'up')} className="p-1 text-slate-300 hover:text-white bg-[#050505] rounded-lg border border-white/10 hover:border-white/30 backdrop-blur-md transition-all shadow-xl">
                       <ChevronUp className="w-4 h-4" />
                     </button>
-                    <button onClick={() => reorderHabits(habit.id, 'down')} className="p-1 text-slate-500 hover:text-white bg-[#050505] rounded-lg border border-white/10 hover:border-white/30 backdrop-blur-md transition-all shadow-xl">
+                    <button onClick={() => reorderHabits(habit.id, 'down')} className="p-1 text-slate-300 hover:text-white bg-[#050505] rounded-lg border border-white/10 hover:border-white/30 backdrop-blur-md transition-all shadow-xl">
                       <ChevronDown className="w-4 h-4" />
                     </button>
                   </div>
@@ -3831,7 +3948,7 @@ const HabitsView = () => {
                           {habit.title}
                         </h4>
                         <div className="flex items-center space-x-3 mt-1">
-                          <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest font-mono flex items-center gap-1">
+                          <span className="text-xs font-black text-rose-500 uppercase tracking-widest font-mono flex items-center gap-1">
                             <Flame className="w-3 h-3 fill-rose-500" />
                             STREAK: {(() => {
                               const history = habit.completedHistory || {};
@@ -3853,7 +3970,7 @@ const HabitsView = () => {
                             })()} DAYS
                           </span>
                           <div className="w-1 h-1 rounded-full bg-slate-700" />
-                          <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
+                          <span className="text-xs font-black text-slate-300 uppercase tracking-widest">
                             Success Rate: {Math.round(
                                 (() => {
                                   const history = habit.completedHistory || {};
@@ -3888,7 +4005,7 @@ const HabitsView = () => {
                       key={day.date}
                       className="flex flex-col items-center space-y-3 min-w-[64px]"
                     >
-                      <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">
+                      <span className="text-xs font-black text-slate-300 uppercase tracking-[0.2em]">
                         {day.label}
                       </span>
                       <Tooltip text={isCompleted ? "Mark missed" : "Mark completed"}>
@@ -3912,7 +4029,7 @@ const HabitsView = () => {
                           )}
                         </button>
                       </Tooltip>
-                      <span className="text-[9px] font-bold text-slate-300 uppercase">
+                      <span className="text-xs font-bold text-slate-300 uppercase">
                         {day.fullDate}
                       </span>
                     </div>
@@ -3964,7 +4081,7 @@ const HabitsView = () => {
                 )}
                 <Tooltip text="Delete habit">
                   <button
-                    onClick={() => deleteHabit(habit.id)}
+                    onClick={() => { if (window.confirm('Are you sure you want to delete this habit?')) deleteHabit(habit.id); }}
                     className="p-3 text-slate-300 hover:text-red-500 transition-all"
                   >
                     <Trash2 className="w-5 h-5" />
@@ -4045,6 +4162,25 @@ const TrojanChat = () => {
       setMessages(prev => [...prev, { role: "model", parts: [{ text: response.text }] }]);
     } else if (response?.functionCalls) {
       let functionResponses = [];
+      const convertSubtasks = (stArray: any[]): any[] => {
+          return stArray.map((st: any) => {
+             if (typeof st === 'string') {
+                 return { id: Math.random().toString(36).substr(2, 9), title: st, completed: false };
+             } else if (typeof st === 'object' && st !== null) {
+                 const res: any = {
+                     id: Math.random().toString(36).substr(2, 9),
+                     title: st.title || 'Subtask',
+                     completed: false
+                 };
+                 if (st.subtasks && Array.isArray(st.subtasks)) {
+                     res.subtasks = convertSubtasks(st.subtasks);
+                 }
+                 return res;
+             }
+             return { id: Math.random().toString(36).substr(2, 9), title: 'Subtask', completed: false };
+          });
+      };
+      
       for (const call of response.functionCalls) {
         if (call.name === "createTask") {
           let { title, priority, subtasks } = call.args;
@@ -4061,11 +4197,7 @@ const TrojanChat = () => {
           
           let initialSubtasks: any[] = [];
           if (subtasks && Array.isArray(subtasks)) {
-             initialSubtasks = subtasks.map((st: string) => ({
-               id: Math.random().toString(36).substr(2, 9),
-               title: typeof st === 'string' ? st : 'Subtask',
-               completed: false
-             }));
+             initialSubtasks = convertSubtasks(subtasks);
           }
           const newTaskId = await addTask({ title, priority, subtasks: initialSubtasks, date: today });
           functionResponses.push(`Created task: ${title}` + (initialSubtasks.length ? ` with ${initialSubtasks.length} subtasks` : ''));
@@ -4085,11 +4217,7 @@ const TrojanChat = () => {
           }
           let initialSubtasks: any[] = [];
           if (subtasks && Array.isArray(subtasks)) {
-             initialSubtasks = subtasks.map((st: string) => ({
-               id: Math.random().toString(36).substr(2, 9),
-               title: typeof st === 'string' ? st : 'Subtask',
-               completed: false
-             }));
+             initialSubtasks = convertSubtasks(subtasks);
           }
           const newGoalId = await addGoal({ title, type, priority, completed: false, subtasks: initialSubtasks });
           functionResponses.push(`Created ${type} goal: ${title}` + (initialSubtasks.length ? ` with ${initialSubtasks.length} subtasks` : ''));
@@ -4108,7 +4236,7 @@ const TrojanChat = () => {
             updateTask(id, updates);
             
             if (subtasks && Array.isArray(subtasks) && subtasks.length > 0) {
-              bulkAddTaskSubtasks(id, subtasks);
+              bulkAddTaskSubtasks(id, convertSubtasks(subtasks));
               functionResponses.push(`Updated task id: ${id} and added ${subtasks.length} subtasks`);
             } else {
               functionResponses.push(`Updated task id: ${id}`);
@@ -4124,7 +4252,7 @@ const TrojanChat = () => {
             updateGoal(id, updates);
             
             if (subtasks && Array.isArray(subtasks) && subtasks.length > 0) {
-              bulkAddGoalSubtasks(id, subtasks);
+              bulkAddGoalSubtasks(id, convertSubtasks(subtasks));
               functionResponses.push(`Updated goal id: ${id} and added ${subtasks.length} subtasks`);
             } else {
               functionResponses.push(`Updated goal id: ${id}`);
@@ -4239,7 +4367,7 @@ const TrojanChat = () => {
                   <h3 className="text-xs font-black uppercase tracking-widest text-white">Trojan AI</h3>
                   <div className="flex items-center space-x-1 mt-0.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-[9px] font-bold text-emerald-500 tracking-wider">ONLINE</span>
+                    <span className="text-xs font-bold text-emerald-500 tracking-wider">ONLINE</span>
                   </div>
                 </div>
               </div>
@@ -4276,31 +4404,31 @@ const TrojanChat = () => {
               <div className="flex overflow-x-auto gap-2 mb-3 pb-1 hide-scrollbar">
                 <button
                   onClick={() => handleSend("Let's do the Morning AI journal. Ask me 3 questions to set my intention for today.")}
-                  className="flex-none bg-orange-600/20 text-orange-300 text-[10px] sm:text-xs px-3 py-1.5 rounded-full hover:bg-orange-600/40 transition-colors whitespace-nowrap"
+                  className="flex-none bg-orange-600/20 text-orange-300 text-xs sm:text-xs px-3 py-1.5 rounded-full hover:bg-orange-600/40 transition-colors whitespace-nowrap"
                 >
                   🌅 Morning Journal
                 </button>
                 <button
                   onClick={() => handleSend("What should I do today based on priority?")}
-                  className="flex-none bg-blue-600/20 text-blue-300 text-[10px] sm:text-xs px-3 py-1.5 rounded-full hover:bg-blue-600/40 transition-colors whitespace-nowrap"
+                  className="flex-none bg-blue-600/20 text-blue-300 text-xs sm:text-xs px-3 py-1.5 rounded-full hover:bg-blue-600/40 transition-colors whitespace-nowrap"
                 >
                   ☀️ Daily Plan
                 </button>
                 <button
                   onClick={() => handleSend("Analyze my progress and tell me what to improve")}
-                  className="flex-none bg-emerald-600/20 text-emerald-300 text-[10px] sm:text-xs px-3 py-1.5 rounded-full hover:bg-emerald-600/40 transition-colors whitespace-nowrap"
+                  className="flex-none bg-emerald-600/20 text-emerald-300 text-xs sm:text-xs px-3 py-1.5 rounded-full hover:bg-emerald-600/40 transition-colors whitespace-nowrap"
                 >
                   📊 Analyze Progress
                 </button>
                 <button
                   onClick={() => setInput("Suggest some habits I should form ")}
-                  className="flex-none bg-purple-600/20 text-purple-300 text-[10px] sm:text-xs px-3 py-1.5 rounded-full hover:bg-purple-600/40 transition-colors whitespace-nowrap"
+                  className="flex-none bg-purple-600/20 text-purple-300 text-xs sm:text-xs px-3 py-1.5 rounded-full hover:bg-purple-600/40 transition-colors whitespace-nowrap"
                 >
                   💡 Suggest Habits
                 </button>
                 <button
                   onClick={() => setInput("Create a task to ")}
-                  className="flex-none bg-orange-600/20 text-orange-300 text-[10px] sm:text-xs px-3 py-1.5 rounded-full hover:bg-orange-600/40 transition-colors whitespace-nowrap"
+                  className="flex-none bg-orange-600/20 text-orange-300 text-xs sm:text-xs px-3 py-1.5 rounded-full hover:bg-orange-600/40 transition-colors whitespace-nowrap"
                 >
                   ➕ Add Task
                 </button>
@@ -4533,13 +4661,16 @@ const AppContent = ({
               <h1 className="text-lg font-black text-white tracking-[0.2em] uppercase leading-none">
                 Drive
               </h1>
-              <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mt-1">
+              <p className="text-xs font-black text-blue-500 uppercase tracking-widest mt-1">
                 Productivity OS
               </p>
             </div>
           </div>
         </div>
+      </nav>
 
+      {/* Sign Out Button - Absolute positioned so it doesn't scroll with the user */}
+      <div className="absolute top-0 right-0 z-[60] px-6 lg:px-12 py-6 flex items-center pointer-events-none">
         <div className="flex items-center space-x-3 pointer-events-auto">
           <Tooltip text="Sign Out">
             <button
@@ -4550,7 +4681,7 @@ const AppContent = ({
             </button>
           </Tooltip>
         </div>
-      </nav>
+      </div>
 
       {/* Sidebar Component with Premium Polish */}
       <AnimatePresence>
@@ -4577,7 +4708,7 @@ const AppContent = ({
                 <h1 className="text-2xl font-display font-black text-white tracking-widest uppercase mb-1">
                   Drive
                 </h1>
-                <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
+                <p className="text-xs font-black text-slate-300 uppercase tracking-widest">
                   Navigation Control
                 </p>
               </div>
@@ -4628,9 +4759,27 @@ const AppContent = ({
                     setIsSidebarOpen(false);
                   }}
                 />
+                <SidebarItem
+                  icon={Gamepad2}
+                  label="Life is a Game"
+                  active={activeView === "lifegame"}
+                  onClick={() => {
+                    setActiveView("lifegame");
+                    setIsSidebarOpen(false);
+                  }}
+                />
+                <SidebarItem
+                  icon={Sword}
+                  label="Habitica Test"
+                  active={activeView === "habitica"}
+                  onClick={() => {
+                    setActiveView("habitica");
+                    setIsSidebarOpen(false);
+                  }}
+                />
 
                 <div className="pt-8 mt-8 border-t border-white/5 space-y-4">
-                  <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
+                  <p className="text-xs font-black text-slate-300 uppercase tracking-widest">
                     Environment
                   </p>
                   <div className="relative group/tooltip z-50 hover:z-[100]">
@@ -4678,7 +4827,7 @@ const AppContent = ({
                     <p className="text-sm font-black text-white truncate uppercase">
                       Gurpreet
                     </p>
-                    <p className="text-[10px] font-bold text-blue-500 uppercase tracking-tighter">
+                    <p className="text-xs font-bold text-blue-500 uppercase tracking-tighter">
                       Pilot Phase 1
                     </p>
                   </div>
@@ -4722,6 +4871,8 @@ const AppContent = ({
               {activeView === "tasks" && <TasksView />}
               {activeView === "habits" && <HabitsView />}
               {activeView === "insights" && <InsightsView />}
+              {activeView === "lifegame" && <LifeGameView />}
+              {activeView === "habitica" && <HabiticaTestView />}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -4736,7 +4887,8 @@ const AppContent = ({
               { id: "goals", icon: Target, label: "Goals" },
               { id: "tasks", icon: CheckSquare, label: "Tasks" },
               { id: "habits", icon: Flame, label: "Habits" },
-              { id: "insights", icon: PieChart, label: "Pulse" }
+              { id: "lifegame", icon: Gamepad2, label: "Game" },
+              { id: "habitica", icon: Sword, label: "Habitica" }
             ].map(({ id, icon: Icon, label }) => {
               const isActive = activeView === id;
               return (
@@ -4746,7 +4898,7 @@ const AppContent = ({
                   className={`flex flex-col items-center justify-center w-12 h-12 rounded-2xl transition-all ${
                     isActive 
                       ? "bg-blue-600/10 text-blue-500" 
-                      : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                      : "text-slate-300 hover:text-slate-200 hover:bg-white/5"
                   }`}
                 >
                   <Icon className={`w-5 h-5 ${isActive ? "scale-110" : ""}`} />

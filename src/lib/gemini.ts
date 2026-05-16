@@ -1,12 +1,63 @@
 import { GoogleGenAI } from "@google/genai";
 
 const getAI = () => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) {
-    console.error("VITE_GEMINI_API_KEY is not set.");
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === 'your_gemini_api_key_here') {
+    console.warn("GEMINI_API_KEY is not set or invalid.");
     return null;
   }
   return new GoogleGenAI({ apiKey });
+};
+
+export const getBossStory = async (bossLevel: number, tasks: any[]) => {
+  try {
+    const ai = getAI();
+    if (!ai) {
+      return {
+        bossName: `Dragon (Lv.${bossLevel})`,
+        bossDescription: "A generic beast formed from your uncompleted tasks.",
+        story: "The Innkeeper's crystal ball is foggy... We need a valid API key in the app settings to foresee true monsters!"
+      };
+    }
+    
+    const taskNames = tasks.map((t: any) => t.title).join(", ");
+    
+    const prompt = `You are a creative game master for an RPG habit tracker (like Habitica).
+The player has reached Boss Level ${bossLevel}.
+The player's current overdue or most pending tasks are: ${taskNames || "General daily life tasks"}.
+
+Generate a JSON object with:
+1. bossName: A creative enemy name inspired by the player's pending tasks. Small length max 25 chars.
+2. bossDescription: A 1-sentence epic description of the boss.
+3. story: A 2-3 sentence engaging tavern story that the Innkeeper tells the player, warning them about this specific boss and mentioning their actual tasks!
+
+JSON FORMAT STRICTLY.
+Example:
+{
+  "bossName": "The Cleanliness Golem",
+  "bossDescription": "A hulking mass of unwashed laundry and dirty dishes.",
+  "story": "I saw it forming near the sink! It feeds on your ignored chores."
+}`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: [{ parts: [{ text: prompt }] }]
+    });
+
+    const text = response.text || "{}";
+    const match = text.match(/\{[\s\S]*\}/);
+    if (match) {
+       return JSON.parse(match[0]);
+    }
+    throw new Error("Invalid output");
+  } catch (err) {
+    console.error("Failed to generate boss story", err);
+    return {
+      bossName: `Dragon (Lv.${bossLevel})`,
+      bossDescription: "A monster shrouded in mystery.",
+      story: "The storyteller is resting. Perhaps try again later!"
+    };
+  }
 };
 
 export const getAICoachInsight = async (userData: any) => {
@@ -278,9 +329,21 @@ export const createGoalDeclaration = {
       subtasks: {
         type: "ARRAY",
         items: {
-          type: "STRING"
+          type: "OBJECT",
+          properties: {
+            title: { type: "STRING" },
+            subtasks: {
+              type: "ARRAY",
+              items: {
+                type: "OBJECT",
+                properties: {
+                  title: { type: "STRING" }
+                }
+              }
+            }
+          }
         },
-        description: "Optional list of subtasks (or key results) required to achieve this goal."
+        description: "Optional list of subtasks (or key results) required to achieve this goal. Each subtask can optionally have nested subtasks."
       }
     },
     required: ["title", "type", "priority"]
@@ -303,8 +366,22 @@ export const createTaskDeclaration = {
       },
       subtasks: {
         type: "ARRAY",
-        items: { type: "STRING" },
-        description: "Optional list of sub-steps to break down this task.",
+        items: {
+          type: "OBJECT",
+          properties: {
+            title: { type: "STRING" },
+            subtasks: {
+              type: "ARRAY",
+              items: {
+                type: "OBJECT",
+                properties: {
+                  title: { type: "STRING" }
+                }
+              }
+            }
+          }
+        },
+        description: "Optional list of sub-steps to break down this task. Each subtask can optionally have nested subtasks.",
       }
     },
     required: ["title", "priority"],
@@ -410,8 +487,22 @@ export const updateGoalDeclaration = {
       type: { type: "STRING", description: "The new type (yearly, monthly, weekly)." },
       subtasks: {
         type: "ARRAY",
-        items: { type: "STRING" },
-        description: "List of new subtasks to add to this goal.",
+        items: {
+          type: "OBJECT",
+          properties: {
+            title: { type: "STRING" },
+            subtasks: {
+              type: "ARRAY",
+              items: {
+                type: "OBJECT",
+                properties: {
+                  title: { type: "STRING" }
+                }
+              }
+            }
+          }
+        },
+        description: "List of new subtasks to add to this goal. Each subtask can optionally have nested subtasks.",
       }
     },
     required: ["id"]
@@ -429,8 +520,22 @@ export const updateTaskDeclaration = {
       priority: { type: "STRING", description: "The new priority (A, B, C)." },
       subtasks: {
         type: "ARRAY",
-        items: { type: "STRING" },
-        description: "List of new subtasks to add to this task.",
+        items: {
+          type: "OBJECT",
+          properties: {
+            title: { type: "STRING" },
+            subtasks: {
+              type: "ARRAY",
+              items: {
+                type: "OBJECT",
+                properties: {
+                  title: { type: "STRING" }
+                }
+              }
+            }
+          }
+        },
+        description: "List of new subtasks to add to this task. Each subtask can optionally have nested subtasks.",
       }
     },
     required: ["id"]
@@ -517,7 +622,8 @@ CRITICAL MISSION:
 1. When asked what to do today, prioritize incomplete tasks and suggest an action plan.
 2. If asked to analyze progress or results, evaluate completed vs incomplete items. Tell the user what they did well, what they did wrong (e.g., too many incomplete high-priority tasks), and how to improve. Motivate them aggressively but constructively.
 3. Suggest habits or goals if the user asks for self-improvement ideas.
-4. Maintain context across turns. If the user provided a title in a previous turn and now provides a missing priority (or vice versa), combine them and execute the tool. Do not ask for information the user has already provided. If all required details are present, execute the tool immediately.`,
+4. Maintain context across turns. If the user provided a title in a previous turn and now provides a missing priority (or vice versa), combine them and execute the tool. Do not ask for information the user has already provided. If all required details are present, execute the tool immediately.
+5. NESTED SUBTASKS: You can create goals and tasks with subtasks, and those subtasks can have their own subtasks (multi-level nesting). When adding complex projects or goals, actively break them down into nested subtasks if appropriate.`,
           tools: [{ functionDeclarations: [createTaskDeclaration as any, createGoalDeclaration as any, createHabitDeclaration as any, toggleTaskDeclaration as any, deleteTaskDeclaration as any, toggleGoalDeclaration as any, deleteGoalDeclaration as any, updateTaskDeclaration as any, updateGoalDeclaration as any, updateHabitDeclaration as any, updateTaskSubtaskDeclaration as any, deleteTaskSubtaskDeclaration as any, updateGoalSubtaskDeclaration as any, deleteGoalSubtaskDeclaration as any] }],
           temperature: 0.1
         }
@@ -536,7 +642,8 @@ CRITICAL MISSION:
 1. When asked what to do today, prioritize incomplete tasks and suggest an action plan.
 2. If asked to analyze progress or results, evaluate completed vs incomplete items. Tell the user what they did well, what they did wrong (e.g., too many incomplete high-priority tasks), and how to improve. Motivate them aggressively but constructively.
 3. Suggest habits or goals if the user asks for self-improvement ideas.
-4. Maintain context across turns. If the user provided a title in a previous turn and now provides a missing priority (or vice versa), combine them and execute the tool. Do not ask for information the user has already provided. If all required details are present, execute the tool immediately.`,
+4. Maintain context across turns. If the user provided a title in a previous turn and now provides a missing priority (or vice versa), combine them and execute the tool. Do not ask for information the user has already provided. If all required details are present, execute the tool immediately.
+5. NESTED SUBTASKS: You can create goals and tasks with subtasks, and those subtasks can have their own subtasks (multi-level nesting). When adding complex projects or goals, actively break them down into nested subtasks if appropriate.`,
             tools: [{ functionDeclarations: [createTaskDeclaration as any, createGoalDeclaration as any, createHabitDeclaration as any, toggleTaskDeclaration as any, deleteTaskDeclaration as any, toggleGoalDeclaration as any, deleteGoalDeclaration as any, updateTaskDeclaration as any, updateGoalDeclaration as any, updateHabitDeclaration as any, updateTaskSubtaskDeclaration as any, deleteTaskSubtaskDeclaration as any, updateGoalSubtaskDeclaration as any, deleteGoalSubtaskDeclaration as any] }],
             temperature: 0.1
           }

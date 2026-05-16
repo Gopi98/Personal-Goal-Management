@@ -55,15 +55,17 @@ interface HubContextType {
   smartPrioritizeTasks: () => Promise<void>;
   addGoal: (goal: Omit<Goal, 'id' | 'createdAt' | 'progress' | 'subtasks'> & { parentGoalId?: string, subtasks?: any[] }) => Promise<string | undefined>;
   addSubtask: (goalId: string, title: string) => void;
-  bulkAddGoalSubtasks: (goalId: string, subtasks: string[]) => void;
+  bulkAddGoalSubtasks: (goalId: string, subtasks: any[], parentSubtaskId?: string) => void;
   toggleSubtask: (goalId: string, subtaskId: string) => void;
   updateGoal: (goalId: string, updates: any) => void;
   deleteSubtask: (goalId: string, subtaskId: string) => void;
+  addGoalChildSubtask: (goalId: string, parentSubtaskId: string, title: string) => void;
   updateGoalSubtask: (goalId: string, subtaskId: string, title: string) => void;
   addTask: (task: Omit<Task, 'id' | 'completed' | 'subtasks'> & { subtasks?: any[] }) => Promise<string | undefined>;
   updateTask: (taskId: string, updates: any) => void;
   addTaskSubtask: (taskId: string, title: string) => void;
-  bulkAddTaskSubtasks: (taskId: string, subtasks: string[]) => void;
+  addTaskChildSubtask: (taskId: string, parentSubtaskId: string, title: string) => void;
+  bulkAddTaskSubtasks: (taskId: string, subtasks: any[]) => void;
   toggleTaskSubtask: (taskId: string, subtaskId: string) => void;
   deleteTaskSubtask: (taskId: string, subtaskId: string) => void;
   updateTaskSubtask: (taskId: string, subtaskId: string, title: string) => void;
@@ -182,10 +184,25 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       delete data.parentGoalId;
     }
     
-    // Also remove any other undefined fields just in case
-    Object.keys(data).forEach(key => data[key] === undefined && delete data[key]);
+    // Also remove any other undefined fields thoroughly (deeply) to prevent setDoc errors
+    const deepClean = (obj: any): any => {
+      if (Array.isArray(obj)) {
+        return obj.map(deepClean).filter(v => v !== undefined);
+      } else if (obj !== null && typeof obj === 'object') {
+        const cleaned: any = {};
+        for (const [key, val] of Object.entries(obj)) {
+          if (val !== undefined) {
+             cleaned[key] = deepClean(val);
+          }
+        }
+        return cleaned;
+      }
+      return obj;
+    };
     
-    try { await setDoc(docRef, data); } catch(e) { handleFirestoreError(e, OperationType.CREATE, docRef.path); }
+    const cleanedData = deepClean(data);
+    
+    try { await setDoc(docRef, cleanedData); } catch(e) { handleFirestoreError(e, OperationType.CREATE, docRef.path); }
     return id;
   };
 
@@ -200,23 +217,140 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try { await updateDoc(docRef, { subtasks, progress }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
   
-  const bulkAddGoalSubtasks = async (goalId: string, subtaskTitles: string[]) => {
+  const bulkAddGoalSubtasks = async (goalId: string, subtasksToAdd: any[], parentSubtaskId?: string) => {
     if (!user) return;
     const g = goals.find(x => x.id === goalId);
     if (!g) return;
-    const newSubs = subtaskTitles.map(title => ({ id: Math.random().toString(36).substr(2, 9), title, completed: false }));
-    const subtasks = [...g.subtasks, ...newSubs];
-    const progress = Math.round((subtasks.filter(s => s.completed).length / subtasks.length) * 100);
+    const newSubs = subtasksToAdd.map(item => typeof item === 'string' ? { id: Math.random().toString(36).substr(2, 9), title: item, completed: false } : item);
+    
+    let subtasks = g.subtasks || [];
+    let added = false;
+    
+    if (parentSubtaskId) {
+        const addRecursive = (subs: any[]): any[] => {
+            return subs.map(s => {
+                if (s.id === parentSubtaskId) {
+                    added = true;
+                    return { ...s, subtasks: [...(s.subtasks || []), ...newSubs] };
+                }
+                if (s.subtasks) {
+                    return { ...s, subtasks: addRecursive(s.subtasks) };
+                }
+                return s;
+            });
+        };
+        subtasks = addRecursive(subtasks);
+    }
+    
+    if (!added) {
+        subtasks = [...subtasks, ...newSubs];
+    }
+    
+    const countCompleted = (subs: any[]): { c: number, t: number } => {
+       let c = 0, t = 0;
+       for (const s of subs) {
+          t++;
+          if (s.completed) c++;
+          if (s.subtasks) {
+             const inner = countCompleted(s.subtasks);
+             c += inner.c; t += inner.t;
+          }
+       }
+       return { c, t };
+    };
+    const stats = countCompleted(subtasks);
+    const progress = stats.t === 0 ? 0 : Math.round((stats.c / stats.t) * 100);
     const docRef = doc(db, `users/${user.uid}/goals`, goalId);
     try { await updateDoc(docRef, { subtasks, progress }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
+  };
+
+  const addGoalChildSubtask = async (goalId: string, parentSubtaskId: string, title: string) => {
+    if (!user) return;
+    const g = goals.find(x => x.id === goalId);
+    if (!g) return;
+
+    const addRecursive = (subs: any[]): any[] => {
+      return subs.map(s => {
+        if (s.id === parentSubtaskId) {
+           return { ...s, subtasks: [...(s.subtasks || []), { id: Math.random().toString(36).substr(2, 9), title, completed: false }] };
+        }
+        if (s.subtasks) return { ...s, subtasks: addRecursive(s.subtasks) };
+        return s;
+      });
+    };
+
+    const subtasks = addRecursive(g.subtasks || []);
+    
+    const countCompleted = (subs: any[]): { c: number, t: number } => {
+       let c = 0, t = 0;
+       for (const s of subs) {
+           t++;
+           if (s.completed) c++;
+           if (s.subtasks) {
+              const inner = countCompleted(s.subtasks);
+              c += inner.c; t += inner.t;
+           }
+       }
+       return { c, t };
+    };
+
+    const stats = countCompleted(subtasks);
+    const progress = stats.t === 0 ? 0 : Math.round((stats.c / stats.t) * 100);
+    const docRef = doc(db, `users/${user.uid}/goals`, goalId);
+    try { await updateDoc(docRef, { subtasks, progress }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
+  };
+
+  const addTaskChildSubtask = async (taskId: string, parentSubtaskId: string, title: string) => {
+    if (!user) return;
+    const t = tasks.find(x => x.id === taskId);
+    if (!t) return;
+
+    const addRecursive = (subs: any[]): any[] => {
+      return subs.map(s => {
+        if (s.id === parentSubtaskId) {
+           return { ...s, subtasks: [...(s.subtasks || []), { id: Math.random().toString(36).substr(2, 9), title, completed: false }] };
+        }
+        if (s.subtasks) return { ...s, subtasks: addRecursive(s.subtasks) };
+        return s;
+      });
+    };
+
+    const subtasks = addRecursive(t.subtasks || []);
+    const docRef = doc(db, `users/${user.uid}/tasks`, taskId);
+    try { await updateDoc(docRef, { subtasks }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
   const toggleSubtask = async (goalId: string, subtaskId: string) => {
     if (!user) return;
     const g = goals.find(x => x.id === goalId);
     if (!g) return;
-    const subtasks = g.subtasks.map(s => s.id === subtaskId ? { ...s, completed: !s.completed } : s);
-    const progress = Math.round((subtasks.filter(s => s.completed).length / subtasks.length) * 100);
+
+    const toggleRecursive = (subs: any[]): any[] => {
+      return subs.map(s => {
+        if (s.id === subtaskId) return { ...s, completed: !s.completed };
+        if (s.subtasks) return { ...s, subtasks: toggleRecursive(s.subtasks) };
+        return s;
+      });
+    };
+
+    const subtasks = toggleRecursive(g.subtasks || []);
+    
+    // Calculate total progress: count all completed vs total for all subtasks
+    const countCompleted = (subs: any[]): { c: number, t: number } => {
+       let c = 0, t = 0;
+       for (const s of subs) {
+           t++;
+           if (s.completed) c++;
+           if (s.subtasks) {
+              const inner = countCompleted(s.subtasks);
+              c += inner.c; t += inner.t;
+           }
+       }
+       return { c, t };
+    };
+    
+    const stats = countCompleted(subtasks);
+    const progress = stats.t === 0 ? 0 : Math.round((stats.c / stats.t) * 100);
     const docRef = doc(db, `users/${user.uid}/goals`, goalId);
     try { await updateDoc(docRef, { subtasks, progress, completed: progress === 100 }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
@@ -224,14 +358,32 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateGoal = async (goalId: string, updates: any) => {
     if (!user) return;
     const docRef = doc(db, `users/${user.uid}/goals`, goalId);
-    try { await updateDoc(docRef, updates); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
+    const deepClean = (obj: any): any => {
+      if (Array.isArray(obj)) return obj.map(deepClean).filter(v => v !== undefined);
+      if (obj !== null && typeof obj === 'object') {
+        const cleaned: any = {};
+        for (const [key, val] of Object.entries(obj)) if (val !== undefined) cleaned[key] = deepClean(val);
+        return cleaned;
+      }
+      return obj;
+    };
+    try { await updateDoc(docRef, deepClean(updates)); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
   const updateGoalSubtask = async (goalId: string, subtaskId: string, title: string) => {
     if (!user) return;
     const g = goals.find(x => x.id === goalId);
     if (!g) return;
-    const subtasks = g.subtasks.map(s => s.id === subtaskId ? { ...s, title } : s);
+
+    const updateRecursive = (subs: any[]): any[] => {
+      return subs.map(s => {
+        if (s.id === subtaskId) return { ...s, title };
+        if (s.subtasks) return { ...s, subtasks: updateRecursive(s.subtasks) };
+        return s;
+      });
+    };
+
+    const subtasks = updateRecursive(g.subtasks || []);
     const docRef = doc(db, `users/${user.uid}/goals`, goalId);
     try { await updateDoc(docRef, { subtasks }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
@@ -240,8 +392,31 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!user) return;
     const g = goals.find(x => x.id === goalId);
     if (!g) return;
-    const subtasks = g.subtasks.filter(s => s.id !== subtaskId);
-    const progress = subtasks.length === 0 ? g.progress : Math.round((subtasks.filter(s => s.completed).length / subtasks.length) * 100);
+
+    const deleteRecursive = (subs: any[]): any[] => {
+      return subs.filter(s => s.id !== subtaskId).map(s => {
+        if (s.subtasks) return { ...s, subtasks: deleteRecursive(s.subtasks) };
+        return s;
+      });
+    };
+
+    const subtasks = deleteRecursive(g.subtasks || []);
+    
+    const countCompleted = (subs: any[]): { c: number, t: number } => {
+       let c = 0, t = 0;
+       for (const s of subs) {
+           t++;
+           if (s.completed) c++;
+           if (s.subtasks) {
+              const inner = countCompleted(s.subtasks);
+              c += inner.c; t += inner.t;
+           }
+       }
+       return { c, t };
+    };
+
+    const stats = countCompleted(subtasks);
+    const progress = stats.t === 0 ? g.progress : Math.round((stats.c / stats.t) * 100);
     const docRef = doc(db, `users/${user.uid}/goals`, goalId);
     try { await updateDoc(docRef, { subtasks, progress }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
@@ -265,17 +440,43 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (t.endTime) data.endTime = t.endTime;
     if (t.parentGoalTitle) data.parentGoalTitle = t.parentGoalTitle;
     if (t.linkedHabitId) data.linkedHabitId = t.linkedHabitId;
+    if (t.fromGoalId) data.fromGoalId = t.fromGoalId;
+    if (t.fromSubtaskId) data.fromSubtaskId = t.fromSubtaskId;
     
-    Object.keys(data).forEach(key => data[key] === undefined && delete data[key]);
+    const deepClean = (obj: any): any => {
+      if (Array.isArray(obj)) {
+        return obj.map(deepClean).filter(v => v !== undefined);
+      } else if (obj !== null && typeof obj === 'object') {
+        const cleaned: any = {};
+        for (const [key, val] of Object.entries(obj)) {
+          if (val !== undefined) {
+             cleaned[key] = deepClean(val);
+          }
+        }
+        return cleaned;
+      }
+      return obj;
+    };
     
-    try { await setDoc(docRef, data); } catch(e) { handleFirestoreError(e, OperationType.CREATE, docRef.path); }
+    const cleanedData = deepClean(data);
+    
+    try { await setDoc(docRef, cleanedData); } catch(e) { handleFirestoreError(e, OperationType.CREATE, docRef.path); }
     return id;
   };
 
   const updateTask = async (taskId: string, updates: any) => {
     if (!user) return;
     const docRef = doc(db, `users/${user.uid}/tasks`, taskId);
-    try { await updateDoc(docRef, updates); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
+    const deepClean = (obj: any): any => {
+      if (Array.isArray(obj)) return obj.map(deepClean).filter(v => v !== undefined);
+      if (obj !== null && typeof obj === 'object') {
+        const cleaned: any = {};
+        for (const [key, val] of Object.entries(obj)) if (val !== undefined) cleaned[key] = deepClean(val);
+        return cleaned;
+      }
+      return obj;
+    };
+    try { await updateDoc(docRef, deepClean(updates)); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
   const addTaskSubtask = async (taskId: string, title: string) => {
@@ -287,11 +488,11 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try { await updateDoc(docRef, { subtasks: [...t.subtasks, newSub] }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
-  const bulkAddTaskSubtasks = async (taskId: string, subtaskTitles: string[]) => {
+  const bulkAddTaskSubtasks = async (taskId: string, subtasksToAdd: any[]) => {
     if (!user) return;
     const t = tasks.find(x => x.id === taskId);
     if (!t) return;
-    const newSubs = subtaskTitles.map(title => ({ id: Math.random().toString(36).substr(2, 9), title, completed: false }));
+    const newSubs = subtasksToAdd.map(item => typeof item === 'string' ? { id: Math.random().toString(36).substr(2, 9), title: item, completed: false } : item);
     const docRef = doc(db, `users/${user.uid}/tasks`, taskId);
     try { await updateDoc(docRef, { subtasks: [...t.subtasks, ...newSubs] }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
@@ -300,7 +501,16 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!user) return;
     const t = tasks.find(x => x.id === taskId);
     if (!t) return;
-    const subtasks = t.subtasks.map(s => s.id === subtaskId ? { ...s, completed: !s.completed } : s);
+    
+    const toggleRecursive = (subs: any[]): any[] => {
+      return subs.map(s => {
+        if (s.id === subtaskId) return { ...s, completed: !s.completed };
+        if (s.subtasks) return { ...s, subtasks: toggleRecursive(s.subtasks) };
+        return s;
+      });
+    };
+    
+    const subtasks = toggleRecursive(t.subtasks || []);
     const docRef = doc(db, `users/${user.uid}/tasks`, taskId);
     try { await updateDoc(docRef, { subtasks }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
@@ -309,7 +519,16 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!user) return;
     const t = tasks.find(x => x.id === taskId);
     if (!t) return;
-    const subtasks = t.subtasks.map(s => s.id === subtaskId ? { ...s, title } : s);
+
+    const updateRecursive = (subs: any[]): any[] => {
+      return subs.map(s => {
+        if (s.id === subtaskId) return { ...s, title };
+        if (s.subtasks) return { ...s, subtasks: updateRecursive(s.subtasks) };
+        return s;
+      });
+    };
+
+    const subtasks = updateRecursive(t.subtasks || []);
     const docRef = doc(db, `users/${user.uid}/tasks`, taskId);
     try { await updateDoc(docRef, { subtasks }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
@@ -318,7 +537,15 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!user) return;
     const t = tasks.find(x => x.id === taskId);
     if (!t) return;
-    const subtasks = t.subtasks.filter(s => s.id !== subtaskId);
+
+    const deleteRecursive = (subs: any[]): any[] => {
+      return subs.filter(s => s.id !== subtaskId).map(s => {
+        if (s.subtasks) return { ...s, subtasks: deleteRecursive(s.subtasks) };
+        return s;
+      });
+    };
+
+    const subtasks = deleteRecursive(t.subtasks || []);
     const docRef = doc(db, `users/${user.uid}/tasks`, taskId);
     try { await updateDoc(docRef, { subtasks }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
@@ -491,8 +718,8 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       user, signIn, signOut: signOutUser,
       goals, tasks, habits, selectedMood, setSelectedMood, reflections, addReflection,
       focusTaskId, setFocusTaskId, focusSessions, addFocusSession, smartPrioritizeTasks,
-      addGoal, addSubtask, bulkAddGoalSubtasks, toggleSubtask, updateGoal, deleteSubtask, updateGoalSubtask,
-      addTask, updateTask, addTaskSubtask, bulkAddTaskSubtasks, toggleTaskSubtask, deleteTaskSubtask, updateTaskSubtask,
+      addGoal, addSubtask, bulkAddGoalSubtasks, toggleSubtask, updateGoal, deleteSubtask, updateGoalSubtask, addGoalChildSubtask,
+      addTask, updateTask, addTaskSubtask, bulkAddTaskSubtasks, toggleTaskSubtask, deleteTaskSubtask, updateTaskSubtask, addTaskChildSubtask,
       addHabit, updateHabit,
       toggleGoal, toggleTask, toggleHabit,
       deleteGoal, deleteTask, postponeTask, deleteHabit, reorderTasks, reorderHabits, reorderGoals

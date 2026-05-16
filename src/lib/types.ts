@@ -9,6 +9,8 @@ export interface Goal {
   createdAt: string;
   parentGoalId?: string;
   parentGoalTitle?: string;
+  fromGoalId?: string;
+  fromSubtaskId?: string;
   notificationEnabled?: boolean;
   notificationTime?: string;
   notificationSchedule?: 'once' | 'daily' | 'weekly' | 'specific_days';
@@ -20,6 +22,7 @@ export interface Subtask {
   id: string;
   title: string;
   completed: boolean;
+  subtasks?: Subtask[];
 }
 
 export interface Task {
@@ -36,6 +39,8 @@ export interface Task {
   subtasks: Subtask[];
   order?: number;
   parentGoalTitle?: string;
+  fromGoalId?: string;
+  fromSubtaskId?: string;
   linkedHabitId?: string;
   notificationEnabled?: boolean;
   notificationTime?: string;
