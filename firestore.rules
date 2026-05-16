@@ -155,6 +155,34 @@ service cloud.firestore {
              (data.keys().hasAll(['taskId']) ? data.taskId is string && data.taskId.size() <= 128 : true);
     }
 
+    function isValidAutomationCreate(data) {
+      return data.keys().hasAll(['sourceGoalId', 'targetType', 'frequency', 'itemsToMove', 'isActive', 'createdAt', 'ownerId']) &&
+             data.sourceGoalId is string && data.sourceGoalId.size() <= 128 &&
+             data.targetType is string && data.targetType in ['weekly_goal', 'daily_task'] &&
+             data.frequency is string && data.frequency in ['daily', 'weekly', 'monthly'] &&
+             data.itemsToMove is number && data.itemsToMove > 0 &&
+             data.isActive is bool &&
+             data.createdAt is string && data.createdAt.size() <= 60 &&
+             data.ownerId == request.auth.uid &&
+             (data.keys().hasAll(['targetId']) ? data.targetId is string && data.targetId.size() <= 128 : true) &&
+             (data.keys().hasAll(['dayOfWeek']) ? data.dayOfWeek is number && data.dayOfWeek >= 0 && data.dayOfWeek <= 6 : true) &&
+             (data.keys().hasAll(['dayOfMonth']) ? data.dayOfMonth is number && data.dayOfMonth >= 1 && data.dayOfMonth <= 31 : true) &&
+             (data.keys().hasAll(['lastRunTimestamp']) ? data.lastRunTimestamp is number : true);
+    }
+    
+    function isValidAutomationUpdate(data) {
+      return data.sourceGoalId is string && data.sourceGoalId.size() <= 128 &&
+             data.targetType is string && data.targetType in ['weekly_goal', 'daily_task'] &&
+             data.frequency is string && data.frequency in ['daily', 'weekly', 'monthly'] &&
+             data.itemsToMove is number && data.itemsToMove > 0 &&
+             data.isActive is bool &&
+             (data.keys().hasAll(['ownerId']) ? data.ownerId == request.auth.uid : true) &&
+             (data.keys().hasAll(['targetId']) ? data.targetId is string && data.targetId.size() <= 128 : true) &&
+             (data.keys().hasAll(['dayOfWeek']) ? data.dayOfWeek is number && data.dayOfWeek >= 0 && data.dayOfWeek <= 6 : true) &&
+             (data.keys().hasAll(['dayOfMonth']) ? data.dayOfMonth is number && data.dayOfMonth >= 1 && data.dayOfMonth <= 31 : true) &&
+             (data.keys().hasAll(['lastRunTimestamp']) ? data.lastRunTimestamp is number : true);
+    }
+
     match /users/{userId}/goals/{goalId} {
       allow read: if isOwner(userId) && resource.data.ownerId == userId;
       allow create: if isOwner(userId) && isValidId(goalId) && isValidGoalCreate(incoming());
@@ -215,6 +243,18 @@ service cloud.firestore {
       allow create: if isOwner(userId) && isValidId(sessionId) && isValidFocusSessionCreate(incoming());
       allow update: if isOwner(userId) && isValidId(sessionId) && isValidFocusSessionUpdate(incoming()) && (
         incoming().diff(existing()).affectedKeys().hasOnly(['taskId']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly([])
+      );
+      allow delete: if isOwner(userId);
+    }
+
+    match /users/{userId}/automations/{automationId} {
+      allow read: if isOwner(userId) && resource.data.ownerId == userId;
+      allow create: if isOwner(userId) && isValidId(automationId) && isValidAutomationCreate(incoming());
+      allow update: if isOwner(userId) && isValidId(automationId) && isValidAutomationUpdate(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['lastRunTimestamp']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['isActive']) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['sourceGoalId', 'targetType', 'targetId', 'frequency', 'dayOfWeek', 'dayOfMonth', 'itemsToMove', 'isActive']) ||
         incoming().diff(existing()).affectedKeys().hasOnly([])
       );
       allow delete: if isOwner(userId);

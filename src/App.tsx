@@ -2,6 +2,8 @@ import { toLocalDateStr, getCountdownText } from './lib/dateUtils';
 import React, { useState, useEffect, useRef, forwardRef } from "react";
 import { HabiticaTestView } from "./components/HabiticaTestView";
 import { LifeGameView } from "./components/LifeGameView";
+import { AutomationsView } from "./components/AutomationsView";
+import { YearlyProgress } from "./components/YearlyProgress";
 import {
   Home,
   Target,
@@ -60,8 +62,9 @@ import {
   Cloud,
   User,
   X as CloseIcon,
+  LogOut,
 } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useScroll, useMotionValueEvent } from "motion/react";
 import { GoogleGenAI, Modality } from "@google/genai";
 import confetti from "canvas-confetti";
 
@@ -941,7 +944,7 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
             </span>
           </motion.div>
           <h2 className="text-4xl md:text-5xl lg:text-6xl font-display font-black tracking-tighter text-white leading-[0.9]">
-            System <span className="text-blue-600">Operational.</span>
+            Trojan Task <span className="text-blue-600">Scheduler.</span>
             <br />
             {new Date().getHours() < 5 ? "Good night." : new Date().getHours() < 12 ? "Good morning." : new Date().getHours() < 17 ? "Good afternoon." : "Good evening."}
           </h2>
@@ -975,6 +978,8 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
           </motion.div>
         )}
       </div>
+
+      <YearlyProgress />
 
       {/* Hero Quote Banner */}
       <motion.div
@@ -4559,6 +4564,87 @@ const NotificationEngine = () => {
   return null;
 };
 
+const AutomationEngine = () => {
+  const { automations, updateAutomation, addGoal, addTask, goals, updateGoal } = useHub();
+  
+  useEffect(() => {
+    if (!automations || automations.length === 0 || goals.length === 0) return;
+    
+    // Check automations when engine mounts, and then every 30 minutes
+    const checkAutomations = () => {
+      automations.forEach(auto => {
+        if (!auto.isActive) return;
+        
+        const now = new Date();
+        let shouldRun = false;
+        const lastRun = new Date(auto.lastRunTimestamp || 0);
+        
+        if (auto.frequency === 'daily') {
+          if (now.getDate() !== lastRun.getDate() || now.getTime() - lastRun.getTime() > 24*60*60*1000) {
+            shouldRun = true;
+          }
+        } else if (auto.frequency === 'weekly') {
+          const today = now.getDay();
+          // if today is the day of week and it hasn't run today
+          if (today === auto.dayOfWeek && now.getDate() !== lastRun.getDate()) {
+             // Also ensure it didn't run recently in the last few days if we are strictly weekly
+             // But checking date difference is simpler: it should not have run in the last 2 days at least? 
+             // simplest: if today is right, and date !== lastRun.getDate(), we run it.
+             shouldRun = true;
+          }
+        } else if (auto.frequency === 'monthly') {
+          if (now.getDate() === auto.dayOfMonth && now.getMonth() !== lastRun.getMonth()) {
+             shouldRun = true;
+          }
+        }
+        
+        if (shouldRun) {
+           const src = goals.find(g => g.id === auto.sourceGoalId);
+           if (src && src.subtasks && src.subtasks.length > 0) {
+              const num = auto.itemsToMove || 1;
+              const toMove = src.subtasks.filter(s => !s.completed).slice(0, num);
+              if (toMove.length === 0) return;
+              
+              const remaining = src.subtasks.filter(s => !toMove.includes(s));
+              updateGoal(src.id, { subtasks: remaining });
+              
+              toMove.forEach(sub => {
+                 if (auto.targetType === 'weekly_goal') {
+                     addGoal({
+                        title: sub.title,
+                        type: 'weekly',
+                        priority: 'B',
+                        completed: false,
+                        fromGoalId: src.id,
+                        fromSubtaskId: sub.id
+                     });
+                 } else {
+                     addTask({
+                        title: sub.title,
+                        date: new Date().toISOString().split('T')[0],
+                        priority: 'B',
+                        fromGoalId: src.id,
+                        fromSubtaskId: sub.id,
+                        tags: ['#auto']
+                     });
+                 }
+              });
+              
+              updateAutomation(auto.id, { lastRunTimestamp: Date.now() });
+           }
+        }
+      });
+    };
+    
+    checkAutomations(); // Initial check
+    const interval = setInterval(checkAutomations, 30 * 60 * 1000); // 30 mins
+    
+    return () => clearInterval(interval);
+  }, [automations, goals]); // Reacts if automations update
+
+  return null;
+};
+
 export default function App() {
   const [activeView, setActiveView] = useState("home");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -4567,6 +4653,7 @@ export default function App() {
   return (
     <HubProvider>
       <NotificationEngine />
+      <AutomationEngine />
       <AppContent
         activeView={activeView}
         setActiveView={setActiveView}
@@ -4599,6 +4686,19 @@ const AppContent = ({
   } = useHub();
   const themeClasses = getMoodTheme(selectedMood);
 
+  const [isHeaderHidden, setIsHeaderHidden] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const { scrollY } = useScroll();
+
+  useMotionValueEvent(scrollY, "change", (latest) => {
+    const previous = scrollY.getPrevious() || 0;
+    if (latest > previous && latest > 150) {
+      setIsHeaderHidden(true);
+    } else {
+      setIsHeaderHidden(false);
+    }
+  });
+
   if (!user) {
     return (
       <div
@@ -4612,7 +4712,7 @@ const AppContent = ({
           </div>
           <div>
             <h1 className="text-3xl font-black text-white tracking-widest uppercase mb-2">
-              Drive OS
+              Trojan<br/>Task Scheduler
             </h1>
             <p className="text-slate-300 font-medium text-sm">
               Synchronize your life and achieve deep focus.
@@ -4652,36 +4752,8 @@ const AppContent = ({
               )}
             </button>
           </Tooltip>
-
-          <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-[0_0_30px_rgba(37,99,235,0.3)]">
-              <Zap className="w-7 h-7 text-white" />
-            </div>
-            <div className="hidden sm:block">
-              <h1 className="text-lg font-black text-white tracking-[0.2em] uppercase leading-none">
-                Drive
-              </h1>
-              <p className="text-xs font-black text-blue-500 uppercase tracking-widest mt-1">
-                Productivity OS
-              </p>
-            </div>
-          </div>
         </div>
       </nav>
-
-      {/* Sign Out Button - Absolute positioned so it doesn't scroll with the user */}
-      <div className="absolute top-0 right-0 z-[60] px-6 lg:px-12 py-6 flex items-center pointer-events-none">
-        <div className="flex items-center space-x-3 pointer-events-auto">
-          <Tooltip text="Sign Out">
-            <button
-              onClick={signOut}
-              className="text-xs font-bold text-slate-300 hover:text-white px-4 py-2 border border-white/10 rounded-xl bg-white/[0.02]"
-            >
-              SIGN OUT
-            </button>
-          </Tooltip>
-        </div>
-      </div>
 
       {/* Sidebar Component with Premium Polish */}
       <AnimatePresence>
@@ -4706,10 +4778,10 @@ const AppContent = ({
                   <Zap className="w-7 h-7 text-white" />
                 </div>
                 <h1 className="text-2xl font-display font-black text-white tracking-widest uppercase mb-1">
-                  Drive
+                  Trojan
                 </h1>
                 <p className="text-xs font-black text-slate-300 uppercase tracking-widest">
-                  Navigation Control
+                  Navigation Panel
                 </p>
               </div>
 
@@ -4777,6 +4849,15 @@ const AppContent = ({
                     setIsSidebarOpen(false);
                   }}
                 />
+                <SidebarItem
+                  icon={Sparkles}
+                  label="Automations"
+                  active={activeView === "automations"}
+                  onClick={() => {
+                    setActiveView("automations");
+                    setIsSidebarOpen(false);
+                  }}
+                />
 
                 <div className="pt-8 mt-8 border-t border-white/5 space-y-4">
                   <p className="text-xs font-black text-slate-300 uppercase tracking-widest">
@@ -4816,8 +4897,34 @@ const AppContent = ({
                 </div>
               </div>
 
-              <div className="mt-auto pt-8 border-t border-white/10">
-                <div className="flex items-center space-x-4 p-4 bg-white/[0.03] border border-white/[0.08] rounded-3xl group cursor-pointer hover:bg-white/[0.06] transition-all">
+              <div className="mt-auto pt-8 border-t border-white/10 relative">
+                <AnimatePresence>
+                  {isSettingsOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      className="absolute bottom-full left-0 w-full mb-4 z-50 rounded-2xl border border-white/10 bg-[#0a0a0a] shadow-2xl p-2"
+                    >
+                      <button
+                        onClick={() => {
+                          setIsSettingsOpen(false);
+                          setIsSidebarOpen(false);
+                          signOut();
+                        }}
+                        className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all hover:bg-red-600/10 text-red-500 group"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        <span className="text-[11px] font-bold uppercase tracking-widest">Sign Out</span>
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                
+                <div 
+                  onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                  className={`flex items-center space-x-4 p-4 rounded-3xl cursor-pointer transition-all ${isSettingsOpen ? "bg-white/[0.08] border-white/20" : "bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.06]"} border`}
+                >
                   <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center p-0.5">
                     <div className="w-full h-full bg-[#050505] rounded-[14px] flex items-center justify-center font-black text-blue-400">
                       GS
@@ -4831,7 +4938,7 @@ const AppContent = ({
                       Pilot Phase 1
                     </p>
                   </div>
-                  <Settings className="w-4 h-4 text-slate-300 group-hover:text-white transition-colors" />
+                  <Settings className={`w-4 h-4 transition-all ${isSettingsOpen ? "text-white rotate-90" : "text-slate-400"}`} />
                 </div>
               </div>
             </motion.aside>
@@ -4869,6 +4976,7 @@ const AppContent = ({
               {activeView === "home" && <HomeView setActiveView={setActiveView} />}
               {activeView === "goals" && <GoalsView />}
               {activeView === "tasks" && <TasksView />}
+              {activeView === "automations" && <AutomationsView />}
               {activeView === "habits" && <HabitsView />}
               {activeView === "insights" && <InsightsView />}
               {activeView === "lifegame" && <LifeGameView />}
@@ -4886,6 +4994,7 @@ const AppContent = ({
               { id: "home", icon: Home, label: "Home" },
               { id: "goals", icon: Target, label: "Goals" },
               { id: "tasks", icon: CheckSquare, label: "Tasks" },
+              { id: "automations", icon: Sparkles, label: "Auto" },
               { id: "habits", icon: Flame, label: "Habits" },
               { id: "lifegame", icon: Gamepad2, label: "Game" },
               { id: "habitica", icon: Sword, label: "Habitica" }

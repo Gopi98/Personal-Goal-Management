@@ -77,3 +77,18 @@ export interface Reflection {
   date: string;
   aiInsight?: string;
 }
+
+export interface Automation {
+  id: string;
+  sourceGoalId: string;
+  targetType: 'weekly_goal' | 'daily_task';
+  targetId?: string; 
+  frequency: 'daily' | 'weekly' | 'monthly';
+  dayOfWeek?: number; // 0-6
+  dayOfMonth?: number; // 1-31
+  itemsToMove: number;
+  lastRunTimestamp?: number;
+  isActive: boolean;
+  createdAt: string;
+  ownerId?: string;
+}

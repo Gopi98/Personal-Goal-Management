@@ -1,6 +1,6 @@
 import { toLocalDateStr } from './dateUtils';
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Goal, Task, Habit, Subtask, Reflection, FocusSession } from './types';
+import { Goal, Task, Habit, Subtask, Reflection, FocusSession, Automation } from './types';
 import { db, auth } from './firebase';
 import { collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, query, where, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
@@ -53,6 +53,12 @@ interface HubContextType {
   focusTaskId: string | null;
   setFocusTaskId: (id: string | null) => void;
   smartPrioritizeTasks: () => Promise<void>;
+  
+  automations: Automation[];
+  addAutomation: (auto: Omit<Automation, 'id' | 'createdAt' | 'ownerId'>) => Promise<void>;
+  updateAutomation: (id: string, updates: any) => Promise<void>;
+  deleteAutomation: (id: string) => Promise<void>;
+  
   addGoal: (goal: Omit<Goal, 'id' | 'createdAt' | 'progress' | 'subtasks'> & { parentGoalId?: string, subtasks?: any[] }) => Promise<string | undefined>;
   addSubtask: (goalId: string, title: string) => void;
   bulkAddGoalSubtasks: (goalId: string, subtasks: any[], parentSubtaskId?: string) => void;
@@ -95,6 +101,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
   const [selectedMood, setSelectedMood] = useState<string | null>(() => localStorage.getItem('hub_mood'));
   const [focusTaskId, setFocusTaskId] = useState<string | null>(null);
+  const [automations, setAutomations] = useState<Automation[]>([]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => {
@@ -126,6 +133,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       habits: `users/${user.uid}/habits`,
       reflections: `users/${user.uid}/reflections`,
       focusSessions: `users/${user.uid}/focusSessions`,
+      automations: `users/${user.uid}/automations`,
     };
 
     const unsubGoals = onSnapshot(query(collection(db, paths.goals), where('ownerId', '==', user.uid)), snap => {
@@ -148,8 +156,12 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setFocusSessions(snap.docs.map(d => ({ ...d.data(), id: d.id } as FocusSession)));
     }, err => handleFirestoreError(err, OperationType.LIST, paths.focusSessions));
 
+    const unsubAutomations = onSnapshot(query(collection(db, paths.automations), where('ownerId', '==', user.uid)), snap => {
+      setAutomations(snap.docs.map(d => ({ ...d.data(), id: d.id } as Automation)));
+    }, err => handleFirestoreError(err, OperationType.LIST, paths.automations));
+
     return () => {
-      unsubGoals(); unsubTasks(); unsubHabits(); unsubReflections(); unsubFocusSessions();
+      unsubGoals(); unsubTasks(); unsubHabits(); unsubReflections(); unsubFocusSessions(); unsubAutomations();
     };
   }, [user]);
 
@@ -643,6 +655,30 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try { await deleteDoc(docRef); } catch(e) { handleFirestoreError(e, OperationType.DELETE, docRef.path); }
   };
 
+  const addAutomation = async (auto: Omit<Automation, 'id' | 'createdAt' | 'ownerId'>): Promise<void> => {
+    if (!user) return;
+    const id = Math.random().toString(36).substr(2, 9);
+    const docRef = doc(db, `users/${user.uid}/automations`, id);
+    const data: any = {
+      ...auto,
+      createdAt: new Date().toISOString(),
+      ownerId: user.uid
+    };
+    try { await setDoc(docRef, data); } catch(e) { handleFirestoreError(e, OperationType.CREATE, docRef.path); }
+  };
+
+  const updateAutomation = async (id: string, updates: any): Promise<void> => {
+    if (!user) return;
+    const docRef = doc(db, `users/${user.uid}/automations`, id);
+    try { await updateDoc(docRef, updates); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
+  };
+
+  const deleteAutomation = async (id: string): Promise<void> => {
+    if (!user) return;
+    const docRef = doc(db, `users/${user.uid}/automations`, id);
+    try { await deleteDoc(docRef); } catch(e) { handleFirestoreError(e, OperationType.DELETE, docRef.path); }
+  };
+
   const addReflection = async (text: string) => {
     if (!user) return;
     const id = Math.random().toString(36).substr(2, 9);
@@ -718,6 +754,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       user, signIn, signOut: signOutUser,
       goals, tasks, habits, selectedMood, setSelectedMood, reflections, addReflection,
       focusTaskId, setFocusTaskId, focusSessions, addFocusSession, smartPrioritizeTasks,
+      automations, addAutomation, updateAutomation, deleteAutomation,
       addGoal, addSubtask, bulkAddGoalSubtasks, toggleSubtask, updateGoal, deleteSubtask, updateGoalSubtask, addGoalChildSubtask,
       addTask, updateTask, addTaskSubtask, bulkAddTaskSubtasks, toggleTaskSubtask, deleteTaskSubtask, updateTaskSubtask, addTaskChildSubtask,
       addHabit, updateHabit,
