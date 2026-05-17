@@ -63,7 +63,9 @@ import {
   User,
   X as CloseIcon,
   LogOut,
-  BellRing
+  BellRing,
+  Volume2,
+  VolumeX
 } from "lucide-react";
 import { motion, AnimatePresence, useScroll, useMotionValueEvent } from "motion/react";
 import { GoogleGenAI, Modality } from "@google/genai";
@@ -527,6 +529,7 @@ const PomodoroTimer = ({
   const [timeLeft, setTimeLeft] = useState(currentLength * 60);
   const [isActive, setIsActive] = useState(false);
   const [mode, setMode] = useState<"work" | "break">("work");
+  const [isMuted, setIsMuted] = useState(false);
   const { addFocusSession } = useHub();
   const endTimeRef = useRef<number | null>(null);
 
@@ -545,13 +548,13 @@ const PomodoroTimer = ({
   }, [currentLength, mode]);
 
   useEffect(() => {
-    if (isActive) {
+    if (isActive && !isMuted) {
       if (mode === "work") playAILoop("rain");
       else playAILoop("birds");
     } else {
       stopAILoop();
     }
-  }, [isActive, mode]);
+  }, [isActive, mode, isMuted]);
 
   useEffect(() => {
     let interval: any = null;
@@ -580,19 +583,23 @@ const PomodoroTimer = ({
           "Deep Work Complete",
           "Task accomplished. Time for a refuel break.",
         );
-        playBeep();
-        playAIAudio(
-          "Task accomplished. Deep work cycle complete. Initializing refuel break.",
-        );
+        if (!isMuted) {
+          playBeep();
+          playAIAudio(
+            "Task accomplished. Deep work cycle complete. Initializing refuel break.",
+          );
+        }
       } else {
         sendNotification(
           "Break Over",
           "Refuel complete. Ready for high performance operations.",
         );
-        playBeep();
-        playAIAudio(
-          "Refuel break complete. Ready to resume high performance operations.",
-        );
+        if (!isMuted) {
+          playBeep();
+          playAIAudio(
+            "Refuel break complete. Ready to resume high performance operations.",
+          );
+        }
       }
 
       onComplete();
@@ -600,7 +607,7 @@ const PomodoroTimer = ({
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isActive, timeLeft, mode, onComplete, currentLength]);
+  }, [isActive, timeLeft, mode, onComplete, currentLength, isMuted]);
 
   // Handle visibility change specifically for mobile background resumption
   useEffect(() => {
@@ -685,6 +692,14 @@ const PomodoroTimer = ({
             className="p-3 text-slate-300 hover:text-white transition-colors"
           >
             <RotateCcw className="w-5 h-5" />
+          </button>
+        </Tooltip>
+        <Tooltip text={isMuted ? "Unmute sounds" : "Mute sounds"}>
+          <button
+            onClick={() => setIsMuted(!isMuted)}
+            className={`p-3 transition-colors ${isMuted ? "text-rose-500 hover:text-rose-400" : "text-slate-300 hover:text-white"}`}
+          >
+            {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
           </button>
         </Tooltip>
       </div>
