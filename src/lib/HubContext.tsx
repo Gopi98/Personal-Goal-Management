@@ -36,6 +36,39 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
+export const addTimeBankBalance = (amount: number, reason: string = "System Adjustment") => {
+  try {
+    const saved = localStorage.getItem('timeBankBalance');
+    let balance = saved !== null ? parseInt(saved, 10) : 45;
+    
+    let actualAmount = amount;
+    if (balance + actualAmount < 0) {
+        actualAmount = -balance;
+    }
+    balance += actualAmount;
+    if (balance < 0) balance = 0;
+    
+    localStorage.setItem('timeBankBalance', balance.toString());
+
+    // Update History
+    const historySaved = localStorage.getItem('timeBankHistory');
+    let history = historySaved ? JSON.parse(historySaved) : [];
+    history.unshift({
+      id: Math.random().toString(36).substr(2, 9),
+      amount: actualAmount,
+      reason,
+      date: new Date().toISOString()
+    });
+    // Keep last 50 entries
+    history = history.slice(0, 50);
+    localStorage.setItem('timeBankHistory', JSON.stringify(history));
+
+    window.dispatchEvent(new CustomEvent('timeBankUpdated', { detail: { balance, history } }));
+  } catch (e) {
+    console.warn('Could not update time bank balance', e);
+  }
+};
+
 interface HubContextType {
   user: User | null;
   signIn: () => Promise<void>;
@@ -164,6 +197,41 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubGoals(); unsubTasks(); unsubHabits(); unsubReflections(); unsubFocusSessions(); unsubAutomations();
     };
   }, [user]);
+
+  // Daily rules for TimeBank (auto-deducting missed habits)
+  useEffect(() => {
+    if (!user || habits.length === 0) return;
+    
+    try {
+        const lastCheck = localStorage.getItem('lastHabitDeductionCheck');
+        const now = new Date();
+        const todayStr = toLocalDateStr(now);
+
+        if (lastCheck !== todayStr) {
+            // First time ever? Don't deduct.
+            if (lastCheck !== null) {
+              let missedCount = 0;
+              const yesterdayDate = new Date(now);
+              yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+              const yStr = toLocalDateStr(yesterdayDate);
+
+              habits.forEach(h => {
+                 if (!h.completedHistory || !h.completedHistory[yStr]) {
+                     missedCount++;
+                 }
+              });
+
+              if (missedCount > 0) {
+                 addTimeBankBalance(-(missedCount * 5), `Missed ${missedCount} habits on ${yStr}`);
+              }
+            }
+            
+            localStorage.setItem('lastHabitDeductionCheck', todayStr);
+        }
+    } catch(e) {
+       console.warn('Could not process habit temporal rules', e);
+    }
+  }, [user, habits]);
 
   useEffect(() => {
     if (selectedMood) localStorage.setItem('hub_mood', selectedMood);
@@ -584,6 +652,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try { 
       await updateDoc(docRef, { completed: isNowCompleted, progress: isNowCompleted ? 100 : 0 }); 
       if (isNowCompleted) {
+        addTimeBankBalance(30, `Completed Goal: ${g.title}`);
         confetti({
           particleCount: 150,
           spread: 70,
@@ -603,6 +672,11 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       await updateDoc(docRef, { completed: isNowCompleted });
       if (isNowCompleted) {
+        if (t.priority === 'A') addTimeBankBalance(15, `Completed Priority A task: ${t.title}`);
+        else if (t.priority === 'B') addTimeBankBalance(10, `Completed Priority B task: ${t.title}`);
+        else if (t.priority === 'C') addTimeBankBalance(5, `Completed Priority C task: ${t.title}`);
+        else addTimeBankBalance(2, `Completed task: ${t.title}`);
+
         confetti({
           particleCount: 100,
           spread: 50,
@@ -623,8 +697,16 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!user) return;
     const h = habits.find(x => x.id === id);
     if (!h) return;
+    const isNowCompleted = !h.completedHistory[date];
     const docRef = doc(db, `users/${user.uid}/habits`, id);
-    try { await updateDoc(docRef, { completedHistory: { ...h.completedHistory, [date]: !h.completedHistory[date] } }); } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
+    try { 
+        await updateDoc(docRef, { completedHistory: { ...h.completedHistory, [date]: isNowCompleted } }); 
+        if (isNowCompleted) {
+            addTimeBankBalance(5, `Completed Habit: ${h.title}`);
+        } else {
+            addTimeBankBalance(-5, `Unchecked Habit: ${h.title}`);
+        }
+    } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };
 
   const deleteGoal = async (id: string) => {
@@ -686,6 +768,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const docRef = doc(db, `users/${user.uid}/reflections`, id);
     try {
       await setDoc(docRef, { text, date, ownerId: user.uid });
+      addTimeBankBalance(10, `Daily Reflection`);
       const aiInsight = await getReflectionInsight(text);
       await updateDoc(docRef, { aiInsight });
     } catch(e) { handleFirestoreError(e, OperationType.CREATE, docRef.path); }

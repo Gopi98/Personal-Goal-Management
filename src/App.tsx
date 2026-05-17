@@ -1,9 +1,8 @@
 import { toLocalDateStr, getCountdownText } from './lib/dateUtils';
 import React, { useState, useEffect, useRef, forwardRef } from "react";
-import { HabiticaTestView } from "./components/HabiticaTestView";
-import { LifeGameView } from "./components/LifeGameView";
 import { AutomationsView } from "./components/AutomationsView";
 import { YearlyProgress } from "./components/YearlyProgress";
+import { TimeBankView } from "./components/TimeBankView";
 import {
   Home,
   Target,
@@ -63,6 +62,7 @@ import {
   User,
   X as CloseIcon,
   LogOut,
+  Wallet,
 } from "lucide-react";
 import { motion, AnimatePresence, useScroll, useMotionValueEvent } from "motion/react";
 import { GoogleGenAI, Modality } from "@google/genai";
@@ -958,9 +958,9 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="glass-card p-6 flex items-center space-x-6 min-w-[320px] shadow-[0_20px_50px_rgba(0,0,0,0.3)] border-white/[0.05]"
+            className="glass-card p-4 sm:p-6 flex flex-row items-center space-x-4 sm:space-x-6 min-w-0 sm:min-w-[320px] shadow-[0_20px_50px_rgba(0,0,0,0.3)] border-white/[0.05]"
           >
-            <div className="w-16 h-16 rounded-2xl bg-white/[0.03] flex items-center justify-center text-4xl shadow-inner border border-white/[0.05]">
+            <div className="flex-shrink-0 w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-white/[0.03] flex items-center justify-center text-3xl sm:text-4xl shadow-inner border border-white/[0.05]">
               {selectedMood === "Focus" && "🎯"}
               {selectedMood === "Calm" && "🧘"}
               {selectedMood === "Energized" && "⚡"}
@@ -2419,11 +2419,23 @@ const TasksView = () => {
       return;
     }
 
+    const todaysTasks = tasks.filter(t => t.date === today && !t.completed && t.startTime);
+    let calculatedStartTime = startTime || "09:00";
+    if (todaysTasks.length > 0) {
+       const sorted = [...todaysTasks].sort((a,b) => (b.startTime || "").localeCompare(a.startTime || ""));
+       const latestTask = sorted[0];
+       const [h, m] = (latestTask.startTime || "09:00").split(":").map(Number);
+       const dur = parseInt(latestTask.duration || "30");
+       const d = new Date();
+       d.setHours(h, m + dur + 5);
+       calculatedStartTime = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    }
+
     addTask({
       title: newTitle,
       date: today,
       priority,
-      startTime,
+      startTime: calculatedStartTime,
       endTime,
       duration,
       type: type as any,
@@ -2778,7 +2790,8 @@ const TasksView = () => {
                  onClick={() => {
                    // Reschedule all from current global start
                    let currentTime = freeTime.start || "09:00";
-                   const sorted = [...incompleteTasks].sort((a,b) => (a.date || "").localeCompare(b.date || "") || (a.order || 0) - (b.order || 0));
+                   const priorityOrder: Record<string, number> = { 'A': 1, 'B': 2, 'C': 3, 'D': 4 };
+                   const sorted = [...incompleteTasks].sort((a,b) => (a.date || "").localeCompare(b.date || "") || (priorityOrder[a.priority || 'B'] || 2) - (priorityOrder[b.priority || 'B'] || 2) || (a.order || 0) - (b.order || 0));
                    for (const task of sorted) {
                      updateTask(task.id, { startTime: currentTime });
                      const [h, m] = currentTime.split(":").map(Number);
@@ -3618,7 +3631,7 @@ const InsightsView = () => {
           </div>
         </div>
 
-        <div className="space-y-8">
+        <div id="daily-reflection-section" className="space-y-8">
           <div className="space-y-2">
             <span className="text-xs font-black text-emerald-500 uppercase tracking-[0.4em] font-mono">
               Qualitative Analysis
@@ -4114,11 +4127,57 @@ const HabitsView = () => {
 };
 
 const TrojanChat = () => {
-  const { tasks, goals, habits, addHabit, updateGoal, updateTask, updateHabit, addTask, addTaskSubtask, addGoal, addSubtask, toggleTask, deleteTask, toggleGoal, deleteGoal, bulkAddTaskSubtasks, bulkAddGoalSubtasks, updateTaskSubtask, deleteTaskSubtask, updateGoalSubtask, deleteSubtask } = useHub();
+  const { user, tasks, goals, habits, addHabit, updateGoal, updateTask, updateHabit, addTask, addTaskSubtask, addGoal, addSubtask, toggleTask, deleteTask, toggleGoal, deleteGoal, bulkAddTaskSubtasks, bulkAddGoalSubtasks, updateTaskSubtask, deleteTaskSubtask, updateGoalSubtask, deleteSubtask } = useHub();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<{ role: "user" | "model"; parts: { text: string }[] }[]>([
-    { role: "model", parts: [{ text: "Trojan AI initialized.\n\nI recommend Oliver Burkeman's daily framework: Aim for 3 hours of deep work, 3 urgent/important tasks, and 3 maintenance tasks to cap a productive day without burning out.\n\nWhat are your top 3 tasks for today?" }] }
+    { role: "model", parts: [{ text: "Initializing Trojan AI..." }] }
   ]);
+
+  const [initialized, setInitialized] = useState(false);
+
+  useEffect(() => {
+    if (initialized || !user) return;
+    
+    const initTimer = setTimeout(() => {
+      const hour = new Date().getHours();
+      let greeting = "Good morning";
+      if (hour >= 12 && hour < 17) greeting = "Good afternoon";
+      else if (hour >= 17) greeting = "Good evening";
+
+      const quotes = [
+        "Amateurs sit and wait for inspiration, the rest of us just get up and go to work. — Stephen King",
+        "You don't have to be great to start, but you have to start to be great. — Zig Ziglar",
+        "The only way to do great work is to love what you do. — Steve Jobs"
+      ];
+      const quote = quotes[Math.floor(Math.random() * quotes.length)];
+
+      const todayStr = toLocalDateStr();
+      const todayTasks = tasks.filter((t: any) => t.date === todayStr || (t.date < todayStr && !t.completed));
+      const pendingToday = todayTasks.filter((t: any) => !t.completed);
+      
+      const weeklyGoals = goals.filter((g: any) => g.type === 'weekly' && !g.completed);
+
+      let suggestion = "";
+      if (pendingToday.length > 0) {
+        suggestion = `You have ${pendingToday.length} pending tasks for today.`;
+        const highPriority = pendingToday.filter((t: any) => t.priority === 'A' || t.priority === 'B');
+        if (highPriority.length > 0) {
+             suggestion += ` I suggest focusing on your high-priority items like "${highPriority[0].title}" first.`;
+        }
+      } else if (weeklyGoals.length > 0) {
+        suggestion = `Your task list for today is clear! Want to tackle a weekly goal like "${weeklyGoals[0].title}"? I can help break it down into tasks for today.`;
+      } else {
+         suggestion = `Your task list is clear! Do you want to plan some new goals, or just focus on your daily habits?`;
+      }
+
+      setMessages([
+        { role: "model", parts: [{ text: `Trojan AI initialized.\n\n${greeting}! ${quote}\n\n${suggestion}\n\nRemember, you earn Time Bank balance by completing tasks and habits. Need a Daily Plan, or want me to Analyze your Progress?` }] }
+      ]);
+      setInitialized(true);
+    }, 1500);
+
+    return () => clearTimeout(initTimer);
+  }, [user, tasks, goals, initialized]);
   const [input, setInput] = useState("");
   const [chatTaskPriority, setChatTaskPriority] = useState<"A"|"B"|"C"|"D">("A");
   const [loading, setLoading] = useState(false);
@@ -4335,7 +4394,7 @@ const TrojanChat = () => {
 
   return (
     <>
-      <div className="fixed bottom-4 right-4 sm:bottom-8 sm:right-8 z-[200]">
+      <div className="fixed bottom-[6.5rem] right-4 sm:bottom-8 sm:right-8 z-[200]">
         <Tooltip text="Talk to Trojan AI">
           <button
             onClick={() => setIsOpen(true)}
@@ -4806,6 +4865,15 @@ const AppContent = ({
                   }}
                 />
                 <SidebarItem
+                  icon={Wallet}
+                  label="Vault"
+                  active={activeView === "vault"}
+                  onClick={() => {
+                    setActiveView("vault");
+                    setIsSidebarOpen(false);
+                  }}
+                />
+                <SidebarItem
                   icon={Target}
                   label="Goals"
                   active={activeView === "goals"}
@@ -4838,24 +4906,6 @@ const AppContent = ({
                   active={activeView === "insights"}
                   onClick={() => {
                     setActiveView("insights");
-                    setIsSidebarOpen(false);
-                  }}
-                />
-                <SidebarItem
-                  icon={Gamepad2}
-                  label="Life is a Game"
-                  active={activeView === "lifegame"}
-                  onClick={() => {
-                    setActiveView("lifegame");
-                    setIsSidebarOpen(false);
-                  }}
-                />
-                <SidebarItem
-                  icon={Sword}
-                  label="Habitica Test"
-                  active={activeView === "habitica"}
-                  onClick={() => {
-                    setActiveView("habitica");
                     setIsSidebarOpen(false);
                   }}
                 />
@@ -4984,13 +5034,12 @@ const AppContent = ({
               transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
             >
               {activeView === "home" && <HomeView setActiveView={setActiveView} />}
+              {activeView === "vault" && <TimeBankView setActiveView={setActiveView} />}
               {activeView === "goals" && <GoalsView />}
               {activeView === "tasks" && <TasksView />}
               {activeView === "automations" && <AutomationsView />}
               {activeView === "habits" && <HabitsView />}
               {activeView === "insights" && <InsightsView />}
-              {activeView === "lifegame" && <LifeGameView />}
-              {activeView === "habitica" && <HabiticaTestView />}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -4998,30 +5047,29 @@ const AppContent = ({
 
       {/* Mobile Bottom Navigation - Only visible on small screens */}
       {!isZenMode && (
-        <nav className="md:hidden fixed bottom-6 left-6 right-6 z-[60]">
-          <div className="bg-[#0a0505]/95 backdrop-blur-3xl border border-white/10 rounded-3xl p-2 flex items-center justify-between shadow-2xl safe-area-pb">
+        <nav className="md:hidden fixed bottom-4 left-4 right-4 z-[60] pb-[env(safe-area-inset-bottom)]">
+          <div className="bg-[#0a0505]/95 backdrop-blur-3xl border border-white/10 rounded-3xl p-2 flex items-center justify-between shadow-2xl overflow-x-auto no-scrollbar gap-1 custom-snap">
             {[
               { id: "home", icon: Home, label: "Home" },
+              { id: "vault", icon: Wallet, label: "Vault" },
               { id: "goals", icon: Target, label: "Goals" },
               { id: "tasks", icon: CheckSquare, label: "Tasks" },
               { id: "automations", icon: Sparkles, label: "Auto" },
-              { id: "habits", icon: Flame, label: "Habits" },
-              { id: "lifegame", icon: Gamepad2, label: "Game" },
-              { id: "habitica", icon: Sword, label: "Habitica" }
+              { id: "habits", icon: Flame, label: "Habits" }
             ].map(({ id, icon: Icon, label }) => {
               const isActive = activeView === id;
               return (
                 <button
                   key={id}
                   onClick={() => setActiveView(id)}
-                  className={`flex flex-col items-center justify-center w-12 h-12 rounded-2xl transition-all ${
+                  className={`flex-none flex flex-col items-center justify-center w-[4.5rem] sm:w-[5.5rem] h-14 sm:h-16 rounded-2xl transition-all ${
                     isActive 
-                      ? "bg-blue-600/10 text-blue-500" 
-                      : "text-slate-300 hover:text-slate-200 hover:bg-white/5"
+                      ? "bg-blue-600/10 text-blue-500 shadow-inner border border-blue-500/20" 
+                      : "text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent"
                   }`}
                 >
-                  <Icon className={`w-5 h-5 ${isActive ? "scale-110" : ""}`} />
-                  <span className={`text-[8px] font-black uppercase mt-1 tracking-wider ${isActive ? "opacity-100" : "opacity-0 h-0"}`}>
+                  <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${isActive ? "scale-110" : ""}`} />
+                  <span className={`text-[9px] sm:text-[10px] font-black uppercase mt-1.5 tracking-widest transition-opacity ${isActive ? "opacity-100" : "opacity-70"}`}>
                     {label}
                   </span>
                 </button>
