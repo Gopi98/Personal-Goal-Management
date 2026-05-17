@@ -528,6 +528,7 @@ const PomodoroTimer = ({
   const [isActive, setIsActive] = useState(false);
   const [mode, setMode] = useState<"work" | "break">("work");
   const { addFocusSession } = useHub();
+  const endTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (
@@ -540,6 +541,7 @@ const PomodoroTimer = ({
 
   useEffect(() => {
     setTimeLeft(mode === "work" ? currentLength * 60 : 5 * 60);
+    endTimeRef.current = null;
   }, [currentLength, mode]);
 
   useEffect(() => {
@@ -553,13 +555,18 @@ const PomodoroTimer = ({
 
   useEffect(() => {
     let interval: any = null;
+    
     if (isActive && timeLeft > 0) {
       interval = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
+        if (!endTimeRef.current) return;
+        const now = Date.now();
+        const newTimeLeft = Math.max(0, Math.round((endTimeRef.current - now) / 1000));
+        setTimeLeft(newTimeLeft);
       }, 1000);
     } else if (timeLeft === 0 && isActive) {
       clearInterval(interval);
       setIsActive(false);
+      endTimeRef.current = null;
       stopAILoop();
 
       const nextMode = mode === "work" ? "break" : "work";
@@ -595,12 +602,31 @@ const PomodoroTimer = ({
     };
   }, [isActive, timeLeft, mode, onComplete, currentLength]);
 
+  // Handle visibility change specifically for mobile background resumption
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && isActive && endTimeRef.current) {
+         const now = Date.now();
+         const newTimeLeft = Math.max(0, Math.round((endTimeRef.current - now) / 1000));
+         setTimeLeft(newTimeLeft);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [isActive]);
+
   const toggle = () => {
+    if (!isActive) {
+      endTimeRef.current = Date.now() + timeLeft * 1000;
+    } else {
+      endTimeRef.current = null;
+    }
     setIsActive(!isActive);
   };
 
   const reset = () => {
     setIsActive(false);
+    endTimeRef.current = null;
     setTimeLeft(mode === "work" ? currentLength * 60 : 5 * 60);
   };
 

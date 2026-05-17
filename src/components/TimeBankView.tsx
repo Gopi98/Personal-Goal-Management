@@ -98,17 +98,42 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
     let interval: NodeJS.Timeout;
     if (activeTimer !== null && timerRemaining > 0) {
       interval = setInterval(() => {
-        setTimerRemaining((prev) => {
-          if (prev <= 1) {
-            handleTimerComplete();
-            return 0;
-          }
-          return prev - 1;
-        });
+        const expectedEndTime = Number(localStorage.getItem('timeBankEndTime'));
+        if (expectedEndTime) {
+           const now = Date.now();
+           const remaining = Math.max(0, Math.round((expectedEndTime - now) / 1000));
+           if (remaining <= 0) {
+             handleTimerComplete();
+             setTimerRemaining(0);
+           } else {
+             setTimerRemaining(remaining);
+           }
+        }
       }, 1000);
     }
     return () => clearInterval(interval);
   }, [activeTimer, timerRemaining]);
+  
+  // Handle visibility change specifically for mobile background resumption
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && activeTimer !== null) {
+        const expectedEndTime = Number(localStorage.getItem('timeBankEndTime'));
+        if (expectedEndTime) {
+          const now = Date.now();
+          const remaining = Math.max(0, Math.round((expectedEndTime - now) / 1000));
+          if (remaining <= 0) {
+            handleTimerComplete();
+            setTimerRemaining(0);
+          } else {
+            setTimerRemaining(remaining);
+          }
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [activeTimer]);
 
   const handleTimerComplete = () => {
     setTimerFinished(true);
@@ -146,6 +171,7 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
       setActiveTimer(minutes * 60);
       setTimerRemaining(minutes * 60);
       setTimerFinished(false);
+      localStorage.setItem('timeBankEndTime', (Date.now() + minutes * 60 * 1000).toString());
     } else {
       alert("Not enough screen time balance.");
     }
