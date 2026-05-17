@@ -257,12 +257,16 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               }
             }
             
-            // Weekend logic: extra 120 minutes for Saturday or Sunday
+            localStorage.setItem('lastHabitDeductionCheck', todayStr);
+        }
+        
+        // Weekend logic: extra 120 minutes for Saturday or Sunday
+        const lastWeekendCheck = localStorage.getItem('lastWeekendBonusCheck');
+        if (lastWeekendCheck !== todayStr) {
             if (now.getDay() === 0 || now.getDay() === 6) {
                addTimeBankBalance(120, `Weekend Holiday Bonus`);
             }
-            
-            localStorage.setItem('lastHabitDeductionCheck', todayStr);
+            localStorage.setItem('lastWeekendBonusCheck', todayStr);
         }
     } catch(e) {
        console.warn('Could not process habit temporal rules', e);
