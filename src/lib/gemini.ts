@@ -1,24 +1,29 @@
-import { GoogleGenAI } from "@google/genai";
+export const callGeminiProxy = async (model: string, contents: any[], config?: any) => {
+  const res = await fetch("/api/gemini/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model, contents, config })
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `HTTP Error \${res.status}`);
+  }
+  return res.json();
+};
 
 const getAI = () => {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey === 'your_gemini_api_key_here') {
-    console.warn("GEMINI_API_KEY is not set or invalid.");
-    return null;
-  }
-  return new GoogleGenAI({ apiKey });
+  return {
+    models: {
+      generateContent: async (args: { model: string, contents: any[], config?: any }) => {
+        return callGeminiProxy(args.model, args.contents, args.config);
+      }
+    }
+  };
 };
 
 export const getBossStory = async (bossLevel: number, tasks: any[]) => {
   try {
     const ai = getAI();
-    if (!ai) {
-      return {
-        bossName: `Dragon (Lv.${bossLevel})`,
-        bossDescription: "A generic beast formed from your uncompleted tasks.",
-        story: "The Innkeeper's crystal ball is foggy... We need a valid API key in the app settings to foresee true monsters!"
-      };
-    }
     
     const taskNames = tasks.map((t: any) => t.title).join(", ");
     
@@ -41,7 +46,7 @@ Example:
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: [{ parts: [{ text: prompt }] }]
+      contents: [{ role: "user", parts: [{ text: prompt }] } as any]
     });
 
     const text = response.text || "{}";
@@ -613,7 +618,7 @@ export const getTrojanChatResponse = async (
     let response;
     try {
       response = await ai.models.generateContent({
-        model: "gemini-2.0-flash",
+        model: "gemini-2.5-flash",
         contents: contents as any,
         config: {
           systemInstruction: `You are Trojan, an elite AI productivity personal assistant and performance coach. You help the user manage their tasks, goals (yearly/monthly/weekly), and Habits. Current tasks: ${JSON.stringify(tasks.map((t: any) => ({ id: t.id, title: t.title, priority: t.priority, completed: t.completed, subtasks: t.subtasks?.map((s:any) => ({ id: s.id, title: s.title, completed: s.completed })) }))) }. Current goals: ${JSON.stringify(goals.map((g: any) => ({ id: g.id, title: g.title, type: g.type, priority: g.priority, completed: g.completed, subtasks: g.subtasks?.map((s:any) => ({ id: s.id, title: s.title, completed: s.completed })) }))) }. Current Habits: ${JSON.stringify(habits.map((h: any) => ({ id: h.id, title: h.title }))) }. 
@@ -654,6 +659,8 @@ CRITICAL MISSION:
         throw primaryError;
       }
     }
+
+    console.log("Gemini Response:", JSON.stringify(response, null, 2));
 
     return response;
   } catch (error: any) {

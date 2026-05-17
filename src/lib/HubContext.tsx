@@ -36,7 +36,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
-export const addTimeBankBalance = (amount: number, reason: string = "System Adjustment") => {
+export const addTimeBankBalance = async (amount: number, reason: string = "System Adjustment") => {
   try {
     const saved = localStorage.getItem('timeBankBalance');
     let balance = saved !== null ? parseInt(saved, 10) : 45;
@@ -53,17 +53,35 @@ export const addTimeBankBalance = (amount: number, reason: string = "System Adju
     // Update History
     const historySaved = localStorage.getItem('timeBankHistory');
     let history = historySaved ? JSON.parse(historySaved) : [];
-    history.unshift({
+    
+    // Create new log entry
+    const log = {
       id: Math.random().toString(36).substr(2, 9),
       amount: actualAmount,
       reason,
       date: new Date().toISOString()
-    });
+    };
+    
+    history.unshift(log);
     // Keep last 50 entries
     history = history.slice(0, 50);
     localStorage.setItem('timeBankHistory', JSON.stringify(history));
 
     window.dispatchEvent(new CustomEvent('timeBankUpdated', { detail: { balance, history } }));
+
+    // Firebase Sync
+    const user = auth.currentUser;
+    if (user) {
+      const userRef = doc(db, 'users', user.uid);
+      try {
+        await setDoc(userRef, { 
+          timeBankBalance: balance,
+          timeBankHistory: history 
+        }, { merge: true });
+      } catch (fbErr) {
+        console.warn('Firebase time bank sync error:', fbErr);
+      }
+    }
   } catch (e) {
     console.warn('Could not update time bank balance', e);
   }
@@ -193,8 +211,21 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setAutomations(snap.docs.map(d => ({ ...d.data(), id: d.id } as Automation)));
     }, err => handleFirestoreError(err, OperationType.LIST, paths.automations));
 
+    const unsubUserDoc = onSnapshot(doc(db, `users/${user.uid}`), snap => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.timeBankBalance !== undefined || data.timeBankHistory !== undefined) {
+           const balance = data.timeBankBalance ?? parseInt(localStorage.getItem('timeBankBalance') || '45', 10);
+           const history = data.timeBankHistory ?? JSON.parse(localStorage.getItem('timeBankHistory') || '[]');
+           localStorage.setItem('timeBankBalance', balance.toString());
+           localStorage.setItem('timeBankHistory', JSON.stringify(history));
+           window.dispatchEvent(new CustomEvent('timeBankUpdated', { detail: { balance, history } }));
+        }
+      }
+    }, err => handleFirestoreError(err, OperationType.GET, `users/${user.uid}`));
+
     return () => {
-      unsubGoals(); unsubTasks(); unsubHabits(); unsubReflections(); unsubFocusSessions(); unsubAutomations();
+      unsubGoals(); unsubTasks(); unsubHabits(); unsubReflections(); unsubFocusSessions(); unsubAutomations(); unsubUserDoc();
     };
   }, [user]);
 
@@ -222,8 +253,13 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               });
 
               if (missedCount > 0) {
-                 addTimeBankBalance(-(missedCount * 5), `Missed ${missedCount} habits on ${yStr}`);
+                 addTimeBankBalance(-(missedCount * 10), `Missed ${missedCount} habits on ${yStr}`);
               }
+            }
+            
+            // Weekend logic: extra 120 minutes for Saturday or Sunday
+            if (now.getDay() === 0 || now.getDay() === 6) {
+               addTimeBankBalance(120, `Weekend Holiday Bonus`);
             }
             
             localStorage.setItem('lastHabitDeductionCheck', todayStr);
@@ -703,8 +739,22 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await updateDoc(docRef, { completedHistory: { ...h.completedHistory, [date]: isNowCompleted } }); 
         if (isNowCompleted) {
             addTimeBankBalance(5, `Completed Habit: ${h.title}`);
+            const allHabitsCompleted = habits.every(habit => {
+              if (habit.id === id) return true;
+              return habit.completedHistory[date];
+            });
+            if (allHabitsCompleted && habits.length > 0) {
+               addTimeBankBalance(20, `Daily Habits Bonus`);
+            }
         } else {
-            addTimeBankBalance(-5, `Unchecked Habit: ${h.title}`);
+            addTimeBankBalance(-5, `Undo Habit: ${h.title}`);
+            const wasAllHabitsCompleted = habits.every(habit => {
+              if (habit.id === id) return true;
+              return habit.completedHistory[date];
+            });
+            if (wasAllHabitsCompleted && habits.length > 0) {
+               addTimeBankBalance(-20, `Lost Daily Habits Bonus`);
+            }
         }
     } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
   };

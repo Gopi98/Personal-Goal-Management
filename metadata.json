@@ -2,5 +2,7 @@
   "name": "Drive | Productivity OS",
   "description": "A high-performance command center for missions, tasks, and consistency, featuring AI-driven neuro-audits and strategic scheduling.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

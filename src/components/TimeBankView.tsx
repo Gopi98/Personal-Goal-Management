@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Wallet, Clock, Lock, Unlock, Play, Square, BellRing, Target, CheckSquare, BookOpen, Flame, AlertCircle, History } from 'lucide-react';
 import { addTimeBankBalance } from '../lib/HubContext';
+import { pushNotification } from '../lib/notify';
 
 export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch<React.SetStateAction<string>> }) => {
   const [timeBalance, setTimeBalance] = useState(() => {
@@ -25,14 +26,6 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
       return [];
     }
   });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('timeBankBalance', timeBalance.toString());
-    } catch (e) {
-      console.warn('Could not save time balance', e);
-    }
-  }, [timeBalance]);
 
   useEffect(() => {
     try {
@@ -119,12 +112,7 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
 
   const handleTimerComplete = () => {
     setTimerFinished(true);
-    if (Notification.permission === 'granted') {
-      new Notification('Time\'s up!', {
-        body: 'Close your apps and get back to work.',
-        icon: '/favicon.ico',
-      });
-    }
+    pushNotification('Time\'s up!', 'Close your apps and get back to work.');
     // Play a standard web audio chime (using an oscillator as it's built-in, or a data-uri audio)
     try {
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -154,7 +142,7 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
       if (Notification.permission === 'default') {
         Notification.requestPermission();
       }
-      setTimeBalance(prev => prev - minutes);
+      addTimeBankBalance(-minutes, `Started Break Timer (${minutes}m)`);
       setActiveTimer(minutes * 60);
       setTimerRemaining(minutes * 60);
       setTimerFinished(false);
@@ -174,7 +162,7 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
   const endBreak = () => {
     if (timerRemaining > 0 && !timerFinished) {
       const minutesToRefund = Math.ceil(timerRemaining / 60);
-      setTimeBalance(prev => prev + minutesToRefund);
+      addTimeBankBalance(minutesToRefund, `Refunded early end of break (${minutesToRefund}m)`);
     }
     setActiveTimer(null);
     setTimerRemaining(0);
@@ -192,7 +180,9 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
     { icon: CheckSquare, label: "Priority A / Morning Check", value: "+15", color: "text-emerald-400", targetView: "tasks" },
     { icon: BookOpen, label: "Journaling / Priority B", value: "+10", color: "text-emerald-400", targetView: "insights" },
     { icon: Flame, label: "Habits / Priority C", value: "+5", color: "text-emerald-400", targetView: "habits" },
-    { icon: AlertCircle, label: "Skipped Habits", value: "-5", color: "text-rose-400", targetView: "habits" },
+    { icon: Flame, label: "All Habits Complete", value: "+20", color: "text-emerald-500", targetView: "habits" },
+    { icon: AlertCircle, label: "Weekend Bonus", value: "+120", color: "text-cyan-400", targetView: "info" },
+    { icon: AlertCircle, label: "Skipped Habits", value: "-10", color: "text-rose-400", targetView: "habits" },
   ];
 
   return (

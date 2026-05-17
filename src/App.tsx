@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, forwardRef } from "react";
 import { AutomationsView } from "./components/AutomationsView";
 import { YearlyProgress } from "./components/YearlyProgress";
 import { TimeBankView } from "./components/TimeBankView";
+import { InfoView } from "./components/InfoView";
 import {
   Home,
   Target,
@@ -62,7 +63,7 @@ import {
   User,
   X as CloseIcon,
   LogOut,
-  Wallet,
+  BellRing
 } from "lucide-react";
 import { motion, AnimatePresence, useScroll, useMotionValueEvent } from "motion/react";
 import { GoogleGenAI, Modality } from "@google/genai";
@@ -85,6 +86,7 @@ import {
   Pie,
 } from "recharts";
 import { HubProvider, useHub } from "./lib/HubContext";
+import { pushNotification as sendNotification } from './lib/notify';
 import { getAICoachInsight, getTrojanChatResponse, getDailyMotivation, getGoalBreakdown, getDeepAnalysis, getGoalFocusAdvice, getTaskFocusAdvice, getOverviewFocusAdvice } from "./lib/gemini";
 
 // --- Shared Components ---
@@ -236,11 +238,7 @@ const playBeep = () => {
   }
 };
 
-const sendNotification = (title: string, body: string) => {
-  if (Notification.permission === "granted") {
-    new Notification(title, { body, icon: "/favicon.ico" });
-  }
-};
+// Removed middle import
 
 const NotificationEditor = ({
   enabled,
@@ -4220,11 +4218,13 @@ const TrojanChat = () => {
     const textToSendLLM = textToSendVisible + `\n\n[System Info: User's chosen priority from UI dropdown is ${chatTaskPriority}]`;
 
     const response = await getTrojanChatResponse(textToSendLLM, history, tasks, goals, habits);
+    
+    console.log("App.tsx received response:", response);
 
     if (response?.isQuotaError) {
       setQuotaWaitTime(60);
       setMessages(prev => [...prev, { role: "model", parts: [{ text: response.text }] }]);
-    } else if (response?.functionCalls) {
+    } else if (response?.functionCalls && response.functionCalls.length > 0) {
       let functionResponses = [];
       const convertSubtasks = (stArray: any[]): any[] => {
           return stArray.map((st: any) => {
@@ -4386,7 +4386,7 @@ const TrojanChat = () => {
     } else if (response?.text) {
       setMessages(prev => [...prev, { role: "model", parts: [{ text: response.text }] }]);
     } else {
-      setMessages(prev => [...prev, { role: "model", parts: [{ text: "No response from command." }] }]);
+      setMessages(prev => [...prev, { role: "model", parts: [{ text: `No response from command. Debug: ${JSON.stringify(response)}` }] }]);
     }
 
     setLoading(false);
@@ -4569,8 +4569,6 @@ const NotificationEngine = () => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      if (Notification.permission !== "granted") return;
-
       const now = new Date();
       const currentHours = now.getHours().toString().padStart(2, '0');
       const currentMinutes = now.getMinutes().toString().padStart(2, '0');
@@ -4583,7 +4581,7 @@ const NotificationEngine = () => {
 
           const key = `goal-${goal.id}-${todayStr}-${currentTimeStr}`;
           if (!notifiedSet.current.has(key)) {
-            new Notification("🎯 Target Locked", { body: `Time to execute on your goal: ${goal.title}` });
+            sendNotification("🎯 Target Locked", `Time to execute on your goal: ${goal.title}`);
             notifiedSet.current.add(key);
           }
         }
@@ -4597,7 +4595,7 @@ const NotificationEngine = () => {
            if (!history[todayStr]) {
             const key = `habit-${habit.id}-${todayStr}-${currentTimeStr}`;
             if (!notifiedSet.current.has(key)) {
-              new Notification("⚡ Momentum Check", { body: `Keep your streak alive. Time for: ${habit.title}` });
+              sendNotification("⚡ Momentum Check", `Keep your streak alive. Time for: ${habit.title}`);
               notifiedSet.current.add(key);
             }
            }
@@ -4610,7 +4608,7 @@ const NotificationEngine = () => {
           
           const key = `task-${task.id}-${todayStr}-${currentTimeStr}`;
           if (!notifiedSet.current.has(key)) {
-             new Notification("📋 Task Pending", { body: `Time to execute: ${task.title}` });
+             sendNotification("📋 Task Pending", `Time to execute: ${task.title}`);
              notifiedSet.current.add(key);
           }
         }
@@ -4714,6 +4712,45 @@ const AutomationEngine = () => {
   return null;
 };
 
+const ToastContainer = () => {
+  const [toasts, setToasts] = useState<{id: string; title: string; body: string}[]>([]);
+
+  useEffect(() => {
+    const handleNotify = (e: any) => {
+      const { title, body } = e.detail;
+      const id = Math.random().toString(36).substr(2, 9);
+      setToasts(prev => [...prev, { id, title, body }]);
+      setTimeout(() => {
+        setToasts(prev => prev.filter(t => t.id !== id));
+      }, 5000);
+    };
+    window.addEventListener('app-notification', handleNotify as EventListener);
+    return () => window.removeEventListener('app-notification', handleNotify as EventListener);
+  }, []);
+
+  return (
+    <div className="fixed bottom-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none">
+      <AnimatePresence>
+        {toasts.map(t => (
+          <motion.div
+             key={t.id}
+             initial={{ opacity: 0, y: 20, scale: 0.9 }}
+             animate={{ opacity: 1, y: 0, scale: 1 }}
+             exit={{ opacity: 0, scale: 0.9 }}
+             className="bg-slate-900 border border-blue-500/30 text-white rounded-2xl shadow-[0_0_30px_rgba(37,99,235,0.2)] p-4 w-72 pointer-events-auto"
+          >
+             <h4 className="font-bold text-sm tracking-wider flex items-center gap-2 uppercase text-blue-400">
+               <BellRing className="w-4 h-4" />
+               {t.title}
+             </h4>
+             <p className="text-xs mt-2 text-slate-300 tracking-wide leading-relaxed">{t.body}</p>
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 export default function App() {
   const [activeView, setActiveView] = useState("home");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -4723,6 +4760,7 @@ export default function App() {
     <HubProvider>
       <NotificationEngine />
       <AutomationEngine />
+      <ToastContainer />
       <AppContent
         activeView={activeView}
         setActiveView={setActiveView}
@@ -4918,6 +4956,15 @@ const AppContent = ({
                     setIsSidebarOpen(false);
                   }}
                 />
+                <SidebarItem
+                  icon={Info}
+                  label="Info"
+                  active={activeView === "info"}
+                  onClick={() => {
+                    setActiveView("info");
+                    setIsSidebarOpen(false);
+                  }}
+                />
 
                 <div className="pt-8 mt-8 border-t border-white/5 space-y-4">
                   <p className="text-xs font-black text-slate-300 uppercase tracking-widest">
@@ -5040,6 +5087,7 @@ const AppContent = ({
               {activeView === "automations" && <AutomationsView />}
               {activeView === "habits" && <HabitsView />}
               {activeView === "insights" && <InsightsView />}
+              {activeView === "info" && <InfoView />}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -5055,7 +5103,8 @@ const AppContent = ({
               { id: "goals", icon: Target, label: "Goals" },
               { id: "tasks", icon: CheckSquare, label: "Tasks" },
               { id: "automations", icon: Sparkles, label: "Auto" },
-              { id: "habits", icon: Flame, label: "Habits" }
+              { id: "habits", icon: Flame, label: "Habits" },
+              { id: "info", icon: Info, label: "Info" }
             ].map(({ id, icon: Icon, label }) => {
               const isActive = activeView === id;
               return (
