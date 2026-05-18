@@ -6,7 +6,7 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: "50mb" }));
 
   console.log("BEFORE VITE:", process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.substring(0,5) : "undefined");
   
@@ -26,9 +26,31 @@ async function startServer() {
       const { model, contents, config } = req.body;
       const response = await ai.models.generateContent({ model, contents, config });
       
+      console.log("Raw Gemini response:", JSON.stringify(response, null, 2));
+      
+      let text = response.text || "";
+      let functionCalls = response.functionCalls || [];
+      
+      // Safety/fallback check
+      if (!text && (!functionCalls || functionCalls.length === 0)) {
+         const candidate = (response as any).candidates?.[0];
+         if (candidate) {
+           const finishReason = candidate.finishReason;
+           if (finishReason === "RECITATION") {
+             text = "SYSTEM ALERT: The AI's response was blocked by Google's safety filters (Reason: RECITATION), which usually happens when the model tries to output text that is too similar to existing web content. Try asking the AI to summarize, rephrase, or break down the text differently.";
+           } else if (finishReason === "SAFETY") {
+             text = "SYSTEM ALERT: The AI's response was blocked by Google's safety filters. Please modify your prompt and try again.";
+           } else {
+             text = `[System Node] No text or function calls generated. Finish Reason: ${finishReason}`;
+           }
+         } else {
+           text = "[System Node] Empty response object received from AI.";
+         }
+      }
+      
       const payload = {
-         text: response.text,
-         functionCalls: response.functionCalls,
+         text,
+         functionCalls,
          isQuotaError: false
       };
       res.json(payload);

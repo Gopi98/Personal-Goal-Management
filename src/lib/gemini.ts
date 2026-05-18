@@ -629,9 +629,10 @@ CRITICAL MISSION:
 3. Suggest habits or goals if the user asks for self-improvement ideas.
 4. Maintain context across turns. If the user provided a title in a previous turn and now provides a missing priority (or vice versa), combine them and execute the tool. Do not ask for information the user has already provided. If all required details are present, execute the tool immediately.
 5. NESTED SUBTASKS: You can create goals and tasks with subtasks, and those subtasks can have their own subtasks (multi-level nesting). When adding complex projects or goals, actively break them down into nested subtasks if appropriate.
-6. APP CONTEXT: Tell the user about the 'Time Bank' system if they ask about app features. They earn value (Time Bank balance) by completing tasks and habits. The older 'Habitica Test' and 'Life is a Game' pages have been removed to focus entirely on the Time Bank.`,
+6. APP CONTEXT: Tell the user about the 'Time Bank' system if they ask about app features. They earn value (Time Bank balance) by completing tasks and habits. The older 'Habitica Test' and 'Life is a Game' pages have been removed to focus entirely on the Time Bank.
+7. To avoid RECITATION errors, do not copy large blocks of text from the user verbatim. Summarize and slightly rephrase.`,
           tools: [{ functionDeclarations: [createTaskDeclaration as any, createGoalDeclaration as any, createHabitDeclaration as any, toggleTaskDeclaration as any, deleteTaskDeclaration as any, toggleGoalDeclaration as any, deleteGoalDeclaration as any, updateTaskDeclaration as any, updateGoalDeclaration as any, updateHabitDeclaration as any, updateTaskSubtaskDeclaration as any, deleteTaskSubtaskDeclaration as any, updateGoalSubtaskDeclaration as any, deleteGoalSubtaskDeclaration as any] }],
-          temperature: 0.1
+          temperature: 0.4
         }
       });
     } catch (primaryError: any) {
@@ -650,9 +651,10 @@ CRITICAL MISSION:
 3. Suggest habits or goals if the user asks for self-improvement ideas.
 4. Maintain context across turns. If the user provided a title in a previous turn and now provides a missing priority (or vice versa), combine them and execute the tool. Do not ask for information the user has already provided. If all required details are present, execute the tool immediately.
 5. NESTED SUBTASKS: You can create goals and tasks with subtasks, and those subtasks can have their own subtasks (multi-level nesting). When adding complex projects or goals, actively break them down into nested subtasks if appropriate.
-6. APP CONTEXT: Tell the user about the 'Time Bank' system if they ask about app features. They earn value (Time Bank balance) by completing tasks and habits. The older 'Habitica Test' and 'Life is a Game' pages have been removed to focus entirely on the Time Bank.`,
+6. APP CONTEXT: Tell the user about the 'Time Bank' system if they ask about app features. They earn value (Time Bank balance) by completing tasks and habits. The older 'Habitica Test' and 'Life is a Game' pages have been removed to focus entirely on the Time Bank.
+7. To avoid RECITATION errors, do not copy large blocks of text from the user verbatim. Summarize and slightly rephrase.`,
             tools: [{ functionDeclarations: [createTaskDeclaration as any, createGoalDeclaration as any, createHabitDeclaration as any, toggleTaskDeclaration as any, deleteTaskDeclaration as any, toggleGoalDeclaration as any, deleteGoalDeclaration as any, updateTaskDeclaration as any, updateGoalDeclaration as any, updateHabitDeclaration as any, updateTaskSubtaskDeclaration as any, deleteTaskSubtaskDeclaration as any, updateGoalSubtaskDeclaration as any, deleteGoalSubtaskDeclaration as any] }],
-            temperature: 0.1
+            temperature: 0.4
           }
         });
       } else {

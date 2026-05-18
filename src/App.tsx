@@ -2012,6 +2012,7 @@ const GoalsView = () => {
         priority: goal.priority,
         completed: false,
         subtasks: goal.subtasks || [],
+        isYearlyOrigin: goal.isYearlyOrigin
       });
       nextType = "Monthly Goal";
     } else if (goal.type === "monthly") {
@@ -2021,6 +2022,7 @@ const GoalsView = () => {
         priority: goal.priority,
         completed: false,
         subtasks: goal.subtasks || [],
+        isYearlyOrigin: goal.isYearlyOrigin
       });
       nextType = "Yearly Goal";
     }
@@ -2041,6 +2043,7 @@ const GoalsView = () => {
     let nextType = "";
     const fromGoalId = isSubtask ? goal.id : undefined;
     const promotedSubtasks = isSubtask && item.subtasks ? item.subtasks : (!isSubtask ? goal.subtasks : []);
+    const isYearlyOrigin = !isSubtask && (goal.type === "yearly" || goal.isYearlyOrigin);
 
     if (goal.type === "yearly") {
       addGoal({
@@ -2051,6 +2054,7 @@ const GoalsView = () => {
         subtasks: promotedSubtasks,
         parentGoalTitle: !isSubtask ? undefined : goal.title,
         fromGoalId,
+        isYearlyOrigin
       });
       nextType = "Monthly Goal";
     } else if (goal.type === "monthly") {
@@ -2062,6 +2066,7 @@ const GoalsView = () => {
         subtasks: promotedSubtasks,
         parentGoalTitle: !isSubtask ? undefined : goal.title,
         fromGoalId,
+        isYearlyOrigin
       });
       nextType = "Weekly Goal";
     } else if (goal.type === "weekly") {
@@ -2075,6 +2080,7 @@ const GoalsView = () => {
         parentGoalTitle: !isSubtask ? undefined : goal.title,
         fromGoalId,
         fromSubtaskId: parentId,
+        isYearlyOrigin
       });
       nextType = "Daily Task";
     }
@@ -2535,7 +2541,8 @@ const TasksView = () => {
             type: "weekly",
             priority: task.priority || "B",
             completed: task.completed || false,
-            subtasks: task.subtasks || []
+            subtasks: task.subtasks || [],
+            isYearlyOrigin: task.isYearlyOrigin
         });
         nextType = "Weekly Goal";
     }
@@ -4427,7 +4434,7 @@ const TrojanChat = () => {
     } else if (response?.text) {
       setMessages(prev => [...prev, { role: "model", parts: [{ text: response.text }] }]);
     } else {
-      setMessages(prev => [...prev, { role: "model", parts: [{ text: `No response from command. Debug: ${JSON.stringify(response)}` }] }]);
+      setMessages(prev => [...prev, { role: "model", parts: [{ text: `Command completed with empty response. Debug: ${JSON.stringify(response)}` }] }]);
     }
 
     setLoading(false);

@@ -291,6 +291,18 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addGoal = async (g: any): Promise<string | undefined> => {
     if (!user) return undefined;
+    
+    // Check for duplicate uncompleted goal of the same type
+    const existingGoal = goals.find(x => 
+      !x.completed && 
+      x.title.toLowerCase().trim() === g.title.toLowerCase().trim() && 
+      x.type === g.type
+    );
+    
+    if (existingGoal) {
+      return existingGoal.id;
+    }
+
     const id = Math.random().toString(36).substr(2, 9);
     const docRef = doc(db, `users/${user.uid}/goals`, id);
     const data: any = {
@@ -543,6 +555,18 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addTask = async (t: any): Promise<string | undefined> => {
     if (!user) return undefined;
+    
+    // Check for duplicate uncompleted task on the same date
+    const existingTask = tasks.find(x => 
+      !x.completed && 
+      x.title.toLowerCase().trim() === t.title.toLowerCase().trim() && 
+      (t.date ? x.date === t.date : true)
+    );
+    
+    if (existingTask) {
+      return existingTask.id;
+    }
+
     const id = Math.random().toString(36).substr(2, 9);
     const docRef = doc(db, `users/${user.uid}/tasks`, id);
     const data: any = {
@@ -562,6 +586,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (t.linkedHabitId) data.linkedHabitId = t.linkedHabitId;
     if (t.fromGoalId) data.fromGoalId = t.fromGoalId;
     if (t.fromSubtaskId) data.fromSubtaskId = t.fromSubtaskId;
+    if (t.isYearlyOrigin !== undefined) data.isYearlyOrigin = t.isYearlyOrigin;
     
     const deepClean = (obj: any): any => {
       if (Array.isArray(obj)) {
@@ -672,6 +697,8 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addHabit = async (title: string, frequency: string = 'daily') => {
     if (!user) return;
+    const existingHabit = habits.find(x => x.title.toLowerCase().trim() === title.toLowerCase().trim());
+    if (existingHabit) return;
     const id = Math.random().toString(36).substr(2, 9);
     const docRef = doc(db, `users/${user.uid}/habits`, id);
     try { await setDoc(docRef, { title, frequency, streak: 0, completedHistory: {}, ownerId: user.uid }); } catch(e) { handleFirestoreError(e, OperationType.CREATE, docRef.path); }
@@ -692,7 +719,17 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try { 
       await updateDoc(docRef, { completed: isNowCompleted, progress: isNowCompleted ? 100 : 0 }); 
       if (isNowCompleted) {
-        addTimeBankBalance(30, `Completed Goal: ${g.title}`);
+        const isYearlyOrigin = g.type === 'yearly' || g.isYearlyOrigin;
+
+        if (isYearlyOrigin) {
+          addTimeBankBalance(30, `Completed Goal: ${g.title}`);
+        } else {
+          if (g.priority === 'A') addTimeBankBalance(15, `Completed Priority A Goal: ${g.title}`);
+          else if (g.priority === 'B') addTimeBankBalance(10, `Completed Priority B Goal: ${g.title}`);
+          else if (g.priority === 'C') addTimeBankBalance(5, `Completed Priority C Goal: ${g.title}`);
+          else addTimeBankBalance(2, `Completed Goal: ${g.title}`);
+        }
+
         confetti({
           particleCount: 150,
           spread: 70,
@@ -712,10 +749,14 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       await updateDoc(docRef, { completed: isNowCompleted });
       if (isNowCompleted) {
-        if (t.priority === 'A') addTimeBankBalance(15, `Completed Priority A task: ${t.title}`);
-        else if (t.priority === 'B') addTimeBankBalance(10, `Completed Priority B task: ${t.title}`);
-        else if (t.priority === 'C') addTimeBankBalance(5, `Completed Priority C task: ${t.title}`);
-        else addTimeBankBalance(2, `Completed task: ${t.title}`);
+        if (t.isYearlyOrigin) {
+          addTimeBankBalance(30, `Completed Yearly Goal Task: ${t.title}`);
+        } else {
+          if (t.priority === 'A') addTimeBankBalance(15, `Completed Priority A task: ${t.title}`);
+          else if (t.priority === 'B') addTimeBankBalance(10, `Completed Priority B task: ${t.title}`);
+          else if (t.priority === 'C') addTimeBankBalance(5, `Completed Priority C task: ${t.title}`);
+          else addTimeBankBalance(2, `Completed task: ${t.title}`);
+        }
 
         confetti({
           particleCount: 100,
@@ -739,25 +780,38 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!h) return;
     const isNowCompleted = !h.completedHistory[date];
     const docRef = doc(db, `users/${user.uid}/habits`, id);
+
+    const nowLocalDate = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
+    const getMonday = (dStr: string) => {
+      const d = new Date(dStr + 'T12:00:00');
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6: 1);
+      return new Date(d.setDate(diff)).toISOString().split('T')[0];
+    };
+    const isCurrentWeek = getMonday(date) === getMonday(nowLocalDate);
+
     try { 
         await updateDoc(docRef, { completedHistory: { ...h.completedHistory, [date]: isNowCompleted } }); 
-        if (isNowCompleted) {
-            addTimeBankBalance(5, `Completed Habit: ${h.title}`);
-            const allHabitsCompleted = habits.every(habit => {
-              if (habit.id === id) return true;
-              return habit.completedHistory[date];
-            });
-            if (allHabitsCompleted && habits.length > 0) {
-               addTimeBankBalance(20, `Daily Habits Bonus`);
-            }
-        } else {
-            addTimeBankBalance(-5, `Undo Habit: ${h.title}`);
-            const wasAllHabitsCompleted = habits.every(habit => {
-              if (habit.id === id) return true;
-              return habit.completedHistory[date];
-            });
-            if (wasAllHabitsCompleted && habits.length > 0) {
-               addTimeBankBalance(-20, `Lost Daily Habits Bonus`);
+        
+        if (isCurrentWeek) {
+            if (isNowCompleted) {
+                addTimeBankBalance(5, `Completed Habit: ${h.title}`);
+                const allHabitsCompleted = habits.every(habit => {
+                  if (habit.id === id) return true;
+                  return habit.completedHistory[date];
+                });
+                if (allHabitsCompleted && habits.length > 0) {
+                   addTimeBankBalance(20, `Daily Habits Bonus`);
+                }
+            } else {
+                addTimeBankBalance(-5, `Undo Habit: ${h.title}`);
+                const wasAllHabitsCompleted = habits.every(habit => {
+                  if (habit.id === id) return true;
+                  return habit.completedHistory[date];
+                });
+                if (wasAllHabitsCompleted && habits.length > 0) {
+                   addTimeBankBalance(-20, `Lost Daily Habits Bonus`);
+                }
             }
         }
     } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }
