@@ -782,13 +782,12 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const docRef = doc(db, `users/${user.uid}/habits`, id);
 
     const nowLocalDate = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
-    const getMonday = (dStr: string) => {
+    const getSunday = (dStr: string) => {
       const d = new Date(dStr + 'T12:00:00');
-      const day = d.getDay();
-      const diff = d.getDate() - day + (day === 0 ? -6: 1);
-      return new Date(d.setDate(diff)).toISOString().split('T')[0];
+      const day = d.getDay(); // 0 is Sunday
+      return new Date(d.setDate(d.getDate() - day)).toISOString().split('T')[0];
     };
-    const isCurrentWeek = getMonday(date) === getMonday(nowLocalDate);
+    const isCurrentWeek = getSunday(date) === getSunday(nowLocalDate);
 
     try { 
         await updateDoc(docRef, { completedHistory: { ...h.completedHistory, [date]: isNowCompleted } }); 

@@ -108,10 +108,10 @@ const SidebarItem = ({
     <button
       onClick={onClick}
       aria-label={label}
-      className={`w-full flex items-center space-x-4 px-6 py-4 rounded-[20px] transition-all group relative overflow-hidden ${
+      className={`w-full flex items-center space-x-4 px-5 py-3.5 mt-1 rounded-[16px] transition-all duration-300 group relative overflow-hidden ${
         active
-          ? "bg-blue-600/10 text-white border border-blue-500/20 shadow-[0_0_20px_rgba(37,99,235,0.1)]"
-          : "text-slate-300 hover:text-slate-200 hover:bg-white/[0.03] border border-transparent"
+          ? "bg-blue-600/15 text-white border border-blue-500/30 shadow-[0_0_20px_rgba(37,99,235,0.15)]"
+          : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.05] border border-transparent"
       }`}
     >
       {active && (
@@ -832,6 +832,34 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
   const { goals, tasks, habits, selectedMood, setSelectedMood, reflections, focusSessions, toggleTask, addTask, deleteTask, updateTask, updateTaskSubtask } = useHub();
   const [motivation, setMotivation] = useState<string | null>(null);
 
+  const [vaultBalance, setVaultBalance] = useState(() => {
+    try {
+      const saved = localStorage.getItem('timeBankBalance');
+      return saved !== null ? parseInt(saved, 10) : 45;
+    } catch {
+      return 45;
+    }
+  });
+
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'timeBankBalance' && e.newValue !== null) {
+        setVaultBalance(parseInt(e.newValue, 10));
+      }
+    };
+    const handleCustomUpdate = (e: any) => {
+      if (e.detail && typeof e.detail.balance === 'number') {
+        setVaultBalance(e.detail.balance);
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('timeBankUpdated', handleCustomUpdate);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('timeBankUpdated', handleCustomUpdate);
+    };
+  }, []);
+
   const [isRefreshingQuote, setIsRefreshingQuote] = useState(false);
   const [taskCreateDate, setTaskCreateDate] = useState<string|null>(null);
   const [taskCreateTitle, setTaskCreateTitle] = useState("");
@@ -1164,40 +1192,47 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
       </div>
 
       {/* Main Insights Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-10">
         {/* Left Column: AI & Stats */}
         <div className="lg:col-span-12 grid grid-cols-1 gap-6">
-          <GlassCard className="p-8 flex flex-col justify-between overflow-visible">
-            <div className="flex items-center space-x-2 mb-8">
+          <GlassCard 
+            className="p-8 flex flex-col justify-between overflow-visible cursor-pointer group hover:border-blue-500/50 hover:bg-white/[0.04] transition-all duration-300"
+            onClick={() => setActiveView('vault')}
+          >
+            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 blur-[100px] rounded-full -mr-20 -mt-20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+            
+            <div className="flex items-center space-x-2 mb-8 relative z-10">
               <p className="text-xs font-black text-slate-300 uppercase tracking-widest">
-                Performance Score
+                Vault Time
               </p>
               <div className="relative group/tooltip z-50 hover:z-[100]">
-                <Info className="w-3 h-3 text-slate-300 cursor-help" />
-                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-48 p-3 bg-slate-700 text-xs text-slate-300 rounded-lg shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all z-50 pointer-events-none">
-                  A dynamic score ({completedToday * 20 + 42} pts) calculated by your completed tasks ({completedToday}) multiplied by 20, plus a base momentum of 42. Keep crushing tasks to boost your score!
+                <Info className="w-3 h-3 text-slate-400 cursor-help transition-colors group-hover/tooltip:text-blue-400" />
+                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 p-4 bg-slate-800 text-[11px] leading-relaxed text-slate-300 border border-white/10 rounded-xl shadow-2xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 z-50 pointer-events-none">
+                  Your accumulated Vault Time. Earned from completing goals, tasks, and habits. Click to manage your vault!
                   <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-slate-800"></div>
                 </div>
               </div>
             </div>
-            <div className="flex items-baseline space-x-1">
-              <span className="text-7xl font-display font-black text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.1)]">
-                {completedToday * 20 + 42}
+            
+            <div className="flex items-baseline space-x-2 relative z-10">
+              <span className="text-8xl font-display font-black text-white tracking-tighter drop-shadow-[0_0_20px_rgba(255,255,255,0.1)] group-hover:scale-[1.02] transition-transform duration-300 transform-gpu">
+                {vaultBalance}
               </span>
-              <span className="text-blue-500 font-black tracking-widest text-sm">PTS</span>
+              <span className="text-blue-500 font-bold tracking-[0.2em] text-sm uppercase">MIN</span>
             </div>
-            <div className="mt-8 pt-8 border-t border-white/5 space-y-4">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-300 font-medium">Daily Target</span>
+            
+            <div className="mt-8 pt-8 border-t border-white/5 space-y-4 relative z-10">
+              <div className="flex items-center justify-between text-[11px] uppercase tracking-widest">
+                <span className="text-slate-400 font-bold">Daily Target</span>
                 <span className="text-white font-black">
                   {Math.min(100, completedToday * 25)}%
                 </span>
               </div>
-              <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+              <div className="h-1.5 w-full bg-white/[0.03] rounded-full overflow-hidden border border-white/[0.05]">
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${Math.min(100, completedToday * 25)}%` }}
-                  className="h-full bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.5)]"
+                  className="h-full bg-gradient-to-r from-blue-600 to-blue-400 shadow-[0_0_15px_rgba(37,99,235,0.6)] rounded-full"
                 />
               </div>
             </div>
@@ -1226,23 +1261,23 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
           ].map((card, i) => (
             <GlassCard
               key={i}
-              className="p-6 group hover:translate-y-[-4px] transition-all duration-300 relative overflow-visible"
+              className="p-8 group hover:translate-y-[-4px] transition-all duration-300 relative overflow-visible"
             >
               <div
-                className={`w-10 h-10 rounded-2xl bg-white/[0.03] flex items-center justify-center mb-6 group-hover:bg-white/[0.08] transition-all border border-white/[0.05]`}
+                className={`w-12 h-12 rounded-2xl bg-white/[0.03] flex items-center justify-center mb-6 group-hover:bg-white/[0.08] transition-all border border-white/[0.05] group-hover:scale-110 shadow-inner`}
               >
                 <card.icon className={`w-5 h-5 ${card.color}`} />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 relative z-10">
                 <Tooltip text={card.desc}>
-                  <p className="text-xs w-max font-black text-slate-300 uppercase tracking-widest cursor-help border-b border-dashed border-slate-500/50 pb-0.5 inline-block">
+                  <p className="text-[10px] w-max font-bold text-slate-400 uppercase tracking-widest cursor-help border-b border-dashed border-slate-600/50 pb-0.5 inline-block mb-2">
                     {card.label}
                   </p>
                 </Tooltip>
-                <h4 className="text-3xl font-display font-black text-white">
+                <h4 className="text-4xl font-display font-black text-white group-hover:text-blue-50 transition-colors">
                   {card.value}
                 </h4>
-                <p className="text-xs font-bold text-slate-300 uppercase tracking-tighter mt-2">
+                <p className="text-xs font-bold text-blue-500 uppercase tracking-tighter mt-2 group-hover:text-blue-400 transition-colors">
                   {card.sub}
                 </p>
               </div>
@@ -2834,8 +2869,11 @@ const TasksView = () => {
                
                <button
                  onClick={() => {
-                   // Reschedule all from current global start
-                   let currentTime = freeTime.start || "09:00";
+                   // Reschedule all from current time + 5 mins
+                   const now = new Date();
+                   now.setMinutes(now.getMinutes() + 5);
+                   let currentTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+                   setFreeTime({ ...freeTime, start: currentTime });
                    const priorityOrder: Record<string, number> = { 'A': 1, 'B': 2, 'C': 3, 'D': 4 };
                    const sorted = [...incompleteTasks].sort((a,b) => (a.date || "").localeCompare(b.date || "") || (priorityOrder[a.priority || 'B'] || 2) - (priorityOrder[b.priority || 'B'] || 2) || (a.order || 0) - (b.order || 0));
                    for (const task of sorted) {
@@ -4228,6 +4266,16 @@ const TrojanChat = () => {
   const [chatTaskPriority, setChatTaskPriority] = useState<"A"|"B"|"C"|"D">("A");
   const [loading, setLoading] = useState(false);
   const [quotaWaitTime, setQuotaWaitTime] = useState(0);
+  
+  // Wizard State
+  const [showWizard, setShowWizard] = useState<"none" | "task" | "goal">("none");
+  const [wizardData, setWizardData] = useState({
+    title: "",
+    count: 1,
+    pattern: "Subtask ${n}",
+    type: "monthly"
+  });
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -4509,11 +4557,147 @@ const TrojanChat = () => {
                   </div>
                 </div>
               )}
+              {showWizard !== "none" && (
+                <div className="bg-[#1a1a24] border border-blue-500/30 rounded-xl p-4 mt-4 text-sm animate-in fade-in slide-in-from-bottom-2">
+                  <div className="flex items-center justify-between mb-4">
+                     <span className="font-bold text-white tracking-wide uppercase text-xs">
+                       ⚡ Batch {showWizard === "goal" ? "Goal" : "Task"} Creator
+                     </span>
+                     <button onClick={() => setShowWizard("none")} className="text-slate-400 hover:text-white">
+                        <CloseIcon className="w-4 h-4" />
+                     </button>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs text-slate-400 block mb-1 uppercase tracking-widest">{showWizard === "goal" ? "Goal" : "Task"} Title</label>
+                      <input 
+                        type="text" 
+                        value={wizardData.title}
+                        onChange={(e) => setWizardData({...wizardData, title: e.target.value})}
+                        className="w-full bg-white/5 border border-white/10 rounded-md px-3 py-2 text-white focus:outline-none focus:border-blue-500/50" 
+                        placeholder="e.g. Save $30k" 
+                      />
+                    </div>
+                    {showWizard === "goal" && (
+                       <div>
+                         <label className="text-xs text-slate-400 block mb-1 uppercase tracking-widest">Timeframe</label>
+                         <select 
+                           value={wizardData.type}
+                           onChange={(e) => setWizardData({...wizardData, type: e.target.value})}
+                           className="w-full bg-white/5 border border-white/10 rounded-md px-3 py-2 text-white focus:outline-none focus:border-blue-500/50"
+                         >
+                           <option value="yearly">Yearly</option>
+                           <option value="monthly">Monthly</option>
+                           <option value="weekly">Weekly</option>
+                         </select>
+                       </div>
+                    )}
+                    <div className="flex gap-3">
+                      <div className="w-1/3">
+                        <label className="text-xs text-slate-400 block mb-1 uppercase tracking-widest">Subtasks Qty</label>
+                        <input 
+                          type="number" min="0" max="50"
+                          value={wizardData.count}
+                          onChange={(e) => setWizardData({...wizardData, count: parseInt(e.target.value) || 0})}
+                          className="w-full bg-white/5 border border-white/10 rounded-md px-3 py-2 text-white focus:outline-none focus:border-blue-500/50" 
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-xs text-slate-400 block mb-1 uppercase tracking-widest">Naming Pattern</label>
+                        <input 
+                          type="text" 
+                          value={wizardData.pattern}
+                          onChange={(e) => setWizardData({...wizardData, pattern: e.target.value})}
+                          className="w-full bg-white/5 border border-white/10 rounded-md px-3 py-2 text-white focus:outline-none focus:border-blue-500/50" 
+                          placeholder="e.g. Month {n} or Week {n+5}"
+                        />
+                      </div>
+                    </div>
+                    <div className="pt-2 text-xs text-slate-500">
+                      Preview: {wizardData.count > 0 ? (
+                        (() => {
+                           const processPattern = (pStr: string, nVal: number) => {
+                              return pStr.replace(/(\$)?\{n\s*([\+\-]\s*\d+)?\}|\[n\]|\bn\b(\s*[\+\-]\s*\d+)?/gi, (match, prefix, math1, math2) => {
+                                 // If the user typed an 'n' inside a word, \b prevents it, but just in case:
+                                 const mathExpr = math1 || math2;
+                                 if (mathExpr) {
+                                    try {
+                                       // safely evaluate string like "+ 5" or "- 1"
+                                       const evalStr = mathExpr.replace(/\s+/g, '');
+                                       const num = parseInt(evalStr.substring(1));
+                                       const op = evalStr.charAt(0);
+                                       if (op === '+') return String(nVal + num);
+                                       if (op === '-') return String(nVal - num);
+                                    } catch(e) {}
+                                 }
+                                 return String(nVal);
+                              });
+                           };
+                           return processPattern(wizardData.pattern, 1);
+                        })()
+                      ) : 'No subtasks'}
+                    </div>
+                    <button
+                      onClick={async () => {
+                         const processPattern = (pStr: string, nVal: number) => {
+                            return pStr.replace(/(\$)?\{n\s*([\+\-]\s*\d+)?\}|\[n\]|\bn\b(\s*[\+\-]\s*\d+)?/gi, (match, prefix, math1, math2) => {
+                               const mathExpr = math1 || math2;
+                               if (mathExpr) {
+                                  try {
+                                     const evalStr = mathExpr.replace(/\s+/g, '');
+                                     const num = parseInt(evalStr.substring(1));
+                                     const op = evalStr.charAt(0);
+                                     if (op === '+') return String(nVal + num);
+                                     if (op === '-') return String(nVal - num);
+                                  } catch(e) {}
+                               }
+                               return String(nVal);
+                            });
+                         };
+                         const subtasksStrArray = Array.from({ length: wizardData.count }, (_, i) => processPattern(wizardData.pattern, i + 1));
+                         if (showWizard === "goal") {
+                            await addGoal({ 
+                               title: wizardData.title || "Untitled Goal", 
+                               type: wizardData.type, 
+                               priority: chatTaskPriority, 
+                               completed: false, 
+                               subtasks: subtasksStrArray.map(s => ({ id: Math.random().toString(36).substr(2, 9), title: s, completed: false }))
+                            });
+                         } else {
+                            await addTask({ 
+                               title: wizardData.title || "Untitled Task", 
+                               priority: chatTaskPriority, 
+                               date: toLocalDateStr(),
+                               subtasks: subtasksStrArray.map(s => ({ id: Math.random().toString(36).substr(2, 9), title: s, completed: false }))
+                            });
+                         }
+                         setMessages(prev => [...prev, { role: "model", parts: [{ text: `Successfully generated ${wizardData.title} with ${wizardData.count} subtasks via Pattern Wizard.` }] }]);
+                         setShowWizard("none");
+                      }}
+                      className="w-full mt-2 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md font-bold uppercase tracking-widest text-xs transition-colors"
+                    >
+                      Create {showWizard === "goal" ? "Goal" : "Task"}
+                    </button>
+                  </div>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
 
             <div className="p-4 border-t border-white/10 bg-black/20 flex-shrink-0">
               <div className="flex overflow-x-auto gap-2 mb-3 pb-1 hide-scrollbar">
+                <button
+                  onClick={() => setShowWizard("goal")}
+                  className="flex-none bg-indigo-600/20 text-indigo-300 text-xs sm:text-xs px-3 py-1.5 rounded-full hover:bg-indigo-600/40 transition-colors whitespace-nowrap border border-indigo-500/30"
+                >
+                  ⚡ Batch Goal
+                </button>
+                <button
+                  onClick={() => setShowWizard("task")}
+                  className="flex-none bg-indigo-600/20 text-indigo-300 text-xs sm:text-xs px-3 py-1.5 rounded-full hover:bg-indigo-600/40 transition-colors whitespace-nowrap border border-indigo-500/30"
+                >
+                  ⚡ Batch Task
+                </button>
                 <button
                   onClick={() => handleSend("Let's do the Morning AI journal. Ask me 3 questions to set my intention for today.")}
                   className="flex-none bg-orange-600/20 text-orange-300 text-xs sm:text-xs px-3 py-1.5 rounded-full hover:bg-orange-600/40 transition-colors whitespace-nowrap"
@@ -4838,6 +5022,12 @@ const AppContent = ({
     setFocusTaskId,
     selectedMood,
     setSelectedMood,
+    goals,
+    tasks,
+    habits,
+    automations,
+    reflections,
+    focusSessions,
   } = useHub();
   const themeClasses = getMoodTheme(selectedMood);
 
@@ -4960,20 +5150,20 @@ const AppContent = ({
                   }}
                 />
                 <SidebarItem
-                  icon={Target}
-                  label="Goals"
-                  active={activeView === "goals"}
-                  onClick={() => {
-                    setActiveView("goals");
-                    setIsSidebarOpen(false);
-                  }}
-                />
-                <SidebarItem
                   icon={CheckSquare}
                   label="Tasks"
                   active={activeView === "tasks"}
                   onClick={() => {
                     setActiveView("tasks");
+                    setIsSidebarOpen(false);
+                  }}
+                />
+                <SidebarItem
+                  icon={Target}
+                  label="Goals"
+                  active={activeView === "goals"}
+                  onClick={() => {
+                    setActiveView("goals");
                     setIsSidebarOpen(false);
                   }}
                 />
@@ -5064,6 +5254,35 @@ const AppContent = ({
                       <button
                         onClick={() => {
                           setIsSettingsOpen(false);
+                          const allData = {
+                             goals,
+                             tasks,
+                             habits,
+                             automations,
+                             reflections,
+                             focusSessions,
+                             timeBankBalance: parseInt(localStorage.getItem('timeBankBalance') || '45', 10),
+                             timeBankHistory: JSON.parse(localStorage.getItem('timeBankHistory') || '[]'),
+                             exportDate: new Date().toISOString()
+                          };
+                          const blob = new Blob([JSON.stringify(allData, null, 2)], { type: "application/json" });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = `trojan_data_export_${new Date().toISOString().split('T')[0]}.json`;
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                          URL.revokeObjectURL(url);
+                        }}
+                        className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all hover:bg-white/10 text-slate-300 group mb-1"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span className="text-[11px] font-bold uppercase tracking-widest">Extract Data</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsSettingsOpen(false);
                           setIsSidebarOpen(false);
                           signOut();
                         }}
@@ -5104,7 +5323,7 @@ const AppContent = ({
       <main
         className={`transition-all duration-1000 ease-[0.22, 1, 0.36, 1] pt-32 ${isZenMode ? "scale-[0.96] opacity-80 blur-sm pointer-events-none" : "scale-100"}`}
       >
-        <div className="max-w-6xl mx-auto px-4 md:px-12 lg:px-16 pb-40">
+        <div className="max-w-[1400px] mx-auto px-6 md:px-12 lg:px-16 pb-40 md:pb-12">
           <AnimatePresence>
             {focusTaskId && (
               <motion.div
@@ -5143,8 +5362,8 @@ const AppContent = ({
 
       {/* Mobile Bottom Navigation - Only visible on small screens */}
       {!isZenMode && (
-        <nav className="md:hidden fixed bottom-4 left-4 right-4 z-[60] pb-[env(safe-area-inset-bottom)]">
-          <div className="bg-[#0a0505]/95 backdrop-blur-3xl border border-white/10 rounded-3xl p-2 flex items-center justify-between shadow-2xl overflow-x-auto no-scrollbar gap-1 custom-snap">
+        <nav className="md:hidden fixed bottom-6 left-6 right-6 z-[60] pb-[env(safe-area-inset-bottom)]">
+          <div className="bg-[#050505]/95 backdrop-blur-3xl border border-white/[0.08] rounded-[24px] p-2 flex items-center justify-between shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-x-auto no-scrollbar gap-1 custom-snap">
             {[
               { id: "home", icon: Home, label: "Home" },
               { id: "vault", icon: Wallet, label: "Vault" },
@@ -5159,14 +5378,14 @@ const AppContent = ({
                 <button
                   key={id}
                   onClick={() => setActiveView(id)}
-                  className={`flex-none flex flex-col items-center justify-center w-[4.5rem] sm:w-[5.5rem] h-14 sm:h-16 rounded-2xl transition-all ${
+                  className={`flex-none flex flex-col items-center justify-center w-[4.5rem] sm:w-[5.5rem] h-14 sm:h-16 rounded-[18px] transition-all duration-300 ${
                     isActive 
-                      ? "bg-blue-600/10 text-blue-500 shadow-inner border border-blue-500/20" 
-                      : "text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent"
+                      ? "bg-blue-600/15 text-blue-400 shadow-[border border-blue-500/30]" 
+                      : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.05] border border-transparent"
                   }`}
                 >
-                  <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${isActive ? "scale-110" : ""}`} />
-                  <span className={`text-[9px] sm:text-[10px] font-black uppercase mt-1.5 tracking-widest transition-opacity ${isActive ? "opacity-100" : "opacity-70"}`}>
+                  <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${isActive ? "scale-110 drop-shadow-[0_0_8px_rgba(59,130,246,0.6)]" : "opacity-80"}`} />
+                  <span className={`text-[9px] sm:text-[10px] font-bold uppercase mt-1.5 tracking-widest transition-opacity ${isActive ? "opacity-100" : "opacity-0"}`}>
                     {label}
                   </span>
                 </button>

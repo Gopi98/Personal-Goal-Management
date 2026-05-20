@@ -36,9 +36,8 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
       const getWeekStart = (d: Date) => {
         const date = new Date(d);
         date.setHours(0, 0, 0, 0);
-        const day = date.getDay();
-        const diff = (day + 6) % 7; // Monday is 0, Sunday is 6
-        date.setDate(date.getDate() - diff);
+        const day = date.getDay(); // Sunday is 0
+        date.setDate(date.getDate() - day);
         return date.toDateString();
       };
 
@@ -48,19 +47,47 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
       let shouldResetToZero = false;
       let shouldAddDaily = false;
 
+      if (lastWeekStart) {
+        if (lastWeekStart !== currentWeekStart) {
+          shouldResetToZero = true;
+        }
+      }
+      
       if (lastWeekStart !== currentWeekStart) {
-        shouldResetToZero = true;
         localStorage.setItem('timeBankWeekStart', currentWeekStart);
       }
 
-      if (lastVisit !== today) {
+      if (lastVisit) {
+        if (lastVisit !== today) {
+          shouldAddDaily = true;
+        }
+      } else {
+        // If it's the first time visiting on this device, let's still give the daily bonus
         shouldAddDaily = true;
+      }
+
+      if (lastVisit !== today) {
         localStorage.setItem('timeBankLastVisit', today);
       }
 
       if (shouldResetToZero) {
          addTimeBankBalance(-999999, "Weekly Reset");
       }
+      
+      // Auto-refund for erroneous reset bug on Tuesday, May 19
+      const historyStr = localStorage.getItem('timeBankHistory');
+      if (historyStr) {
+         try {
+            const hList = JSON.parse(historyStr);
+            const todayISO = new Date().toISOString().split('T')[0];
+            const hasWrongReset = hList.find((x: any) => x.reason === "Weekly Reset" && x.date.startsWith(todayISO));
+            const hasRefund = hList.find((x: any) => x.reason === "Restored lost balance (Bug Fix)" && x.date.startsWith(todayISO));
+            if (hasWrongReset && !hasRefund && new Date().getDay() !== 0) {
+               addTimeBankBalance(30, "Restored lost balance (Bug Fix)");
+            }
+         } catch(e) {}
+      }
+
       if (shouldAddDaily) {
          addTimeBankBalance(10, "Daily Login Bonus");
       }

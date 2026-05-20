@@ -5,8 +5,14 @@ export const callGeminiProxy = async (model: string, contents: any[], config?: a
     body: JSON.stringify({ model, contents, config })
   });
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || `HTTP Error \${res.status}`);
+    const text = await res.text().catch(() => "");
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = {};
+    }
+    throw new Error(data?.error || `HTTP Error ${res.status}: ${text}`);
   }
   return res.json();
 };
@@ -667,11 +673,14 @@ CRITICAL MISSION:
     return response;
   } catch (error: any) {
     console.error("Trojan Error:", error);
-    const errMsg = error?.message || "";
-    if (errMsg.includes("429") || errMsg.toLowerCase().includes("quota") || errMsg.toLowerCase().includes("exhausted")) {
+    const errMsg = (error?.message || "").toLowerCase();
+    if (errMsg.includes("429") || errMsg.includes("quota") || errMsg.includes("exhausted")) {
       return { text: "SYSTEM ALERT: Uplink quota exhausted (Rate limit reached). Please standby for 60 seconds before initiating the next command.", isQuotaError: true };
     }
-    return { text: `COMMAND FAILED: Error communicating with Trojan: ${errMsg || "Unknown error"}` };
+    if (errMsg.includes("503") || errMsg.includes("overloaded") || errMsg.includes("high demand") || errMsg.includes("unavailable")) {
+      return { text: "SYSTEM ALERT: Trojan uplink is currently experiencing high demand. The network is temporarily unavailable. Please standby and try again shortly." };
+    }
+    return { text: `COMMAND FAILED: Error communicating with Trojan: ${error?.message || "Unknown error"}` };
   }
 };
 
