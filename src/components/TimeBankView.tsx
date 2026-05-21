@@ -62,6 +62,7 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
     }
   });
 
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [notificationState, setNotificationState] = useState<string>('default');
 
   useEffect(() => {
@@ -201,7 +202,8 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
       
       scheduleBackgroundNotification("Time's up!", "Your break has ended. Close your apps and get back to work.", targetTimeMs, 'timebank-timer');
     } else {
-      alert("Not enough screen time balance.");
+      setAlertMessage("Not enough screen time balance.");
+      setTimeout(() => setAlertMessage(null), 4000);
     }
   };
 
@@ -342,7 +344,11 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
             )}
             {notificationState === "denied" && (
               <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/20">
-                ⚠️ Notifications Denied (Unblock in settings for audio alarms)
+                {typeof window !== 'undefined' && window.self !== window.top ? (
+                  "⚠️ Preview Sandbox: Open in New Tab to authorize alarms"
+                ) : (
+                  "⚠️ Notifications Denied (Unblock in settings for audio alarms)"
+                )}
               </span>
             )}
             {notificationState === "unsupported" && (
@@ -579,6 +585,21 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
           )}
         </AnimatePresence>
       </motion.div>
+
+      {/* Modern In-App Hover Alert Toast */}
+      <AnimatePresence>
+        {alertMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[100] bg-[#1a0f12] border border-rose-500/20 text-rose-400 px-6 py-3.5 rounded-2xl shadow-[0_20px_40px_rgba(244,63,94,0.15)] flex items-center space-x-3 font-semibold text-xs uppercase tracking-wider backdrop-blur-md"
+          >
+            <AlertCircle className="w-4 h-4 text-rose-500 animate-[bounce_1s_infinite]" />
+            <span>{alertMessage}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

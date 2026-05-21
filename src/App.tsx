@@ -1067,7 +1067,7 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
       >
         <div className="absolute inset-0 bg-gradient-to-br from-blue-600/[0.1] via-indigo-600/[0.05] to-purple-600/[0.1] backdrop-blur-3xl border border-white/[0.08]" />
         <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 blur-[120px] rounded-full -mr-32 -mt-32 opacity-50" />
-        <div className="relative p-12 sm:p-20 flex flex-col items-center text-center space-y-8">
+        <div className="relative p-6 sm:p-16 md:p-20 flex flex-col items-center text-center space-y-8">
           <div className="flex flex-col items-center space-y-2 relative">
             <div className="flex items-center space-x-3 text-blue-500">
               <Quote className="w-5 h-5 opacity-40" />
@@ -1087,7 +1087,7 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
               Cognitive Priming Protocol
             </p>
           </div>
-          <blockquote className={`text-3xl sm:text-4xl md:text-5xl font-display font-black text-white leading-[1] tracking-tighter max-w-4xl drop-shadow-2xl transition-opacity duration-300 ${isRefreshingQuote ? 'opacity-0' : 'opacity-100'}`}>
+          <blockquote className={`text-xl sm:text-3xl md:text-5xl font-display font-black text-white leading-tight tracking-tighter max-w-4xl drop-shadow-2xl transition-opacity duration-300 ${isRefreshingQuote ? 'opacity-0' : 'opacity-100'}`}>
             {motivation || "Focus is the art of knowing what to ignore."}
           </blockquote>
           <div className="flex items-center space-x-8">
@@ -2412,6 +2412,8 @@ const TasksView = () => {
   const [focusAdvice, setFocusAdvice] = useState<string | null>(null);
   const [isGettingAdvice, setIsGettingAdvice] = useState(false);
   const [promotionFeedback, setPromotionFeedback] = useState<string | null>(null);
+  const [aiCoachSuggestion, setAiCoachSuggestion] = useState<string | null>(null);
+  const [isGettingCoachInsight, setIsGettingCoachInsight] = useState(false);
 
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTaskData, setEditingTaskData] = useState<{ title: string; priority: string }>({ title: "", priority: "B" });
@@ -2598,15 +2600,22 @@ const TasksView = () => {
   };
 
   const handleAutoSchedule = async () => {
+    setIsGettingCoachInsight(true);
     const data = {
       pendingTasks: tasks.filter((t) => !t.completed).map((t) => t.title),
       goals: goals.filter((g) => !g.completed).map((g) => g.title),
       freeTime,
       pomodoroFocus: pomoLength,
     };
-    const res = await getAICoachInsight(data);
-    alert(`AI Coach Schedule Suggestion:\n${res}`);
-    setShowAutoSchedule(false);
+    try {
+      const res = await getAICoachInsight(data);
+      setAiCoachSuggestion(res);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsGettingCoachInsight(false);
+      setShowAutoSchedule(false);
+    }
   };
 
   return (
@@ -2621,6 +2630,68 @@ const TasksView = () => {
           >
             <ArrowDownLeft className="w-5 h-5 text-orange-200" />
             <span>{promotionFeedback}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* AI Coach Suggestion Overlaid Modal Card */}
+      <AnimatePresence>
+        {aiCoachSuggestion && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-[#050505]/85 backdrop-blur-md z-[110] flex items-center justify-center p-4 sm:p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              className="bg-slate-900 border border-white/10 rounded-[32px] p-6 sm:p-8 max-w-2xl w-full relative max-h-[85vh] overflow-y-auto no-scrollbar shadow-2xl flex flex-col space-y-6"
+            >
+              <div className="absolute top-4 right-4">
+                <button
+                  type="button"
+                  onClick={() => setAiCoachSuggestion(null)}
+                  className="p-3 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white rounded-full transition-all"
+                >
+                  <CloseIcon className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex items-center space-x-3 text-blue-400">
+                <div className="p-3 bg-blue-500/10 rounded-2xl border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.15)]">
+                  <Bot className="w-6 h-6" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-[0.3em] font-mono text-blue-500">AI COACH</span>
+                  <h3 className="text-xl font-display font-black text-white">Temporal Schedule Suggestion</h3>
+                </div>
+              </div>
+
+              <div className="bg-white/[0.01] border border-white/5 rounded-2xl p-5 sm:p-6 text-sm text-slate-300 leading-relaxed font-mono whitespace-pre-wrap max-h-[50vh] overflow-y-auto no-scrollbar border-l-2 border-l-blue-500">
+                {aiCoachSuggestion}
+              </div>
+
+              <div className="flex flex-col sm:flex-row justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(aiCoachSuggestion);
+                  }}
+                  className="px-5 py-3.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white font-bold text-xs uppercase tracking-widest rounded-xl transition-all"
+                >
+                  Copy to Clipboard
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAiCoachSuggestion(null)}
+                  className="px-5 py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(37,99,235,0.3)]"
+                >
+                  Acknowledge & Sync
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -2731,10 +2802,13 @@ const TasksView = () => {
               </div>
               <div className="flex items-end">
                 <button
+                  type="button"
                   onClick={handleAutoSchedule}
-                  className="w-full h-14 bg-white text-black font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-blue-50 transition shadow-2xl active:scale-95"
+                  disabled={isGettingCoachInsight}
+                  className="w-full h-14 bg-white text-black disabled:bg-white/25 disabled:text-slate-400 font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-blue-50 transition shadow-2xl active:scale-95 flex items-center justify-center gap-2"
                 >
-                  Regenerate Routine
+                  {isGettingCoachInsight && <RotateCcw className="w-4 h-4 animate-spin" />}
+                  {isGettingCoachInsight ? "Generating Options..." : "Regenerate Routine"}
                 </button>
               </div>
             </div>
@@ -3103,7 +3177,7 @@ const TasksView = () => {
                 layout
                 className={`glass-card group hover:border-white/20 transition-all h-full flex flex-col p-6 rounded-[32px] relative ${focusTaskId === task.id ? "border-blue-500/50 bg-blue-600/[0.03] ring-1 ring-blue-500/20" : ""}`}
               >
-                <div className="absolute top-4 -left-4 xl:-left-6 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute top-4 -left-4 xl:-left-6 hidden md:flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button onClick={() => reorderTasks(task.id, 'up')} className="p-1 text-slate-300 hover:text-white bg-[#050505] rounded-lg border border-white/10 hover:border-white/30 backdrop-blur-md transition-all shadow-xl">
                     <ChevronUp className="w-4 h-4" />
                   </button>
@@ -3214,6 +3288,13 @@ const TasksView = () => {
                             ))}
                           </div>
                           <div className="flex items-center space-x-2">
+                            {/* Mobile inline reorder buttons */}
+                            <button onClick={() => reorderTasks(task.id, 'up')} className="md:hidden p-2 text-slate-400 hover:text-white transition-colors" aria-label="Move Up">
+                              <ChevronUp className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => reorderTasks(task.id, 'down')} className="md:hidden p-2 text-slate-400 hover:text-white transition-colors" aria-label="Move Down">
+                              <ChevronDown className="w-4 h-4" />
+                            </button>
                             <Tooltip text="Toggle details">
                               <button
                                 onClick={() =>
@@ -5334,7 +5415,7 @@ const AppContent = ({
       <main
         className={`transition-all duration-1000 ease-[0.22, 1, 0.36, 1] pt-32 ${isZenMode ? "scale-[0.96] opacity-80 blur-sm pointer-events-none" : "scale-100"}`}
       >
-        <div className="max-w-[1400px] mx-auto px-6 md:px-12 lg:px-16 pb-40 md:pb-12">
+        <div className="max-w-[1400px] mx-auto px-3 sm:px-6 md:px-12 lg:px-16 pb-40 md:pb-12">
           <AnimatePresence>
             {focusTaskId && (
               <motion.div
@@ -5374,7 +5455,7 @@ const AppContent = ({
       {/* Mobile Bottom Navigation - Only visible on small screens */}
       {!isZenMode && (
         <nav className="md:hidden fixed bottom-6 left-6 right-6 z-[60] pb-[env(safe-area-inset-bottom)]">
-          <div className="bg-[#050505]/95 backdrop-blur-3xl border border-white/[0.08] rounded-[24px] p-2 flex items-center justify-between shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-x-auto no-scrollbar gap-1 custom-snap">
+          <div className="bg-[#050505]/95 backdrop-blur-3xl border border-white/[0.08] rounded-[24px] p-2 flex items-center justify-between shadow-[0_20px_50px_rgba(0,0,0,0.5)] gap-1">
             {[
               { id: "home", icon: Home, label: "Home" },
               { id: "vault", icon: Wallet, label: "Vault" },
@@ -5389,14 +5470,18 @@ const AppContent = ({
                 <button
                   key={id}
                   onClick={() => setActiveView(id)}
-                  className={`flex-none flex flex-col items-center justify-center w-[4.5rem] sm:w-[5.5rem] h-14 sm:h-16 rounded-[18px] transition-all duration-300 ${
+                  className={`flex-1 flex flex-col items-center justify-center h-12 rounded-[16px] transition-all duration-300 min-w-0 ${
                     isActive 
-                      ? "bg-blue-600/15 text-blue-400 shadow-[border border-blue-500/30]" 
+                      ? "bg-blue-600/15 text-blue-400 border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.15)]" 
                       : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.05] border border-transparent"
                   }`}
                 >
-                  <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${isActive ? "scale-110 drop-shadow-[0_0_8px_rgba(59,130,246,0.6)]" : "opacity-80"}`} />
-                  <span className={`text-[9px] sm:text-[10px] font-bold uppercase mt-1.5 tracking-widest transition-opacity ${isActive ? "opacity-100" : "opacity-0"}`}>
+                  <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${isActive ? "scale-110 drop-shadow-[0_0_8px_rgba(59,130,246,0.6)]" : "opacity-80"}`} />
+                  <span className={`text-[8px] sm:text-[9px] font-black uppercase mt-1 tracking-wider truncate w-full text-center transition-all duration-300 ${
+                    isActive 
+                      ? "opacity-100 scale-100 text-blue-400" 
+                      : "opacity-50 scale-95 text-slate-400"
+                  }`}>
                     {label}
                   </span>
                 </button>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { Info, Target, CheckSquare, Flame, PieChart, Sparkles, Wallet, Zap, Calendar, Bot, List, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 
 const PageInfo = ({ icon: Icon, title, description, features }: any) => (
