@@ -217,6 +217,9 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const signIn = async () => {
     try {
       const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({
+        prompt: 'select_account'
+      });
       await signInWithPopup(auth, provider);
     } catch (error: any) {
       console.error("Sign-in error:", error);

@@ -65,7 +65,8 @@ import {
   LogOut,
   BellRing,
   Volume2,
-  VolumeX
+  VolumeX,
+  Smartphone
 } from "lucide-react";
 import { motion, AnimatePresence, useScroll, useMotionValueEvent } from "motion/react";
 import { GoogleGenAI, Modality } from "@google/genai";
@@ -5125,7 +5126,68 @@ const AppContent = ({
 
   const [isHeaderHidden, setIsHeaderHidden] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isMobileSetupOpen, setIsMobileSetupOpen] = useState(false);
   const { scrollY } = useScroll();
+
+  useEffect(() => {
+    // Only run if user and goals/habits/tasks are loaded
+    if (!user) return;
+    const subStr = localStorage.getItem(`push_subscription_${user.uid}`);
+    if (!subStr) return;
+    
+    try {
+      const subscription = JSON.parse(subStr);
+      const reminders: any[] = [];
+      
+      goals.forEach((goal: any) => {
+        if (goal.notificationEnabled && goal.notificationTime && !goal.completed) {
+          reminders.push({
+            id: `goal-${goal.id}`,
+            title: "🎯 Target Locked",
+            body: `Time to execute on your goal: ${goal.title}`,
+            time: goal.notificationTime,
+            scheduleType: goal.notificationSchedule || 'daily',
+            days: goal.notificationDays || [1,2,3,4,5],
+            date: goal.notificationDate
+          });
+        }
+      });
+      
+      habits.forEach((habit: any) => {
+        if (habit.notificationEnabled && habit.notificationTime) {
+          reminders.push({
+            id: `habit-${habit.id}`,
+            title: "⚡ Momentum Check",
+            body: `Keep your streak alive. Time for: ${habit.title}`,
+            time: habit.notificationTime,
+            scheduleType: habit.notificationSchedule || 'daily',
+            days: habit.notificationDays || [1,2,3,4,5],
+            date: habit.notificationDate
+          });
+        }
+      });
+      
+      tasks.forEach((task: any) => {
+        if (task.notificationEnabled && task.notificationTime && !task.completed) {
+          reminders.push({
+            id: `task-${task.id}`,
+            title: "📋 Task Pending",
+            body: `Time to execute: ${task.title}`,
+            time: task.notificationTime,
+            scheduleType: task.notificationSchedule || 'daily',
+            days: task.notificationDays || [1,2,3,4,5],
+            date: task.notificationDate || task.date
+          });
+        }
+      });
+      
+      import('./lib/notify').then(({ syncPushNotifications }) => {
+        syncPushNotifications(user.uid, subscription, reminders);
+      });
+    } catch (e) {
+      console.warn("Auto-sync error:", e);
+    }
+  }, [user, goals, habits, tasks]);
 
   useMotionValueEvent(scrollY, "change", (latest) => {
     const previous = scrollY.getPrevious() || 0;
@@ -5292,6 +5354,15 @@ const AppContent = ({
                   active={activeView === "info"}
                   onClick={() => {
                     setActiveView("info");
+                    setIsSidebarOpen(false);
+                  }}
+                />
+                <SidebarItem
+                  icon={Smartphone}
+                  label="Mobile Alerts"
+                  active={isMobileSetupOpen}
+                  onClick={() => {
+                    setIsMobileSetupOpen(true);
                     setIsSidebarOpen(false);
                   }}
                 />
@@ -5492,6 +5563,168 @@ const AppContent = ({
       )}
 
       {isZenMode && <ZenTimer onExit={() => setIsZenMode(false)} />}
+
+      {/* Mobile Notification Setup Modal */}
+      <AnimatePresence>
+        {isMobileSetupOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileSetupOpen(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative z-10 w-full max-w-lg bg-[#0d0d0d] border border-white/10 rounded-[32px] p-6 sm:p-8 text-white shadow-2xl overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 left-0 h-[2px] bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
+              
+              <div className="flex items-start justify-between mb-6">
+                <div className="flex items-center space-x-3">
+                  <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl text-blue-400">
+                    <Smartphone className="w-6 h-6" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="text-lg font-black tracking-wider uppercase text-white">Mobile Push Alarms</h3>
+                    <p className="text-xs text-slate-400 font-medium">Configure background alerts on iOS & Android</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsMobileSetupOpen(false)}
+                  className="p-2 hover:bg-white/5 rounded-xl transition-colors text-slate-400 hover:text-white"
+                >
+                  <CloseIcon className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-6 text-sm">
+                <div className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl space-y-2 text-left">
+                  <div className="flex items-center space-x-2 text-xs font-black tracking-wider text-blue-400 uppercase">
+                    <span className="w-5 h-5 bg-blue-500/10 border border-blue-500/20 rounded-md flex items-center justify-center text-[10px]">1</span>
+                    <span>Step 1: Install App on Home Screen</span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Mobile browsers strictly block background timers and notification permissions in standard tabs. To bypass this restriction:
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
+                    <div className="p-3 bg-white/[0.01] border border-white/5 rounded-xl text-left">
+                      <span className="font-bold text-white block mb-1"> Apple iOS (Safari)</span>
+                      Tap the <span className="text-blue-400 font-semibold">Share (📤)</span> icon, scroll down, and select <span className="text-white font-bold">Add to Home Screen</span>.
+                    </div>
+                    <div className="p-3 bg-white/[0.01] border border-white/5 rounded-xl text-left">
+                      <span className="font-bold text-white block mb-1">🤖 Google Android</span>
+                      Tap the browser <span className="text-blue-400 font-semibold">Menu (︙)</span> and select <span className="text-white font-bold">Install App</span>/Add to Home screen.
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl space-y-3 text-left">
+                  <div className="flex items-center space-x-2 text-xs font-black tracking-wider text-blue-400 uppercase">
+                    <span className="w-5 h-5 bg-blue-500/10 border border-blue-500/20 rounded-md flex items-center justify-center text-[10px]">2</span>
+                    <span>Step 2: Initialize Push Subscription</span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Register this mobile device with our server to enable real-time cloud dispatch for your task, goal, and habit alarms.
+                  </p>
+
+                  <div className="flex flex-col gap-3 pt-1">
+                    <button
+                      onClick={async () => {
+                        try {
+                          const { subscribeToWebPush } = await import("./lib/notify");
+                          const sub = await subscribeToWebPush();
+                          localStorage.setItem(`push_subscription_${user.uid}`, JSON.stringify(sub));
+                          
+                          const reminders: any[] = [];
+                          goals.forEach((goal: any) => {
+                            if (goal.notificationEnabled && goal.notificationTime && !goal.completed) {
+                              reminders.push({
+                                id: `goal-${goal.id}`,
+                                title: "🎯 Target Locked",
+                                body: `Time to execute on your goal: ${goal.title}`,
+                                time: goal.notificationTime,
+                                scheduleType: goal.notificationSchedule || 'daily',
+                                days: goal.notificationDays || [1,2,3,4,5],
+                                date: goal.notificationDate
+                              });
+                            }
+                          });
+                          habits.forEach((habit: any) => {
+                            if (habit.notificationEnabled && habit.notificationTime) {
+                              reminders.push({
+                                id: `habit-${habit.id}`,
+                                title: "⚡ Momentum Check",
+                                body: `Keep your streak alive. Time for: ${habit.title}`,
+                                time: habit.notificationTime,
+                                scheduleType: habit.notificationSchedule || 'daily',
+                                days: habit.notificationDays || [1,2,3,4,5],
+                                date: habit.notificationDate
+                              });
+                            }
+                          });
+                          tasks.forEach((task: any) => {
+                            if (task.notificationEnabled && task.notificationTime && !task.completed) {
+                              reminders.push({
+                                id: `task-${task.id}`,
+                                title: "📋 Task Pending",
+                                body: `Time to execute: ${task.title}`,
+                                time: task.notificationTime,
+                                scheduleType: task.notificationSchedule || 'daily',
+                                days: task.notificationDays || [1,2,3,4,5],
+                                date: task.notificationDate || task.date
+                              });
+                            }
+                          });
+
+                          const { syncPushNotifications } = await import("./lib/notify");
+                          await syncPushNotifications(user.uid, sub, reminders);
+                          alert("✓ Device successfully registered with Cloud Push server!");
+                        } catch (err: any) {
+                          console.error(err);
+                          alert(`Subscription Failed: ${err.message || err}`);
+                        }
+                      }}
+                      className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold uppercase tracking-widest rounded-xl transition-colors flex items-center justify-center space-x-2 shadow-lg shadow-blue-500/20"
+                    >
+                      <BellRing className="w-4 h-4 text-white animate-bounce" />
+                      <span className="text-white">Link & Grant Permissions</span>
+                    </button>
+
+                    {localStorage.getItem(`push_subscription_${user.uid}`) && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await fetch("/api/notifications/test-push", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ userId: user.uid })
+                            });
+                            if (res.ok) {
+                              alert("✓ Alert dispatched! Close/minimize the app to verify receipt.");
+                            } else {
+                              alert(`Failed to send test push: ${await res.text()}`);
+                            }
+                          } catch (err: any) {
+                            alert(`Error: ${err.message || err}`);
+                          }
+                        }}
+                        className="w-full py-2.5 bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 text-xs font-bold uppercase tracking-widest rounded-xl transition-colors border border-white/5"
+                      >
+                        ⚡ Send Test Push Alarm
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

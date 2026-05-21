@@ -60,3 +60,84 @@ export const cancelBackgroundNotification = async (tag: string) => {
   }
 };
 
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding)
+    .replace(/\-/g, '+')
+    .replace(/_/g, '/');
+
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+export const subscribeToWebPush = async (): Promise<any> => {
+  if (!('serviceWorker' in navigator) || typeof Notification === 'undefined') {
+    throw new Error('Push notifications are not supported on this browser/environment.');
+  }
+
+  // Request system permission
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') {
+    throw new Error('Notification permission was denied.');
+  }
+
+  // Ensure active service worker registration is available
+  // Fallback to manual registration if not ready
+  let reg = await navigator.serviceWorker.getRegistration();
+  if (!reg) {
+    reg = await navigator.serviceWorker.register('/sw.js');
+  }
+  
+  await navigator.serviceWorker.ready;
+
+  // Retrieve the public key from our server
+  const res = await fetch('/api/notifications/vapid-key');
+  if (!res.ok) {
+    throw new Error('Failed to retrieve the server push configuration.');
+  }
+  const { publicKey } = await res.json();
+
+  // Subscribe to Push Service
+  const subscription = await reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(publicKey)
+  });
+
+  return subscription;
+};
+
+export const syncPushNotifications = async (
+  userId: string,
+  subscription: any,
+  reminders: any[]
+) => {
+  try {
+    const timezoneOffset = new Date().getTimezoneOffset();
+    const response = await fetch('/api/notifications/sync', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        userId,
+        timezoneOffset,
+        subscription,
+        reminders
+      })
+    });
+    if (!response.ok) {
+      console.warn('Backend sync failed:', await response.text());
+    } else {
+      console.log('Mobile push reminders synchronized with cloud server.');
+    }
+  } catch (error) {
+    console.warn('Network error while syncing push notifications:', error);
+  }
+};
+
+

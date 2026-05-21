@@ -1,6 +1,8 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
+import fs from "fs";
+import webpush from "web-push";
 
 async function startServer() {
   const app = express();
@@ -8,10 +10,122 @@ async function startServer() {
 
   app.use(express.json({ limit: "50mb" }));
 
+  // Initialize VAPID Keys
+  let vapidKeys: { publicKey: string; privateKey: string };
+  const keysPath = path.join(process.cwd(), "vapid-keys.json");
+  if (fs.existsSync(keysPath)) {
+    vapidKeys = JSON.parse(fs.readFileSync(keysPath, "utf-8"));
+  } else {
+    vapidKeys = webpush.generateVAPIDKeys();
+    fs.writeFileSync(keysPath, JSON.stringify(vapidKeys), "utf-8");
+  }
+
+  webpush.setVapidDetails(
+    "mailto:contact@driveproductivity.os",
+    vapidKeys.publicKey,
+    vapidKeys.privateKey
+  );
+
+  // Memory database with file fallback for subscriptions & scheduled reminders
+  interface Reminder {
+    id: string;
+    title: string;
+    body: string;
+    time: string; // HH:MM
+    scheduleType: string; // once, daily, weekly, specific_days
+    days: number[]; // days of week (0 is Sunday, etc.)
+    date?: string; // YYYY-MM-DD
+  }
+
+  interface UserSyncData {
+    userId: string;
+    timezoneOffset: number; // in minutes
+    subscription: any;
+    reminders: Reminder[];
+    lastNotified?: Record<string, boolean>;
+  }
+
+  const remindersPath = path.join(process.cwd(), "push-reminders.json");
+  let userSchedules: Record<string, UserSyncData> = {};
+
+  if (fs.existsSync(remindersPath)) {
+    try {
+      userSchedules = JSON.parse(fs.readFileSync(remindersPath, "utf-8"));
+    } catch (e) {
+      userSchedules = {};
+    }
+  }
+
+  function saveSchedules() {
+    try {
+      fs.writeFileSync(remindersPath, JSON.stringify(userSchedules, null, 2), "utf-8");
+    } catch (e) {
+      console.error("Failed to save push reminders list:", e);
+    }
+  }
+
   console.log("BEFORE VITE:", process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.substring(0,5) : "undefined");
   
   app.get("/api/test-key", (req, res) => {
     res.json({ key: process.env.GEMINI_API_KEY });
+  });
+
+  app.get("/api/notifications/vapid-key", (req, res) => {
+    res.json({ publicKey: vapidKeys.publicKey });
+  });
+
+  app.post("/api/notifications/sync", (req, res) => {
+    try {
+      const { userId, timezoneOffset, subscription, reminders } = req.body;
+      if (!userId || !subscription) {
+        return res.status(400).json({ error: "Missing required fields userId and subscription" });
+      }
+
+      if (!userSchedules[userId]) {
+        userSchedules[userId] = {
+          userId,
+          timezoneOffset: timezoneOffset || 0,
+          subscription,
+          reminders: [],
+          lastNotified: {}
+        };
+      }
+
+      userSchedules[userId].timezoneOffset = timezoneOffset !== undefined ? timezoneOffset : userSchedules[userId].timezoneOffset;
+      userSchedules[userId].subscription = subscription;
+      userSchedules[userId].reminders = reminders || [];
+      if (!userSchedules[userId].lastNotified) {
+        userSchedules[userId].lastNotified = {};
+      }
+
+      saveSchedules();
+      res.json({ success: true, count: userSchedules[userId].reminders.length });
+    } catch (error: any) {
+      console.error("Error in notification sync:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/notifications/test-push", async (req, res) => {
+    try {
+      const { userId, title, body } = req.body;
+      const user = userSchedules[userId];
+      if (!user || !user.subscription) {
+        return res.status(404).json({ error: "No active push subscription found for this user." });
+      }
+
+      const payload = JSON.stringify({
+        title: title || "⚡ Verification Push",
+        body: body || "Your mobile notifications are now fully configured and linked to the cloud server!",
+        icon: "/icon.svg"
+      });
+
+      await webpush.sendNotification(user.subscription, payload);
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Test notification delivery failed:", err);
+      res.status(500).json({ error: err.message });
+    }
   });
 
   app.post("/api/gemini/generate", async (req, res) => {
@@ -64,6 +178,73 @@ async function startServer() {
       }
     }
   });
+
+  // Background loop for checking and delivery of scheduled push notifications
+  setInterval(async () => {
+    try {
+      const now = Date.now();
+      for (const userId of Object.keys(userSchedules)) {
+        const user = userSchedules[userId];
+        if (!user.subscription || !user.reminders || user.reminders.length === 0) continue;
+
+        // Adjust UTC now to user's localized time based on their timezoneOffset (passed in minutes)
+        const userLocalTime = new Date(now - (user.timezoneOffset * 60 * 1000));
+        const hours = userLocalTime.getUTCHours().toString().padStart(2, '0');
+        const minutes = userLocalTime.getUTCMinutes().toString().padStart(2, '0');
+        const currentTimeStr = `${hours}:${minutes}`;
+        const localDayOfWeek = userLocalTime.getUTCDay(); // 0-6 (0 is Sunday)
+
+        // Local date formatted to prevent duplicate triggers on the same calendar date/time
+        const localDateStr = `${userLocalTime.getUTCFullYear()}-${(userLocalTime.getUTCMonth() + 1).toString().padStart(2, '0')}-${userLocalTime.getUTCDate().toString().padStart(2, '0')}`;
+
+        for (const reminder of user.reminders) {
+          if (reminder.time === currentTimeStr) {
+            const notifyKey = `${reminder.id}-${localDateStr}-${currentTimeStr}`;
+            if (user.lastNotified?.[notifyKey]) continue;
+
+            let shouldTrigger = false;
+            if (reminder.scheduleType === 'once') {
+              if (!reminder.date || reminder.date === localDateStr) {
+                shouldTrigger = true;
+              }
+            } else if (reminder.scheduleType === 'daily') {
+              shouldTrigger = true;
+            } else if (reminder.scheduleType === 'weekly' || reminder.scheduleType === 'specific_days') {
+              if (reminder.days && reminder.days.includes(localDayOfWeek)) {
+                shouldTrigger = true;
+              }
+            }
+
+            if (shouldTrigger) {
+              console.log(`[push-service] Sending Web Push to user ${userId} for item ${reminder.id}`);
+              const payload = JSON.stringify({
+                title: reminder.title,
+                body: reminder.body,
+                icon: "/icon.svg"
+              });
+
+              if (!user.lastNotified) user.lastNotified = {};
+              user.lastNotified[notifyKey] = true;
+              saveSchedules();
+
+              try {
+                await webpush.sendNotification(user.subscription, payload);
+              } catch (err: any) {
+                console.error(`[push-service] Failed to deliver push to ${userId}:`, err?.message);
+                if (err.statusCode === 410 || err.statusCode === 404) {
+                  console.log(`[push-service] Removing defunct subscription for ${userId}`);
+                  user.subscription = null;
+                  saveSchedules();
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (loopError) {
+      console.error("[push-service] Error inside check loop:", loopError);
+    }
+  }, 15000); // Poll every 15 seconds for precision matching
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
