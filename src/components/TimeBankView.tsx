@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Wallet, Clock, Lock, Unlock, Play, Square, BellRing, Target, CheckSquare, BookOpen, Flame, AlertCircle, History } from 'lucide-react';
 import { addTimeBankBalance, updateUserMetadata } from '../lib/HubContext';
@@ -248,70 +249,75 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-8 p-4 pb-24 md:pb-8">
-      {/* Immersive Full Screen overlay when break completes to ensure user wakes up */}
-      <AnimatePresence>
-        {timerFinished && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-slate-950/95 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center"
-          >
-            <div className="absolute inset-0 bg-gradient-to-t from-rose-950/40 via-transparent to-transparent opacity-60" />
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="max-w-md w-full bg-slate-900 border border-rose-800/40 p-8 rounded-[36px] shadow-2xl relative z-10 flex flex-col items-center justify-center space-y-6"
+      {/* Immersive Full Screen overlay when break completes to ensure user wakes up - Portaled to document.body to bypass relative transforms */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {timerFinished && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[9999] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-6 text-center"
             >
-              <div className="w-20 h-20 bg-rose-500/10 rounded-full border border-rose-500/20 flex items-center justify-center animate-pulse">
-                <BellRing className="w-10 h-10 text-rose-500 animate-wiggle" />
-              </div>
-              
-              <div className="space-y-2">
-                <h2 className="text-3xl font-black text-white tracking-tight">Time's Up!</h2>
-                <p className="text-rose-400 font-bold text-sm tracking-wide uppercase">Break Session Finished</p>
-                <p className="text-slate-400 text-sm leading-relaxed mt-2">
-                  Avoid the screen of lock. Your redeemed time is completely spent. Close your applications and register back to deep focus!
-                </p>
-              </div>
-
-              <button 
-                onClick={() => {
-                  playLoudChime();
-                  endBreak();
-                }}
-                className="w-full py-4 bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-400 hover:to-amber-400 text-white font-black uppercase tracking-widest text-sm rounded-2xl transition-all shadow-[0_0_30px_rgba(244,63,94,0.3)] hover:scale-[1.02] active:scale-[0.98]"
+              <div className="absolute inset-0 bg-gradient-to-t from-rose-950/40 via-transparent to-transparent opacity-60" />
+              <motion.div
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: 20 }}
+                className="max-w-md w-full bg-slate-900 border border-rose-800/40 p-8 rounded-[36px] shadow-2xl relative z-10 flex flex-col items-center justify-center space-y-6"
               >
-                Acknowledge & Return to Focus Hub
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                <div className="w-20 h-20 bg-rose-500/10 rounded-full border border-rose-500/20 flex items-center justify-center animate-pulse">
+                  <BellRing className="w-10 h-10 text-rose-500 animate-wiggle" />
+                </div>
+                
+                <div className="space-y-2">
+                  <h2 className="text-3xl font-black text-white tracking-tight">Time's Up!</h2>
+                  <p className="text-rose-400 font-bold text-sm tracking-wide uppercase">Break Session Finished</p>
+                  <p className="text-slate-400 text-sm leading-relaxed mt-2">
+                    Avoid the screen of lock. Your redeemed time is completely spent. Close your applications and register back to deep focus!
+                  </p>
+                </div>
 
-      {/* 1. Header / Bank Vault */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full rounded-[40px] bg-slate-950/50 border border-slate-800 backdrop-blur-2xl p-8 sm:p-12 relative overflow-hidden flex flex-col items-center justify-center shadow-2xl"
-      >
-        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-emerald-500/10 opacity-50" />
-        <div className="absolute -top-24 -left-24 w-48 h-48 bg-cyan-500/20 blur-[100px] rounded-full" />
-        <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-emerald-500/20 blur-[100px] rounded-full" />
-        
-        <Lock className="w-6 h-6 text-cyan-400/50 mb-6 relative z-10" />
-        
-        <div className="text-center relative z-10">
-          <h1 className="text-7xl sm:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-400 drop-shadow-[0_0_40px_rgba(45,212,191,0.5)] tracking-tighter">
-            {timeBalance}
-            <span className="text-3xl sm:text-4xl text-emerald-500/80 ml-2">m</span>
-          </h1>
-          <p className="uppercase tracking-[0.3em] font-black text-xs text-slate-400 mt-6 filter drop-shadow-md">
-            Available Screen Time
-          </p>
-        </div>
-      </motion.div>
+                <button 
+                  onClick={() => {
+                    playLoudChime();
+                    endBreak();
+                  }}
+                  className="w-full py-4 bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-400 hover:to-amber-400 text-white font-black uppercase tracking-widest text-sm rounded-2xl transition-all shadow-[0_0_30px_rgba(244,63,94,0.3)] hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  Acknowledge & Return to Focus Hub
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* 1. Header / Bank Vault - Hidden during break runtime for responsive focus */}
+      {activeTimer === null && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full rounded-[40px] bg-slate-950/50 border border-slate-800 backdrop-blur-2xl p-8 sm:p-12 relative overflow-hidden flex flex-col items-center justify-center shadow-2xl"
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-emerald-500/10 opacity-50" />
+          <div className="absolute -top-24 -left-24 w-48 h-48 bg-cyan-500/20 blur-[100px] rounded-full" />
+          <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-emerald-500/20 blur-[100px] rounded-full" />
+          
+          <Lock className="w-6 h-6 text-cyan-400/50 mb-6 relative z-10" />
+          
+          <div className="text-center relative z-10">
+            <h1 className="text-7xl sm:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-400 drop-shadow-[0_0_40px_rgba(45,212,191,0.5)] tracking-tighter">
+              {timeBalance}
+              <span className="text-3xl sm:text-4xl text-emerald-500/80 ml-2">m</span>
+            </h1>
+            <p className="uppercase tracking-[0.3em] font-black text-xs text-slate-400 mt-6 filter drop-shadow-md">
+              Available Screen Time
+            </p>
+          </div>
+        </motion.div>
+      )}
 
       {/* 2. Redemption Center */}
       <motion.div 
@@ -320,44 +326,46 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
         transition={{ delay: 0.1 }}
         className="w-full rounded-[32px] bg-slate-900 border border-slate-800 p-6 sm:p-8 relative overflow-hidden"
       >
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 gap-4">
-          <div className="flex items-center space-x-3">
-            <Unlock className="w-5 h-5 text-slate-400" />
-            <h2 className="text-lg font-bold text-white tracking-wide">Redemption Center</h2>
+        {activeTimer === null && (
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 gap-4">
+            <div className="flex items-center space-x-3">
+              <Unlock className="w-5 h-5 text-slate-400" />
+              <h2 className="text-lg font-bold text-white tracking-wide">Redemption Center</h2>
+            </div>
+            
+            <div className="flex items-center">
+              {notificationState === "granted" && (
+                <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Alarm Notifications Active
+                </span>
+              )}
+              {notificationState === "default" && (
+                <button 
+                  onClick={requestNotificationPermission}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-full bg-cyan-500/15 text-cyan-400 hover:bg-cyan-500/25 border border-cyan-500/20 flex items-center gap-1.5 transition-colors"
+                >
+                  <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
+                  Enable System Notifications
+                </button>
+              )}
+              {notificationState === "denied" && (
+                <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/20">
+                  {typeof window !== 'undefined' && window.self !== window.top ? (
+                    "⚠️ Preview Sandbox: Open in New Tab to authorize alarms"
+                  ) : (
+                    "⚠️ Notifications Denied (Unblock in settings for audio alarms)"
+                  )}
+                </span>
+              )}
+              {notificationState === "unsupported" && (
+                <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                  Fallback Sound Alerts Active
+                </span>
+              )}
+            </div>
           </div>
-          
-          <div className="flex items-center">
-            {notificationState === "granted" && (
-              <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                Alarm Notifications Active
-              </span>
-            )}
-            {notificationState === "default" && (
-              <button 
-                onClick={requestNotificationPermission}
-                className="text-xs font-semibold px-3 py-1.5 rounded-full bg-cyan-500/15 text-cyan-400 hover:bg-cyan-500/25 border border-cyan-500/20 flex items-center gap-1.5 transition-colors"
-              >
-                <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
-                Enable System Notifications
-              </button>
-            )}
-            {notificationState === "denied" && (
-              <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/20">
-                {typeof window !== 'undefined' && window.self !== window.top ? (
-                  "⚠️ Preview Sandbox: Open in New Tab to authorize alarms"
-                ) : (
-                  "⚠️ Notifications Denied (Unblock in settings for audio alarms)"
-                )}
-              </span>
-            )}
-            {notificationState === "unsupported" && (
-              <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
-                Fallback Sound Alerts Active
-              </span>
-            )}
-          </div>
-        </div>
+        )}
 
         <AnimatePresence mode="wait">
           {activeTimer === null ? (
@@ -487,104 +495,108 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
       </motion.div>
 
       {/* 3. Earning Rules / Ledger */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="w-full rounded-[32px] border border-slate-800/50 bg-slate-950/30 p-6 sm:p-8"
-      >
-        <div className="mb-6 flex flex-col space-y-1">
-          <h3 className="text-slate-200 font-bold tracking-wide">Exchange Rate</h3>
-          <p className="text-slate-500 text-sm">How you earn active screen time</p>
-        </div>
+      {activeTimer === null && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="w-full rounded-[32px] border border-slate-800/50 bg-slate-950/30 p-6 sm:p-8"
+        >
+          <div className="mb-6 flex flex-col space-y-1">
+            <h3 className="text-slate-200 font-bold tracking-wide">Exchange Rate</h3>
+            <p className="text-slate-500 text-sm">How you earn active screen time</p>
+          </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {earningRules.map((rule, idx) => {
-            const Icon = rule.icon;
-            return (
-              <button 
-                key={idx} 
-                onClick={() => {
-                  if (setActiveView) {
-                    setActiveView(rule.targetView);
-                    if (rule.targetView === 'insights') {
-                      setTimeout(() => {
-                        const el = document.getElementById('daily-reflection-section');
-                        if (el) {
-                          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }
-                      }, 600); // Increased timeout to account for AnimatePresence exit/enter animations
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {earningRules.map((rule, idx) => {
+              const Icon = rule.icon;
+              return (
+                <button 
+                  key={idx} 
+                  onClick={() => {
+                    if (setActiveView) {
+                      setActiveView(rule.targetView);
+                      if (rule.targetView === 'insights') {
+                        setTimeout(() => {
+                          const el = document.getElementById('daily-reflection-section');
+                          if (el) {
+                            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          }
+                        }, 600); // Increased timeout to account for AnimatePresence exit/enter animations
+                      }
                     }
-                  }
-                }}
-                className="w-full flex items-center justify-between p-4 rounded-2xl bg-slate-900/50 hover:bg-slate-800/50 border border-slate-800/50 hover:border-slate-700 transition-colors text-left group"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-slate-800 group-hover:bg-slate-700 transition-colors rounded-lg">
-                    <Icon className="w-4 h-4 text-slate-400 group-hover:text-cyan-400 transition-colors" />
+                  }}
+                  className="w-full flex items-center justify-between p-4 rounded-2xl bg-slate-900/50 hover:bg-slate-800/50 border border-slate-800/50 hover:border-slate-700 transition-colors text-left group"
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-slate-800 group-hover:bg-slate-700 transition-colors rounded-lg">
+                      <Icon className="w-4 h-4 text-slate-400 group-hover:text-cyan-400 transition-colors" />
+                    </div>
+                    <span className="text-sm font-medium text-slate-300 group-hover:text-white transition-colors">{rule.label}</span>
                   </div>
-                  <span className="text-sm font-medium text-slate-300 group-hover:text-white transition-colors">{rule.label}</span>
-                </div>
-                <div className={`font-black font-mono ${rule.color}`}>
-                  {rule.value}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </motion.div>
+                  <div className={`font-black font-mono ${rule.color}`}>
+                    {rule.value}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
 
       {/* 4. History Logs */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className="w-full rounded-[32px] border border-slate-800/50 bg-slate-950/30 p-6 sm:p-8"
-      >
-        <button 
-          onClick={() => setShowHistory(!showHistory)}
-          className="flex items-center space-x-3 w-full text-left"
+      {activeTimer === null && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="w-full rounded-[32px] border border-slate-800/50 bg-slate-950/30 p-6 sm:p-8"
         >
-          <div className="p-2 bg-slate-800/50 rounded-lg">
-            <History className="w-5 h-5 text-slate-400" />
-          </div>
-          <div className="flex-1">
-            <h3 className="text-slate-200 font-bold tracking-wide">Time Bank History</h3>
-            <p className="text-slate-500 text-sm">{showHistory ? "Hide recent transactions" : "View recent transactions"}</p>
-          </div>
-        </button>
+          <button 
+            onClick={() => setShowHistory(!showHistory)}
+            className="flex items-center space-x-3 w-full text-left"
+          >
+            <div className="p-2 bg-slate-800/50 rounded-lg">
+              <History className="w-5 h-5 text-slate-400" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-slate-200 font-bold tracking-wide">Time Bank History</h3>
+              <p className="text-slate-500 text-sm">{showHistory ? "Hide recent transactions" : "View recent transactions"}</p>
+            </div>
+          </button>
 
-        <AnimatePresence>
-          {showHistory && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden"
-            >
-              <div className="pt-6 space-y-3">
-                {history.length === 0 ? (
-                  <div className="text-center p-8 bg-slate-900/50 rounded-2xl border border-slate-800/30 text-slate-500 text-sm">
-                    No transactions yet.
-                  </div>
-                ) : (
-                  history.map((log: any, idx: number) => (
-                    <div key={log.id || idx} className="flex items-center justify-between p-4 bg-slate-900/50 rounded-2xl border border-slate-800/30">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-slate-300 truncate">{log.reason}</p>
-                        <p className="text-xs text-slate-500">{new Date(log.date).toLocaleString()}</p>
-                      </div>
-                      <div className={`font-black font-mono flex-shrink-0 ml-4 ${log.amount > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {log.amount > 0 ? `+${log.amount}` : log.amount}
-                      </div>
+          <AnimatePresence>
+            {showHistory && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="pt-6 space-y-3">
+                  {history.length === 0 ? (
+                    <div className="text-center p-8 bg-slate-900/50 rounded-2xl border border-slate-800/30 text-slate-500 text-sm">
+                      No transactions yet.
                     </div>
-                  ))
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
+                  ) : (
+                    history.map((log: any, idx: number) => (
+                      <div key={log.id || idx} className="flex items-center justify-between p-4 bg-slate-900/50 rounded-2xl border border-slate-800/30">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-slate-300 truncate">{log.reason}</p>
+                          <p className="text-xs text-slate-500">{new Date(log.date).toLocaleString()}</p>
+                        </div>
+                        <div className={`font-black font-mono flex-shrink-0 ml-4 ${log.amount > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {log.amount > 0 ? `+${log.amount}` : log.amount}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+      )}
 
       {/* Modern In-App Hover Alert Toast */}
       <AnimatePresence>

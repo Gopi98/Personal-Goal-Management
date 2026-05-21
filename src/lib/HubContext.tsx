@@ -333,6 +333,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const currentWeekStart = getWeekStart(now);
         const lastWeekStart = localStorage.getItem('timeBankWeekStart');
         if (lastWeekStart !== currentWeekStart) {
+          localStorage.setItem('timeBankWeekStart', currentWeekStart);
           updateUserMetadata({ timeBankWeekStart: currentWeekStart });
         }
 
@@ -348,9 +349,11 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         if (lastVisit !== todayStringDate) {
+          localStorage.setItem('timeBankLastVisit', todayStringDate);
           updateUserMetadata({ timeBankLastVisit: todayStringDate });
         }
 
+        // Only add bonus if it wasn't triggered repeatedly
         if (shouldAddDaily) {
            addTimeBankBalance(10, "Daily Login Bonus");
         }
@@ -358,6 +361,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // 3. One-time restoration check-in
         const hasProcessedRestoration = localStorage.getItem('restorationProcessed_v2');
         if (!hasProcessedRestoration) {
+           localStorage.setItem('restorationProcessed_v2', 'true');
            addTimeBankBalance(100, "Restoration of Erroneous Deductions (System Fix)");
            updateUserMetadata({ restorationProcessed_v2: "true" });
         }
@@ -365,6 +369,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // 4. Weekend logic: extra 120 minutes for Saturday or Sunday
         const lastWeekendCheck = localStorage.getItem('lastWeekendBonusCheck');
         if (lastWeekendCheck !== todayStr) {
+            localStorage.setItem('lastWeekendBonusCheck', todayStr);
             if (now.getDay() === 0 || now.getDay() === 6) {
                addTimeBankBalance(120, `Weekend Holiday Bonus`);
             }

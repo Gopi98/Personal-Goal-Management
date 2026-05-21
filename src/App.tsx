@@ -5077,9 +5077,28 @@ const ToastContainer = () => {
 };
 
 export default function App() {
-  const [activeView, setActiveView] = useState("home");
+  const [activeView, setActiveView] = useState(() => {
+    if (typeof window !== "undefined") {
+      const queryParams = new URLSearchParams(window.location.search);
+      const urlView = queryParams.get("view");
+      if (urlView) return urlView;
+    }
+    return "home";
+  });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isZenMode, setIsZenMode] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      const handleMessage = (event: MessageEvent) => {
+        if (event.data && event.data.type === 'NAVIGATE_VIEW') {
+          setActiveView(event.data.view);
+        }
+      };
+      navigator.serviceWorker.addEventListener('message', handleMessage);
+      return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
+    }
+  }, []);
 
   return (
     <HubProvider>

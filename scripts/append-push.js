@@ -30,8 +30,9 @@ self.addEventListener('notificationclick', function(event) {
         clients.matchAll({ type: 'window' }).then(windowClients => {
             if (windowClients.length > 0) {
                 windowClients[0].focus();
+                windowClients[0].postMessage({ type: 'NAVIGATE_VIEW', view: 'vault' });
             } else {
-                clients.openWindow('/');
+                clients.openWindow('/?view=vault');
             }
         })
     );

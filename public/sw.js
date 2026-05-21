@@ -31,9 +31,11 @@ self.addEventListener('notificationclick', function(event) {
         clients.matchAll({ type: 'window' }).then(windowClients => {
             if (windowClients.length > 0) {
                 windowClients[0].focus();
+                // Send view navigation signal to React client
+                windowClients[0].postMessage({ type: 'NAVIGATE_VIEW', view: 'vault' });
             } else {
                 // @ts-ignore
-                clients.openWindow('/');
+                clients.openWindow('/?view=vault');
             }
         })
     );
