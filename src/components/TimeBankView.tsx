@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Wallet, Clock, Lock, Unlock, Play, Square, BellRing, Target, CheckSquare, BookOpen, Flame, AlertCircle, History } from 'lucide-react';
-import { addTimeBankBalance } from '../lib/HubContext';
-import { pushNotification } from '../lib/notify';
+import { addTimeBankBalance, updateUserMetadata } from '../lib/HubContext';
+import { pushNotification, scheduleBackgroundNotification, cancelBackgroundNotification } from '../lib/notify';
 
 export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch<React.SetStateAction<string>> }) => {
   const [timeBalance, setTimeBalance] = useState(() => {
@@ -13,10 +13,45 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
       return 45;
     }
   });
-  const [activeTimer, setActiveTimer] = useState<number | null>(null);
-  const [timerRemaining, setTimerRemaining] = useState<number>(0);
+  const [activeTimer, setActiveTimer] = useState<number | null>(() => {
+    try {
+      const end = Number(localStorage.getItem('timeBankEndTime'));
+      if (end) {
+        if (end > Date.now()) {
+          return Math.round((end - Date.now()) / 1000);
+        } else {
+          return 0; // finished but not cleared
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  });
+  const [timerRemaining, setTimerRemaining] = useState<number>(() => {
+    try {
+      const end = Number(localStorage.getItem('timeBankEndTime'));
+      if (end) {
+        if (end > Date.now()) {
+          return Math.round((end - Date.now()) / 1000);
+        } else {
+          return 0;
+        }
+      }
+      return 0;
+    } catch {
+      return 0;
+    }
+  });
   const [customAmount, setCustomAmount] = useState<string>('');
-  const [timerFinished, setTimerFinished] = useState(false);
+  const [timerFinished, setTimerFinished] = useState(() => {
+    try {
+      const end = Number(localStorage.getItem('timeBankEndTime'));
+      return end && end <= Date.now();
+    } catch {
+      return false;
+    }
+  });
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<any[]>(() => {
     try {
@@ -27,74 +62,49 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
     }
   });
 
+  const [notificationState, setNotificationState] = useState<string>('default');
+
   useEffect(() => {
-    try {
-      const now = new Date();
-      const today = now.toDateString();
-      const lastVisit = localStorage.getItem('timeBankLastVisit');
-      
-      const getWeekStart = (d: Date) => {
-        const date = new Date(d);
-        date.setHours(0, 0, 0, 0);
-        const day = date.getDay(); // Sunday is 0
-        date.setDate(date.getDate() - day);
-        return date.toDateString();
-      };
-
-      const currentWeekStart = getWeekStart(now);
-      const lastWeekStart = localStorage.getItem('timeBankWeekStart');
-
-      let shouldResetToZero = false;
-      let shouldAddDaily = false;
-
-      if (lastWeekStart) {
-        if (lastWeekStart !== currentWeekStart) {
-          shouldResetToZero = true;
-        }
-      }
-      
-      if (lastWeekStart !== currentWeekStart) {
-        localStorage.setItem('timeBankWeekStart', currentWeekStart);
-      }
-
-      if (lastVisit) {
-        if (lastVisit !== today) {
-          shouldAddDaily = true;
-        }
-      } else {
-        // If it's the first time visiting on this device, let's still give the daily bonus
-        shouldAddDaily = true;
-      }
-
-      if (lastVisit !== today) {
-        localStorage.setItem('timeBankLastVisit', today);
-      }
-
-      if (shouldResetToZero) {
-         addTimeBankBalance(-999999, "Weekly Reset");
-      }
-      
-      // Auto-refund for erroneous reset bug on Tuesday, May 19
-      const historyStr = localStorage.getItem('timeBankHistory');
-      if (historyStr) {
-         try {
-            const hList = JSON.parse(historyStr);
-            const todayISO = new Date().toISOString().split('T')[0];
-            const hasWrongReset = hList.find((x: any) => x.reason === "Weekly Reset" && x.date.startsWith(todayISO));
-            const hasRefund = hList.find((x: any) => x.reason === "Restored lost balance (Bug Fix)" && x.date.startsWith(todayISO));
-            if (hasWrongReset && !hasRefund && new Date().getDay() !== 0) {
-               addTimeBankBalance(30, "Restored lost balance (Bug Fix)");
-            }
-         } catch(e) {}
-      }
-
-      if (shouldAddDaily) {
-         addTimeBankBalance(10, "Daily Login Bonus");
-      }
-    } catch (e) {
-      console.warn('Could not process temporal rules', e);
+    if (typeof Notification !== 'undefined') {
+      setNotificationState(Notification.permission);
+    } else {
+      setNotificationState('unsupported');
     }
   }, []);
+
+  const requestNotificationPermission = async () => {
+    if (typeof Notification !== 'undefined') {
+      const permission = await Notification.requestPermission();
+      setNotificationState(permission);
+    }
+  };
+
+  const playLoudChime = () => {
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const playTone = (freq: number, start: number, duration: number) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime + start);
+        gain.gain.setValueAtTime(0, audioCtx.currentTime + start);
+        gain.gain.linearRampToValueAtTime(0.25, audioCtx.currentTime + start + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + start + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(audioCtx.currentTime + start);
+        osc.stop(audioCtx.currentTime + start + duration);
+      };
+
+      // Play a beautiful, clear arpeggio (C5 -> E5 -> G5 -> C6)
+      playTone(523.25, 0, 0.4);      // C5
+      playTone(659.25, 0.15, 0.4);   // E5
+      playTone(783.99, 0.3, 0.5);    // G5
+      playTone(1046.50, 0.45, 0.8);  // C6
+    } catch (e) {
+      console.warn("Audio chime failed to play:", e);
+    }
+  };
 
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
@@ -123,7 +133,7 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (activeTimer !== null && timerRemaining > 0) {
+    if (activeTimer !== null) {
       interval = setInterval(() => {
         const expectedEndTime = Number(localStorage.getItem('timeBankEndTime'));
         if (expectedEndTime) {
@@ -132,6 +142,7 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
            if (remaining <= 0) {
              handleTimerComplete();
              setTimerRemaining(0);
+             setActiveTimer(null);
            } else {
              setTimerRemaining(remaining);
            }
@@ -139,7 +150,7 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [activeTimer, timerRemaining]);
+  }, [activeTimer]);
   
   // Handle visibility change specifically for mobile background resumption
   useEffect(() => {
@@ -164,41 +175,31 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
 
   const handleTimerComplete = () => {
     setTimerFinished(true);
-    pushNotification('Time\'s up!', 'Close your apps and get back to work.');
-    // Play a standard web audio chime (using an oscillator as it's built-in, or a data-uri audio)
-    try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const oscillator = audioCtx.createOscillator();
-      const gainNode = audioCtx.createGain();
-      
-      oscillator.type = 'sine';
-      oscillator.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
-      oscillator.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.2); // E5
-      oscillator.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.4); // G5
-      
-      gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1);
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-      
-      oscillator.start();
-      oscillator.stop(audioCtx.currentTime + 1);
-    } catch (e) {
-      console.warn("Audio chime failed to play", e);
+    pushNotification("Time's up!", "Close your apps and get back to work.");
+    
+    // Vibrate phone to alert in pocket
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate([400, 150, 400, 150, 400]);
     }
+    
+    playLoudChime();
   };
 
   const startTimer = (minutes: number) => {
     if (timeBalance >= minutes) {
-      if (Notification.permission === 'default') {
-        Notification.requestPermission();
+      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+          setNotificationState(permission);
+        });
       }
       addTimeBankBalance(-minutes, `Started Break Timer (${minutes}m)`);
       setActiveTimer(minutes * 60);
       setTimerRemaining(minutes * 60);
       setTimerFinished(false);
-      localStorage.setItem('timeBankEndTime', (Date.now() + minutes * 60 * 1000).toString());
+      const targetTimeMs = Date.now() + minutes * 60 * 1000;
+      localStorage.setItem('timeBankEndTime', targetTimeMs.toString());
+      
+      scheduleBackgroundNotification("Time's up!", "Your break has ended. Close your apps and get back to work.", targetTimeMs, 'timebank-timer');
     } else {
       alert("Not enough screen time balance.");
     }
@@ -220,6 +221,8 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
     setActiveTimer(null);
     setTimerRemaining(0);
     setTimerFinished(false);
+    localStorage.removeItem('timeBankEndTime');
+    cancelBackgroundNotification('timebank-timer');
   };
 
   const formatTime = (seconds: number) => {
@@ -238,8 +241,53 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
     { icon: AlertCircle, label: "Skipped Habits", value: "-10", color: "text-rose-400", targetView: "habits" },
   ];
 
+  const isIOS = typeof window !== "undefined" && /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isStandalone = typeof window !== "undefined" && (("standalone" in window.navigator && (window.navigator as any).standalone) || window.matchMedia("(display-mode: standalone)").matches);
+
   return (
     <div className="w-full max-w-4xl mx-auto space-y-8 p-4 pb-24 md:pb-8">
+      {/* Immersive Full Screen overlay when break completes to ensure user wakes up */}
+      <AnimatePresence>
+        {timerFinished && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-slate-950/95 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center"
+          >
+            <div className="absolute inset-0 bg-gradient-to-t from-rose-950/40 via-transparent to-transparent opacity-60" />
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="max-w-md w-full bg-slate-900 border border-rose-800/40 p-8 rounded-[36px] shadow-2xl relative z-10 flex flex-col items-center justify-center space-y-6"
+            >
+              <div className="w-20 h-20 bg-rose-500/10 rounded-full border border-rose-500/20 flex items-center justify-center animate-pulse">
+                <BellRing className="w-10 h-10 text-rose-500 animate-wiggle" />
+              </div>
+              
+              <div className="space-y-2">
+                <h2 className="text-3xl font-black text-white tracking-tight">Time's Up!</h2>
+                <p className="text-rose-400 font-bold text-sm tracking-wide uppercase">Break Session Finished</p>
+                <p className="text-slate-400 text-sm leading-relaxed mt-2">
+                  Avoid the screen of lock. Your redeemed time is completely spent. Close your applications and register back to deep focus!
+                </p>
+              </div>
+
+              <button 
+                onClick={() => {
+                  playLoudChime();
+                  endBreak();
+                }}
+                className="w-full py-4 bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-400 hover:to-amber-400 text-white font-black uppercase tracking-widest text-sm rounded-2xl transition-all shadow-[0_0_30px_rgba(244,63,94,0.3)] hover:scale-[1.02] active:scale-[0.98]"
+              >
+                Acknowledge & Return to Focus Hub
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 1. Header / Bank Vault */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
@@ -270,58 +318,106 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
         transition={{ delay: 0.1 }}
         className="w-full rounded-[32px] bg-slate-900 border border-slate-800 p-6 sm:p-8 relative overflow-hidden"
       >
-        <div className="flex items-center space-x-3 mb-8">
-          <Unlock className="w-5 h-5 text-slate-400" />
-          <h2 className="text-lg font-bold text-white tracking-wide">Redemption Center</h2>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 gap-4">
+          <div className="flex items-center space-x-3">
+            <Unlock className="w-5 h-5 text-slate-400" />
+            <h2 className="text-lg font-bold text-white tracking-wide">Redemption Center</h2>
+          </div>
+          
+          <div className="flex items-center">
+            {notificationState === "granted" && (
+              <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                Alarm Notifications Active
+              </span>
+            )}
+            {notificationState === "default" && (
+              <button 
+                onClick={requestNotificationPermission}
+                className="text-xs font-semibold px-3 py-1.5 rounded-full bg-cyan-500/15 text-cyan-400 hover:bg-cyan-500/25 border border-cyan-500/20 flex items-center gap-1.5 transition-colors"
+              >
+                <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
+                Enable System Notifications
+              </button>
+            )}
+            {notificationState === "denied" && (
+              <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/20">
+                ⚠️ Notifications Denied (Unblock in settings for audio alarms)
+              </span>
+            )}
+            {notificationState === "unsupported" && (
+              <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                Fallback Sound Alerts Active
+              </span>
+            )}
+          </div>
         </div>
 
         <AnimatePresence mode="wait">
           {activeTimer === null ? (
-            <motion.div 
-              key="selection"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
-            >
-              {[5, 15, 30].map((mins) => (
-                <button
-                  key={mins}
-                  onClick={() => startTimer(mins)}
-                  disabled={timeBalance < mins}
-                  className={`relative overflow-hidden group p-6 rounded-2xl border transition-all duration-300 flex flex-col items-center justify-center space-y-2
-                    ${timeBalance >= mins 
-                      ? 'bg-slate-950 border-slate-800 hover:border-cyan-500/50 hover:bg-slate-900 shadow-xl' 
-                      : 'bg-slate-950/50 border-slate-800/50 opacity-50 cursor-not-allowed'}`}
-                >
-                  <Clock className={`w-6 h-6 ${timeBalance >= mins ? 'text-cyan-400' : 'text-slate-600'} group-hover:scale-110 transition-transform`} />
-                  <span className="text-xl font-bold text-white">{mins} Mins</span>
-                  <span className="text-xs text-slate-400 font-medium">Redeem Time</span>
-                </button>
-              ))}
-              
-              <div className="p-1 rounded-2xl border border-slate-800 bg-slate-950 flex flex-col">
-                <div className="flex-1 px-4 py-3 flex flex-col justify-center">
-                  <span className="text-xs text-slate-400 font-medium mb-2 text-center uppercase tracking-wider">Custom amount</span>
-                  <div className="flex bg-slate-900 rounded-xl overflow-hidden border border-slate-800 focus-within:border-cyan-500/50 transition-colors">
-                    <input 
-                      type="number"
-                      value={customAmount}
-                      onChange={(e) => setCustomAmount(e.target.value)}
-                      placeholder="Mins"
-                      className="w-full bg-transparent text-white px-3 py-2 text-center font-bold focus:outline-none appearance-none"
-                    />
+            <div className="space-y-6">
+              <motion.div 
+                key="selection"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+              >
+                {[5, 15, 30].map((mins) => (
+                  <button
+                    key={mins}
+                    onClick={() => startTimer(mins)}
+                    disabled={timeBalance < mins}
+                    className={`relative overflow-hidden group p-6 rounded-2xl border transition-all duration-300 flex flex-col items-center justify-center space-y-2
+                      ${timeBalance >= mins 
+                        ? "bg-slate-950 border-slate-800 hover:border-cyan-500/50 hover:bg-slate-900 shadow-xl" 
+                        : "bg-slate-950/50 border-slate-800/50 opacity-50 cursor-not-allowed"}`}
+                  >
+                    <Clock className={`w-6 h-6 ${timeBalance >= mins ? "text-cyan-400" : "text-slate-600"} group-hover:scale-110 transition-transform`} />
+                    <span className="text-xl font-bold text-white">{mins} Mins</span>
+                    <span className="text-xs text-slate-400 font-medium">Redeem Time</span>
+                  </button>
+                ))}
+                
+                <div className="p-1 rounded-2xl border border-slate-800 bg-slate-950 flex flex-col">
+                  <div className="flex-1 px-4 py-3 flex flex-col justify-center">
+                    <span className="text-xs text-slate-400 font-medium mb-2 text-center uppercase tracking-wider">Custom amount</span>
+                    <div className="flex bg-slate-900 rounded-xl overflow-hidden border border-slate-800 focus-within:border-cyan-500/50 transition-colors">
+                      <input 
+                        type="number"
+                        value={customAmount}
+                        onChange={(e) => setCustomAmount(e.target.value)}
+                        placeholder="Mins"
+                        className="w-full bg-transparent text-white px-3 py-2 text-center font-bold focus:outline-none appearance-none"
+                      />
+                    </div>
                   </div>
+                  <button 
+                    onClick={handleCustomStart}
+                    disabled={!customAmount || timeBalance < parseInt(customAmount)}
+                    className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-sm tracking-wider uppercase rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex flex-row items-center justify-center gap-2"
+                  >
+                    <Play className="w-4 h-4" /> Start
+                  </button>
                 </div>
-                <button 
-                  onClick={handleCustomStart}
-                  disabled={!customAmount || timeBalance < parseInt(customAmount)}
-                  className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-sm tracking-wider uppercase rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex flex-row items-center justify-center gap-2"
+              </motion.div>
+
+              {isIOS && !isStandalone && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-4 rounded-2xl bg-cyan-950/20 border border-cyan-800/30 flex items-start space-x-3 text-left"
                 >
-                  <Play className="w-4 h-4" /> Start
-                </button>
-              </div>
-            </motion.div>
+                  <span className="text-lg leading-none mt-0.5">📱</span>
+                  <div className="space-y-1">
+                    <h4 className="text-xs font-bold text-cyan-300">Apple iOS Background Notice</h4>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Safari suspends background browser tabs. To get active alarms when your break completes: tap the <span className="text-white underline font-semibold">Share</span> icon below, click <span className="text-white underline font-semibold">"Add to Home Screen"</span>, and launch the app as a standalone web icon!
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </div>
           ) : (
             <motion.div 
               key="timer"
@@ -349,8 +445,8 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
                 
                 <h2 className={`text-[100px] sm:text-[140px] leading-none font-black text-transparent bg-clip-text relative z-10 tabular-nums tracking-tighter ${
                   timerFinished 
-                    ? 'bg-gradient-to-br from-rose-400 to-rose-600 drop-shadow-[0_0_40px_rgba(244,63,94,0.6)]' 
-                    : 'bg-gradient-to-br from-white to-slate-400 drop-shadow-[0_0_30px_rgba(255,255,255,0.2)]'
+                    ? "bg-gradient-to-br from-rose-400 to-rose-600 drop-shadow-[0_0_40px_rgba(244,63,94,0.6)]" 
+                    : "bg-gradient-to-br from-white to-slate-400 drop-shadow-[0_0_30px_rgba(255,255,255,0.2)]"
                 }`}>
                   {formatTime(timerRemaining)}
                 </h2>
@@ -361,7 +457,10 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
                   <BellRing className="w-8 h-8 text-rose-500 mb-4 animate-wiggle" />
                   <p className="text-rose-400 font-bold mb-8 text-xl">Time's up! Close your apps.</p>
                   <button 
-                    onClick={endBreak}
+                    onClick={() => {
+                      playLoudChime();
+                      endBreak();
+                    }}
                     className="px-8 py-4 bg-white hover:bg-slate-200 text-slate-900 rounded-full font-black uppercase tracking-widest text-sm transition-all shadow-[0_0_40px_rgba(255,255,255,0.3)] hover:scale-105 active:scale-95"
                   >
                     End Break

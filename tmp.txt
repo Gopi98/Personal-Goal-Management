@@ -1,7 +1,0 @@
-  const sorted = [...(subtasks || [])].sort((a: any, b: any) => Number(a.completed || false) - Number(b.completed || false));
-       const sorted = [...todaysTasks].sort((a,b) => (b.startTime || "").localeCompare(a.startTime || ""));
-                   const sorted = [...incompleteTasks].sort((a,b) => (a.date || "").localeCompare(b.date || "") || (a.order || 0) - (b.order || 0));
-                    const sorted = [...incompleteTasks].sort((a,b) => (a.startTime || "00:00").localeCompare(b.startTime || "00:00"));
-                                         const sorted = [...tasksForDate].sort((a, b) => (a.startTime || "00:00").localeCompare(b.startTime || "00:00"));
-                                         const sorted = [...tasksForDate].sort((a, b) => (a.startTime || "00:00").localeCompare(b.startTime || "00:00"));
-                                          const sorted = [...tasksForDate].sort((a,b) => (a.startTime || "00:00").localeCompare(b.startTime || "00:00"));

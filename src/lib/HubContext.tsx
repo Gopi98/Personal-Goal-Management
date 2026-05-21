@@ -36,7 +36,55 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
+let lastLocalWriteTime = 0;
+
+export const mergeHistories = (h1: any[], h2: any[]): any[] => {
+  const map = new Map<string, any>();
+  const getKey = (item: any) => {
+    return item.id || `${item.date}_${item.amount}_${item.reason}`;
+  };
+  if (Array.isArray(h2)) {
+    h2.forEach(item => {
+      if (item && item.date) {
+        map.set(getKey(item), item);
+      }
+    });
+  }
+  if (Array.isArray(h1)) {
+    h1.forEach(item => {
+      if (item && item.date) {
+        map.set(getKey(item), item);
+      }
+    });
+  }
+  return Array.from(map.values())
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 50);
+};
+
+export const updateUserMetadata = async (updates: Record<string, any>) => {
+  lastLocalWriteTime = Date.now();
+  try {
+    Object.entries(updates).forEach(([key, val]) => {
+       if (val !== null && val !== undefined) {
+          localStorage.setItem(key, val);
+       } else {
+          localStorage.removeItem(key);
+       }
+    });
+
+    const user = auth.currentUser;
+    if (user) {
+      const userRef = doc(db, 'users', user.uid);
+      await setDoc(userRef, updates, { merge: true });
+    }
+  } catch(e) {
+    console.warn('Metadata sync failed:', e);
+  }
+};
+
 export const addTimeBankBalance = async (amount: number, reason: string = "System Adjustment") => {
+  lastLocalWriteTime = Date.now();
   try {
     const saved = localStorage.getItem('timeBankBalance');
     let balance = saved !== null ? parseInt(saved, 10) : 45;
@@ -76,7 +124,12 @@ export const addTimeBankBalance = async (amount: number, reason: string = "Syste
       try {
         await setDoc(userRef, { 
           timeBankBalance: balance,
-          timeBankHistory: history 
+          timeBankHistory: history,
+          // Sync current temporal state parameters to secure database
+          timeBankLastVisit: localStorage.getItem('timeBankLastVisit') || null,
+          timeBankWeekStart: localStorage.getItem('timeBankWeekStart') || null,
+          lastHabitDeductionCheck: localStorage.getItem('lastHabitDeductionCheck') || null,
+          lastWeekendBonusCheck: localStorage.getItem('lastWeekendBonusCheck') || null,
         }, { merge: true });
       } catch (fbErr) {
         console.warn('Firebase time bank sync error:', fbErr);
@@ -214,19 +267,109 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const unsubUserDoc = onSnapshot(doc(db, `users/${user.uid}`), snap => {
       if (snap.exists()) {
         const data = snap.data();
-        if (data.timeBankBalance !== undefined || data.timeBankHistory !== undefined) {
-           const balance = data.timeBankBalance ?? parseInt(localStorage.getItem('timeBankBalance') || '45', 10);
-           const history = data.timeBankHistory ?? JSON.parse(localStorage.getItem('timeBankHistory') || '[]');
-           localStorage.setItem('timeBankBalance', balance.toString());
-           localStorage.setItem('timeBankHistory', JSON.stringify(history));
-           window.dispatchEvent(new CustomEvent('timeBankUpdated', { detail: { balance, history } }));
+        
+        // Merge history robustly in ALL cases so no local or remote transactions are ever lost!
+        const serverHistory = data.timeBankHistory ?? [];
+        const localHistory = JSON.parse(localStorage.getItem('timeBankHistory') || '[]');
+        const mergedHistory = mergeHistories(localHistory, serverHistory);
+        localStorage.setItem('timeBankHistory', JSON.stringify(mergedHistory));
+
+        // If the client has pending writes or a write occurred in the last 4 seconds,
+        // we do NOT overwrite local storage balance or metadata to avoid race conditions.
+        const isRacing = snap.metadata.hasPendingWrites || (Date.now() - lastLocalWriteTime < 4000);
+        
+        let balance = parseInt(localStorage.getItem('timeBankBalance') || '45', 10);
+        
+        if (!isRacing) {
+           if (data.timeBankBalance !== undefined) {
+             balance = data.timeBankBalance;
+             localStorage.setItem('timeBankBalance', balance.toString());
+           }
+
+           // Sync/restore temporal configuration parameters
+           const metadataKeys = [
+             'timeBankLastVisit',
+             'timeBankWeekStart',
+             'lastHabitDeductionCheck',
+             'lastWeekendBonusCheck',
+             'restorationProcessed_v2'
+           ];
+           metadataKeys.forEach(key => {
+             if (data[key] !== undefined && data[key] !== null) {
+               localStorage.setItem(key, data[key]);
+             }
+           });
         }
+
+        window.dispatchEvent(new CustomEvent('timeBankUpdated', { detail: { balance, history: mergedHistory } }));
       }
     }, err => handleFirestoreError(err, OperationType.GET, `users/${user.uid}`));
 
     return () => {
       unsubGoals(); unsubTasks(); unsubHabits(); unsubReflections(); unsubFocusSessions(); unsubAutomations(); unsubUserDoc();
     };
+  }, [user]);
+
+  // General Daily Check-ins & Bonuses
+  useEffect(() => {
+    if (!user) return;
+    
+    try {
+        const now = new Date();
+        const todayStr = toLocalDateStr(now);
+        const todayStringDate = now.toDateString();
+
+        // 1. Week start check-in
+        const getWeekStart = (d: Date) => {
+          const date = new Date(d);
+          date.setHours(0, 0, 0, 0);
+          const day = date.getDay(); // Sunday is 0
+          date.setDate(date.getDate() - day);
+          return date.toDateString();
+        };
+        const currentWeekStart = getWeekStart(now);
+        const lastWeekStart = localStorage.getItem('timeBankWeekStart');
+        if (lastWeekStart !== currentWeekStart) {
+          updateUserMetadata({ timeBankWeekStart: currentWeekStart });
+        }
+
+        // 2. Daily Login Bonus check-in
+        const lastVisit = localStorage.getItem('timeBankLastVisit');
+        let shouldAddDaily = false;
+        if (lastVisit) {
+          if (lastVisit !== todayStringDate) {
+            shouldAddDaily = true;
+          }
+        } else {
+          shouldAddDaily = true;
+        }
+
+        if (lastVisit !== todayStringDate) {
+          updateUserMetadata({ timeBankLastVisit: todayStringDate });
+        }
+
+        if (shouldAddDaily) {
+           addTimeBankBalance(10, "Daily Login Bonus");
+        }
+
+        // 3. One-time restoration check-in
+        const hasProcessedRestoration = localStorage.getItem('restorationProcessed_v2');
+        if (!hasProcessedRestoration) {
+           addTimeBankBalance(100, "Restoration of Erroneous Deductions (System Fix)");
+           updateUserMetadata({ restorationProcessed_v2: "true" });
+        }
+
+        // 4. Weekend logic: extra 120 minutes for Saturday or Sunday
+        const lastWeekendCheck = localStorage.getItem('lastWeekendBonusCheck');
+        if (lastWeekendCheck !== todayStr) {
+            if (now.getDay() === 0 || now.getDay() === 6) {
+               addTimeBankBalance(120, `Weekend Holiday Bonus`);
+            }
+            updateUserMetadata({ lastWeekendBonusCheck: todayStr });
+        }
+    } catch(e) {
+       console.warn('Could not process general temporal rules', e);
+    }
   }, [user]);
 
   // Daily rules for TimeBank (auto-deducting missed habits)
@@ -253,23 +396,15 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               });
 
               if (missedCount > 0) {
-                 addTimeBankBalance(-(missedCount * 10), `Missed ${missedCount} habits on ${yStr}`);
+                 const penalty = Math.min(10, missedCount * 2);
+                 addTimeBankBalance(-penalty, `Missed habits deduction (${missedCount} missed, capped at -${penalty})`);
               }
             }
             
-            localStorage.setItem('lastHabitDeductionCheck', todayStr);
-        }
-        
-        // Weekend logic: extra 120 minutes for Saturday or Sunday
-        const lastWeekendCheck = localStorage.getItem('lastWeekendBonusCheck');
-        if (lastWeekendCheck !== todayStr) {
-            if (now.getDay() === 0 || now.getDay() === 6) {
-               addTimeBankBalance(120, `Weekend Holiday Bonus`);
-            }
-            localStorage.setItem('lastWeekendBonusCheck', todayStr);
+            updateUserMetadata({ lastHabitDeductionCheck: todayStr });
         }
     } catch(e) {
-       console.warn('Could not process habit temporal rules', e);
+       console.warn('Could not process habit missed rules', e);
     }
   }, [user, habits]);
 

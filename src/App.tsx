@@ -88,7 +88,7 @@ import {
   Pie,
 } from "recharts";
 import { HubProvider, useHub } from "./lib/HubContext";
-import { pushNotification as sendNotification } from './lib/notify';
+import { pushNotification as sendNotification, scheduleBackgroundNotification, cancelBackgroundNotification } from './lib/notify';
 import { getAICoachInsight, getTrojanChatResponse, getDailyMotivation, getGoalBreakdown, getDeepAnalysis, getGoalFocusAdvice, getTaskFocusAdvice, getOverviewFocusAdvice } from "./lib/gemini";
 
 // --- Shared Components ---
@@ -399,8 +399,9 @@ const ZenTimer = ({ onExit }: { onExit: () => void }) => {
 
   useEffect(() => {
     playAILoop("rain");
+    const startTime = Date.now();
     const interval = setInterval(() => {
-      setSeconds(s => s + 1);
+      setSeconds(Math.floor((Date.now() - startTime) / 1000));
     }, 1000);
     return () => {
       clearInterval(interval);
@@ -559,55 +560,59 @@ const PomodoroTimer = ({
   useEffect(() => {
     let interval: any = null;
     
-    if (isActive && timeLeft > 0) {
+    if (isActive) {
       interval = setInterval(() => {
         if (!endTimeRef.current) return;
         const now = Date.now();
         const newTimeLeft = Math.max(0, Math.round((endTimeRef.current - now) / 1000));
-        setTimeLeft(newTimeLeft);
+        
+        if (newTimeLeft <= 0) {
+          clearInterval(interval);
+          setIsActive(false);
+          endTimeRef.current = null;
+          stopAILoop();
+
+          const nextMode = mode === "work" ? "break" : "work";
+          setMode(nextMode);
+          setTimeLeft(nextMode === "work" ? currentLength * 60 : 5 * 60);
+
+          addFocusSession(currentLength, mode);
+
+          if (mode === "work") {
+            sendNotification(
+              "Deep Work Complete",
+              "Task accomplished. Time for a refuel break.",
+            );
+            if (!isMuted) {
+              playBeep();
+              playAIAudio(
+                "Task accomplished. Deep work cycle complete. Initializing refuel break.",
+              );
+            }
+          } else {
+            sendNotification(
+              "Break Over",
+              "Refuel complete. Ready for high performance operations.",
+            );
+            if (!isMuted) {
+              playBeep();
+              playAIAudio(
+                "Refuel break complete. Ready to resume high performance operations.",
+              );
+            }
+          }
+
+          onComplete();
+        } else {
+          setTimeLeft(newTimeLeft);
+        }
       }, 1000);
-    } else if (timeLeft === 0 && isActive) {
-      clearInterval(interval);
-      setIsActive(false);
-      endTimeRef.current = null;
-      stopAILoop();
-
-      const nextMode = mode === "work" ? "break" : "work";
-      setMode(nextMode);
-      setTimeLeft(nextMode === "work" ? currentLength * 60 : 5 * 60);
-
-      addFocusSession(currentLength, mode);
-
-      if (mode === "work") {
-        sendNotification(
-          "Deep Work Complete",
-          "Task accomplished. Time for a refuel break.",
-        );
-        if (!isMuted) {
-          playBeep();
-          playAIAudio(
-            "Task accomplished. Deep work cycle complete. Initializing refuel break.",
-          );
-        }
-      } else {
-        sendNotification(
-          "Break Over",
-          "Refuel complete. Ready for high performance operations.",
-        );
-        if (!isMuted) {
-          playBeep();
-          playAIAudio(
-            "Refuel break complete. Ready to resume high performance operations.",
-          );
-        }
-      }
-
-      onComplete();
     }
+    
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isActive, timeLeft, mode, onComplete, currentLength, isMuted]);
+  }, [isActive, mode, onComplete, currentLength, isMuted, addFocusSession]);
 
   // Handle visibility change specifically for mobile background resumption
   useEffect(() => {
@@ -624,9 +629,14 @@ const PomodoroTimer = ({
 
   const toggle = () => {
     if (!isActive) {
-      endTimeRef.current = Date.now() + timeLeft * 1000;
+      const finishTime = Date.now() + timeLeft * 1000;
+      endTimeRef.current = finishTime;
+      const title = mode === "work" ? "Deep Work Complete" : "Break Over";
+      const body = mode === "work" ? "Task accomplished. Time for a refuel break." : "Refuel complete. Ready for high performance operations.";
+      scheduleBackgroundNotification(title, body, finishTime, 'pomodoro-timer');
     } else {
       endTimeRef.current = null;
+      cancelBackgroundNotification('pomodoro-timer');
     }
     setIsActive(!isActive);
   };
@@ -635,6 +645,7 @@ const PomodoroTimer = ({
     setIsActive(false);
     endTimeRef.current = null;
     setTimeLeft(mode === "work" ? currentLength * 60 : 5 * 60);
+    cancelBackgroundNotification('pomodoro-timer');
   };
 
   const setTimerLength = (mins: number) => {
@@ -4658,7 +4669,7 @@ const TrojanChat = () => {
                          if (showWizard === "goal") {
                             await addGoal({ 
                                title: wizardData.title || "Untitled Goal", 
-                               type: wizardData.type, 
+                               type: wizardData.type as 'yearly' | 'monthly' | 'weekly', 
                                priority: chatTaskPriority, 
                                completed: false, 
                                subtasks: subtasksStrArray.map(s => ({ id: Math.random().toString(36).substr(2, 9), title: s, completed: false }))

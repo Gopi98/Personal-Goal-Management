@@ -16,6 +16,7 @@ export interface Goal {
   notificationSchedule?: 'once' | 'daily' | 'weekly' | 'specific_days';
   notificationDays?: number[];
   notificationDate?: string;
+  isYearlyOrigin?: boolean;
 }
 
 export interface Subtask {
@@ -47,6 +48,7 @@ export interface Task {
   notificationSchedule?: 'once' | 'daily' | 'weekly' | 'specific_days';
   notificationDays?: number[];
   notificationDate?: string;
+  isYearlyOrigin?: boolean;
 }
 
 export interface Habit {
