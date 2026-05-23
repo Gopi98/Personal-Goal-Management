@@ -128,6 +128,54 @@ async function startServer() {
     }
   });
 
+  // Memory store for active countdown timers (Pomo and break timers)
+  interface ActiveTimer {
+    timerId: string;
+    userId: string;
+    title: string;
+    body: string;
+    targetTimeMs: number;
+  }
+  let activeTimers: ActiveTimer[] = [];
+
+  app.post("/api/notifications/schedule-timer", (req, res) => {
+    try {
+      const { timerId, userId, title, body, targetTimeMs } = req.body;
+      if (!userId || !timerId || !targetTimeMs) {
+        return res.status(400).json({ error: "Missing required fields: timerId, userId, targetTimeMs." });
+      }
+      
+      // Remove any existing timer with the same timerId and userId
+      activeTimers = activeTimers.filter(t => !(t.timerId === timerId && t.userId === userId));
+
+      activeTimers.push({
+        timerId,
+        userId,
+        title,
+        body,
+        targetTimeMs
+      });
+      console.log(`[push-service] Scheduled background timer '${timerId}' for user ${userId} at ${new Date(targetTimeMs).toISOString()}`);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/notifications/cancel-timer", (req, res) => {
+    try {
+      const { timerId, userId } = req.body;
+      if (!userId || !timerId) {
+        return res.status(400).json({ error: "Missing timerId or userId." });
+      }
+      activeTimers = activeTimers.filter(t => !(t.timerId === timerId && t.userId === userId));
+      console.log(`[push-service] Canceled background timer '${timerId}' for user ${userId}`);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.post("/api/gemini/generate", async (req, res) => {
     try {
       const { GoogleGenAI } = await import("@google/genai");
@@ -179,10 +227,41 @@ async function startServer() {
     }
   });
 
-  // Background loop for checking and delivery of scheduled push notifications
+  // Background loop for checking and delivery of scheduled push notifications & dynamic countdown timers
   setInterval(async () => {
     try {
       const now = Date.now();
+
+      // 1. Process dynamic countdown timers first
+      const timersToTrigger = activeTimers.filter(t => t.targetTimeMs <= now);
+      if (timersToTrigger.length > 0) {
+        // Remove triggered timers from list safely
+        activeTimers = activeTimers.filter(t => t.targetTimeMs > now);
+
+        for (const timer of timersToTrigger) {
+          const user = userSchedules[timer.userId];
+          if (user && user.subscription) {
+            console.log(`[push-service] Dynamic countdown timer '${timer.timerId}' matured. Sending Web Push to user ${timer.userId}`);
+            const payload = JSON.stringify({
+              title: timer.title,
+              body: timer.body,
+              icon: "/icon.svg"
+            });
+            try {
+              await webpush.sendNotification(user.subscription, payload);
+            } catch (err: any) {
+              console.error(`[push-service] Failed to send countdown timer push:`, err?.message);
+              if (err.statusCode === 410 || err.statusCode === 404) {
+                console.log(`[push-service] Removing defunct subscription for ${timer.userId}`);
+                user.subscription = null;
+                saveSchedules();
+              }
+            }
+          }
+        }
+      }
+
+      // 2. Process regular HH:MM scheduler calendars
       for (const userId of Object.keys(userSchedules)) {
         const user = userSchedules[userId];
         if (!user.subscription || !user.reminders || user.reminders.length === 0) continue;
@@ -244,7 +323,7 @@ async function startServer() {
     } catch (loopError) {
       console.error("[push-service] Error inside check loop:", loopError);
     }
-  }, 15000); // Poll every 15 seconds for precision matching
+  }, 5000); // Poll every 5 seconds for precision matching
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {

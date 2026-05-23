@@ -23,6 +23,7 @@ export const pushNotification = (title: string, body: string) => {
 };
 
 export const scheduleBackgroundNotification = async (title: string, body: string, targetTimeMs: number, tag: string) => {
+  let localScheduled = false;
   if ('serviceWorker' in navigator && typeof Notification !== 'undefined' && Notification.permission === "granted") {
     try {
       const reg = await navigator.serviceWorker.ready;
@@ -38,13 +39,32 @@ export const scheduleBackgroundNotification = async (title: string, body: string
           showTrigger: new (window as any).TimestampTrigger(targetTimeMs)
         });
         console.log(`Scheduled background notification '${tag}' for ${new Date(targetTimeMs).toLocaleTimeString()}`);
-        return true;
+        localScheduled = true;
       }
     } catch (e) {
       console.warn("Failed to schedule background notification", e);
     }
   }
-  return false;
+
+  // Fallback to Server-Side Web Push (ensures reliable mobile background delivery even when device sleeps/ignores triggers)
+  try {
+    const { auth } = await import('./firebase');
+    const userId = auth.currentUser?.uid;
+    if (userId) {
+      const response = await fetch('/api/notifications/schedule-timer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timerId: tag, userId, title, body, targetTimeMs })
+      });
+      if (response.ok) {
+        console.log(`Scheduled server-side fallback timer push for tag: ${tag}`);
+      }
+    }
+  } catch (err) {
+    console.warn("Server notification timer scheduling failed:", err);
+  }
+
+  return localScheduled;
 };
 
 export const cancelBackgroundNotification = async (tag: string) => {
@@ -57,6 +77,21 @@ export const cancelBackgroundNotification = async (tag: string) => {
     } catch (e) {
        console.warn("Failed to cancel background notification", e);
     }
+  }
+
+  try {
+    const { auth } = await import('./firebase');
+    const userId = auth.currentUser?.uid;
+    if (userId) {
+      await fetch('/api/notifications/cancel-timer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timerId: tag, userId })
+      });
+      console.log(`Canceled server-side fallback timer push for tag: ${tag}`);
+    }
+  } catch (err) {
+    console.warn("Server notification timer cancellation failed:", err);
   }
 };
 
