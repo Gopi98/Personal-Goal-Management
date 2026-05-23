@@ -58,6 +58,7 @@ export interface Habit {
   streak: number;
   completedHistory: Record<string, boolean>; // date string -> boolean
   order?: number;
+  createdAt?: string;
   notificationEnabled?: boolean;
   notificationTime?: string;
   notificationSchedule?: 'once' | 'daily' | 'weekly' | 'specific_days';

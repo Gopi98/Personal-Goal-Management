@@ -2044,6 +2044,8 @@ const GoalsView = () => {
 
   const handleDemote = (goal: any) => {
     let nextType = "";
+    let shouldDelete = false;
+
     if (goal.fromGoalId && goals.some((g: any) => g.id === goal.fromGoalId)) {
        bulkAddGoalSubtasks(goal.fromGoalId, [{
            id: Math.random().toString(36).substr(2, 9),
@@ -2052,30 +2054,19 @@ const GoalsView = () => {
            subtasks: goal.subtasks || []
        }], goal.fromSubtaskId);
        nextType = "parent Goal's subtasks";
+       shouldDelete = true;
     } else if (goal.type === "weekly") {
-      addGoal({
-        title: goal.title,
-        type: "monthly",
-        priority: goal.priority,
-        completed: false,
-        subtasks: goal.subtasks || [],
-        isYearlyOrigin: goal.isYearlyOrigin
-      });
+      updateGoal(goal.id, { type: "monthly" });
       nextType = "Monthly Goal";
     } else if (goal.type === "monthly") {
-      addGoal({
-        title: goal.title,
-        type: "yearly",
-        priority: goal.priority,
-        completed: false,
-        subtasks: goal.subtasks || [],
-        isYearlyOrigin: goal.isYearlyOrigin
-      });
+      updateGoal(goal.id, { type: "yearly" });
       nextType = "Yearly Goal";
     }
     
     if (nextType) {
-      deleteGoal(goal.id);
+      if (shouldDelete) {
+        deleteGoal(goal.id);
+      }
       setPromotionFeedback(`Sent back to ${nextType}!`);
       setTimeout(() => setPromotionFeedback(null), 3000);
     }
@@ -2088,33 +2079,42 @@ const GoalsView = () => {
     parentId?: string
   ) => {
     let nextType = "";
+    let shouldDelete = false;
     const fromGoalId = isSubtask ? goal.id : undefined;
     const promotedSubtasks = isSubtask && item.subtasks ? item.subtasks : (!isSubtask ? goal.subtasks : []);
     const isYearlyOrigin = !isSubtask && (goal.type === "yearly" || goal.isYearlyOrigin);
 
     if (goal.type === "yearly") {
-      addGoal({
-        title: item.title,
-        type: "monthly",
-        priority: goal.priority,
-        completed: false,
-        subtasks: promotedSubtasks,
-        parentGoalTitle: !isSubtask ? undefined : goal.title,
-        fromGoalId,
-        isYearlyOrigin
-      });
+      if (isSubtask) {
+        addGoal({
+          title: item.title,
+          type: "monthly",
+          priority: goal.priority,
+          completed: false,
+          subtasks: promotedSubtasks,
+          parentGoalTitle: goal.title,
+          fromGoalId,
+          isYearlyOrigin
+        });
+      } else {
+        updateGoal(goal.id, { type: "monthly", title: item.title });
+      }
       nextType = "Monthly Goal";
     } else if (goal.type === "monthly") {
-      addGoal({
-        title: item.title,
-        type: "weekly",
-        priority: goal.priority,
-        completed: false,
-        subtasks: promotedSubtasks,
-        parentGoalTitle: !isSubtask ? undefined : goal.title,
-        fromGoalId,
-        isYearlyOrigin
-      });
+      if (isSubtask) {
+        addGoal({
+          title: item.title,
+          type: "weekly",
+          priority: goal.priority,
+          completed: false,
+          subtasks: promotedSubtasks,
+          parentGoalTitle: goal.title,
+          fromGoalId,
+          isYearlyOrigin
+        });
+      } else {
+        updateGoal(goal.id, { type: "weekly", title: item.title });
+      }
       nextType = "Weekly Goal";
     } else if (goal.type === "weekly") {
       addTask({
@@ -2125,16 +2125,17 @@ const GoalsView = () => {
         tags: ["#from-goals"],
         subtasks: promotedSubtasks,
         parentGoalTitle: !isSubtask ? undefined : goal.title,
-        fromGoalId,
+        fromGoalId: !isSubtask ? goal.id : fromGoalId,
         fromSubtaskId: parentId,
         isYearlyOrigin
       });
+      shouldDelete = !isSubtask;
       nextType = "Daily Task";
     }
 
     if (isSubtask && item.id) {
       deleteSubtask(goal.id, item.id);
-    } else if (!isSubtask) {
+    } else if (!isSubtask && shouldDelete) {
       deleteGoal(goal.id);
     }
 

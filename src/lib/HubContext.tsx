@@ -231,9 +231,14 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await auth.signOut();
   };
 
+  const [isUserDocLoaded, setIsUserDocLoaded] = useState(false);
+
   useEffect(() => {
     if (!user) return;
     
+    // reset loading state when user changes
+    setIsUserDocLoaded(false);
+
     const paths = {
       goals: `users/${user.uid}/goals`,
       tasks: `users/${user.uid}/tasks`,
@@ -268,6 +273,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, err => handleFirestoreError(err, OperationType.LIST, paths.automations));
 
     const unsubUserDoc = onSnapshot(doc(db, `users/${user.uid}`), snap => {
+      setIsUserDocLoaded(true);
       if (snap.exists()) {
         const data = snap.data();
         
@@ -315,7 +321,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // General Daily Check-ins & Bonuses
   useEffect(() => {
-    if (!user) return;
+    if (!user || !isUserDocLoaded) return;
     
     try {
         const now = new Date();
@@ -358,12 +364,16 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
            addTimeBankBalance(10, "Daily Login Bonus");
         }
 
-        // 3. One-time restoration check-in
-        const hasProcessedRestoration = localStorage.getItem('restorationProcessed_v2');
-        if (!hasProcessedRestoration) {
-           localStorage.setItem('restorationProcessed_v2', 'true');
-           addTimeBankBalance(100, "Restoration of Erroneous Deductions (System Fix)");
-           updateUserMetadata({ restorationProcessed_v2: "true" });
+        // 3. User requested hard reset of balance to exactly 150 one time
+        const hasProcessedResetV3 = localStorage.getItem('resetBalance_v3');
+        if (!hasProcessedResetV3) {
+           localStorage.setItem('resetBalance_v3', 'true');
+           
+           // We do not add amount, we just set total balance to 150
+           localStorage.setItem('timeBankBalance', '150');
+           updateUserMetadata({ timeBankBalance: 150, resetBalance_v3: "true" });
+           
+           window.dispatchEvent(new CustomEvent('timeBankUpdated', { detail: { balance: 150, history: [] } }));
         }
 
         // 4. Weekend logic: extra 120 minutes for Saturday or Sunday
@@ -378,11 +388,11 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch(e) {
        console.warn('Could not process general temporal rules', e);
     }
-  }, [user]);
+  }, [user, isUserDocLoaded]);
 
   // Daily rules for TimeBank (auto-deducting missed habits)
   useEffect(() => {
-    if (!user || habits.length === 0) return;
+    if (!user || habits.length === 0 || !isUserDocLoaded) return;
     
     try {
         const lastCheck = localStorage.getItem('lastHabitDeductionCheck');
@@ -390,23 +400,30 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const todayStr = toLocalDateStr(now);
 
         if (lastCheck !== todayStr) {
-            // First time ever? Don't deduct.
-            if (lastCheck !== null) {
-              let missedCount = 0;
-              const yesterdayDate = new Date(now);
-              yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-              const yStr = toLocalDateStr(yesterdayDate);
+            let missedCount = 0;
+            const yesterdayDate = new Date(now);
+            yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+            const yStr = toLocalDateStr(yesterdayDate);
 
-              habits.forEach(h => {
-                 if (!h.completedHistory || !h.completedHistory[yStr]) {
-                     missedCount++;
-                 }
-              });
+            habits.forEach(h => {
+               // Only penalize daily habits
+               const freq = h.frequency || 'daily';
+               if (freq !== 'daily') return;
 
-              if (missedCount > 0) {
-                 const penalty = Math.min(10, missedCount * 2);
-                 addTimeBankBalance(-penalty, `Missed habits deduction (${missedCount} missed, capped at -${penalty})`);
-              }
+               // Do not penalize if the habit was created after yesterday
+               const createdDate = h.createdAt || null;
+               if (createdDate && createdDate > yStr) {
+                  return;
+               }
+
+               if (!h.completedHistory || !h.completedHistory[yStr]) {
+                   missedCount++;
+               }
+            });
+
+            if (missedCount > 0) {
+               const penalty = missedCount * 10;
+               addTimeBankBalance(-penalty, `Missed habits deduction (${missedCount} missed, -${penalty}m)`);
             }
             
             updateUserMetadata({ lastHabitDeductionCheck: todayStr });
@@ -414,7 +431,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch(e) {
        console.warn('Could not process habit missed rules', e);
     }
-  }, [user, habits]);
+  }, [user, habits, isUserDocLoaded]);
 
   useEffect(() => {
     if (selectedMood) localStorage.setItem('hub_mood', selectedMood);
@@ -844,7 +861,16 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (existingHabit) return;
     const id = Math.random().toString(36).substr(2, 9);
     const docRef = doc(db, `users/${user.uid}/habits`, id);
-    try { await setDoc(docRef, { title, frequency, streak: 0, completedHistory: {}, ownerId: user.uid }); } catch(e) { handleFirestoreError(e, OperationType.CREATE, docRef.path); }
+    try { 
+      await setDoc(docRef, { 
+        title, 
+        frequency, 
+        streak: 0, 
+        completedHistory: {}, 
+        ownerId: user.uid,
+        createdAt: toLocalDateStr()
+      }); 
+    } catch(e) { handleFirestoreError(e, OperationType.CREATE, docRef.path); }
   };
 
   const updateHabit = async (habitId: string, updates: any) => {
@@ -947,13 +973,6 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 }
             } else {
                 addTimeBankBalance(-5, `Undo Habit: ${h.title}`);
-                const wasAllHabitsCompleted = habits.every(habit => {
-                  if (habit.id === id) return true;
-                  return habit.completedHistory[date];
-                });
-                if (wasAllHabitsCompleted && habits.length > 0) {
-                   addTimeBankBalance(-20, `Lost Daily Habits Bonus`);
-                }
             }
         }
     } catch(e) { handleFirestoreError(e, OperationType.UPDATE, docRef.path); }

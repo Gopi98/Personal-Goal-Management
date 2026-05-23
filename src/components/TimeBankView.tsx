@@ -249,50 +249,48 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-8 p-4 pb-24 md:pb-8">
-      {/* Immersive Full Screen overlay when break completes to ensure user wakes up - Portaled to document.body to bypass relative transforms */}
-      {typeof document !== 'undefined' && createPortal(
-        <AnimatePresence>
-          {timerFinished && (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[9999] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-6 text-center"
+      {/* Immersive Full Screen overlay when break completes to ensure user wakes up */}
+      <AnimatePresence>
+        {timerFinished && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] h-[100dvh] w-screen bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-6 text-center overflow-hidden touch-none"
+            style={{ transform: "none" }} // Ensure it doesn't get offset
+          >
+            <div className="absolute inset-0 bg-gradient-to-t from-rose-950/40 via-transparent to-transparent opacity-60" />
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="max-w-md w-full bg-slate-900 border border-rose-800/40 p-8 rounded-[36px] shadow-2xl relative z-10 flex flex-col items-center justify-center space-y-6"
             >
-              <div className="absolute inset-0 bg-gradient-to-t from-rose-950/40 via-transparent to-transparent opacity-60" />
-              <motion.div
-                initial={{ scale: 0.9, y: 20 }}
-                animate={{ scale: 1, y: 0 }}
-                exit={{ scale: 0.9, y: 20 }}
-                className="max-w-md w-full bg-slate-900 border border-rose-800/40 p-8 rounded-[36px] shadow-2xl relative z-10 flex flex-col items-center justify-center space-y-6"
-              >
-                <div className="w-20 h-20 bg-rose-500/10 rounded-full border border-rose-500/20 flex items-center justify-center animate-pulse">
-                  <BellRing className="w-10 h-10 text-rose-500 animate-wiggle" />
-                </div>
-                
-                <div className="space-y-2">
-                  <h2 className="text-3xl font-black text-white tracking-tight">Time's Up!</h2>
-                  <p className="text-rose-400 font-bold text-sm tracking-wide uppercase">Break Session Finished</p>
-                  <p className="text-slate-400 text-sm leading-relaxed mt-2">
-                    Avoid the screen of lock. Your redeemed time is completely spent. Close your applications and register back to deep focus!
-                  </p>
-                </div>
+              <div className="w-20 h-20 bg-rose-500/10 rounded-full border border-rose-500/20 flex items-center justify-center animate-pulse">
+                <BellRing className="w-10 h-10 text-rose-500 animate-wiggle" />
+              </div>
+              
+              <div className="space-y-2">
+                <h2 className="text-3xl font-black text-white tracking-tight">Time's Up!</h2>
+                <p className="text-rose-400 font-bold text-sm tracking-wide uppercase">Break Session Finished</p>
+                <p className="text-slate-400 text-sm leading-relaxed mt-2">
+                  Avoid the screen of lock. Your redeemed time is completely spent. Close your applications and register back to deep focus!
+                </p>
+              </div>
 
-                <button 
-                  onClick={() => {
-                    playLoudChime();
-                    endBreak();
-                  }}
-                  className="w-full py-4 bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-400 hover:to-amber-400 text-white font-black uppercase tracking-widest text-sm rounded-2xl transition-all shadow-[0_0_30px_rgba(244,63,94,0.3)] hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  Acknowledge & Return to Focus Hub
-                </button>
-              </motion.div>
+              <button 
+                onClick={() => {
+                  playLoudChime();
+                  endBreak();
+                }}
+                className="w-full py-4 bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-400 hover:to-amber-400 text-white font-black uppercase tracking-widest text-sm rounded-2xl transition-all shadow-[0_0_30px_rgba(244,63,94,0.3)] hover:scale-[1.02] active:scale-[0.98]"
+              >
+                Acknowledge & Return to Focus Hub
+              </button>
             </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 1. Header / Bank Vault - Hidden during break runtime for responsive focus */}
       {activeTimer === null && (
