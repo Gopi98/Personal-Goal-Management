@@ -4,6 +4,7 @@ import { AutomationsView } from "./components/AutomationsView";
 import { YearlyProgress } from "./components/YearlyProgress";
 import { TimeBankView } from "./components/TimeBankView";
 import { InfoView } from "./components/InfoView";
+import { PWAInstallHelper } from "./components/PWAInstallHelper";
 import {
   Home,
   Target,
@@ -1059,6 +1060,8 @@ const HomeView = ({ setActiveView }: { setActiveView: React.Dispatch<React.SetSt
       </div>
 
       <YearlyProgress />
+
+      <PWAInstallHelper />
 
       {/* Hero Quote Banner */}
       <motion.div
