@@ -133,7 +133,8 @@ export const subscribeToWebPush = async (): Promise<any> => {
   // Retrieve the public key from our server
   const res = await fetch('/api/notifications/vapid-key');
   if (!res.ok) {
-    throw new Error('Failed to retrieve the server push configuration.');
+    const text = await res.text();
+    throw new Error('Failed to retrieve the server push configuration. Status: ' + res.status + ' - ' + text.substring(0, 100));
   }
   const { publicKey } = await res.json();
 

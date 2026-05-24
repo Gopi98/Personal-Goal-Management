@@ -5706,7 +5706,15 @@ const AppContent = ({
                           alert("✓ Device successfully registered with Cloud Push server!");
                         } catch (err: any) {
                           console.error(err);
-                          alert(`Subscription Failed: ${err.message || err}`);
+                          if (err.message === 'Notification permission was denied.' || err.message.includes('permission was denied')) {
+                            if (window.self !== window.top) {
+                              alert("Subscription Failed: Notification permission was denied.\n\nBrowser preview (iframe) restricts push notifications. Please open the app in a new tab using the ↗️ button in the top right to enable this feature.");
+                            } else {
+                              alert("Subscription Failed: Notification permission was denied.\n\nPlease check your browser settings to ensure notifications are allowed for this site.");
+                            }
+                          } else {
+                            alert(`Subscription Failed: ${err.message || err}`);
+                          }
                         }
                       }}
                       className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold uppercase tracking-widest rounded-xl transition-colors flex items-center justify-center space-x-2 shadow-lg shadow-blue-500/20"

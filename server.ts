@@ -42,6 +42,7 @@ async function startServer() {
     timezoneOffset: number; // in minutes
     subscription: any;
     reminders: Reminder[];
+    activeTimers?: ActiveTimer[];
     lastNotified?: Record<string, boolean>;
   }
 
@@ -136,8 +137,6 @@ async function startServer() {
     body: string;
     targetTimeMs: number;
   }
-  let activeTimers: ActiveTimer[] = [];
-
   app.post("/api/notifications/schedule-timer", (req, res) => {
     try {
       const { timerId, userId, title, body, targetTimeMs } = req.body;
@@ -145,16 +144,25 @@ async function startServer() {
         return res.status(400).json({ error: "Missing required fields: timerId, userId, targetTimeMs." });
       }
       
-      // Remove any existing timer with the same timerId and userId
-      activeTimers = activeTimers.filter(t => !(t.timerId === timerId && t.userId === userId));
-
-      activeTimers.push({
+      if (!userSchedules[userId]) {
+        return res.status(404).json({ error: "User has no push subscription" });
+      }
+      if (!userSchedules[userId].activeTimers) {
+        userSchedules[userId].activeTimers = [];
+      }
+      
+      let timers = userSchedules[userId].activeTimers!;
+      timers = timers.filter(t => t.timerId !== timerId);
+      timers.push({
         timerId,
         userId,
         title,
         body,
         targetTimeMs
       });
+      userSchedules[userId].activeTimers = timers;
+      saveSchedules();
+      
       console.log(`[push-service] Scheduled background timer '${timerId}' for user ${userId} at ${new Date(targetTimeMs).toISOString()}`);
       res.json({ success: true });
     } catch (e: any) {
@@ -168,7 +176,10 @@ async function startServer() {
       if (!userId || !timerId) {
         return res.status(400).json({ error: "Missing timerId or userId." });
       }
-      activeTimers = activeTimers.filter(t => !(t.timerId === timerId && t.userId === userId));
+      if (userSchedules[userId] && userSchedules[userId].activeTimers) {
+         userSchedules[userId].activeTimers = userSchedules[userId].activeTimers!.filter(t => t.timerId !== timerId);
+         saveSchedules();
+      }
       console.log(`[push-service] Canceled background timer '${timerId}' for user ${userId}`);
       res.json({ success: true });
     } catch (e: any) {
@@ -233,28 +244,34 @@ async function startServer() {
       const now = Date.now();
 
       // 1. Process dynamic countdown timers first
-      const timersToTrigger = activeTimers.filter(t => t.targetTimeMs <= now);
-      if (timersToTrigger.length > 0) {
-        // Remove triggered timers from list safely
-        activeTimers = activeTimers.filter(t => t.targetTimeMs > now);
+      for (const userId of Object.keys(userSchedules)) {
+        const user = userSchedules[userId];
+        if (!user || (!user.activeTimers && !user.reminders)) continue;
 
-        for (const timer of timersToTrigger) {
-          const user = userSchedules[timer.userId];
-          if (user && user.subscription) {
-            console.log(`[push-service] Dynamic countdown timer '${timer.timerId}' matured. Sending Web Push to user ${timer.userId}`);
-            const payload = JSON.stringify({
-              title: timer.title,
-              body: timer.body,
-              icon: "/icon.svg"
-            });
-            try {
-              await webpush.sendNotification(user.subscription, payload);
-            } catch (err: any) {
-              console.error(`[push-service] Failed to send countdown timer push:`, err?.message);
-              if (err.statusCode === 410 || err.statusCode === 404) {
-                console.log(`[push-service] Removing defunct subscription for ${timer.userId}`);
-                user.subscription = null;
-                saveSchedules();
+        if (user.activeTimers && user.activeTimers.length > 0) {
+          const timersToTrigger = user.activeTimers.filter(t => t.targetTimeMs <= now);
+          if (timersToTrigger.length > 0) {
+            user.activeTimers = user.activeTimers.filter(t => t.targetTimeMs > now);
+            saveSchedules();
+
+            for (const timer of timersToTrigger) {
+              if (user.subscription) {
+                console.log(`[push-service] Dynamic countdown timer '${timer.timerId}' matured. Sending Web Push to user ${timer.userId}`);
+                const payload = JSON.stringify({
+                  title: timer.title,
+                  body: timer.body,
+                  icon: "/icon.svg"
+                });
+                try {
+                  await webpush.sendNotification(user.subscription, payload);
+                } catch (err: any) {
+                  console.error(`[push-service] Failed to send countdown timer push:`, err?.message);
+                  if (err.statusCode === 410 || err.statusCode === 404) {
+                    console.log(`[push-service] Removing defunct subscription for ${timer.userId}`);
+                    user.subscription = null;
+                    saveSchedules();
+                  }
+                }
               }
             }
           }

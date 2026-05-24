@@ -305,7 +305,7 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
           
           <Lock className="w-6 h-6 text-cyan-400/50 mb-6 relative z-10" />
           
-          <div className="text-center relative z-10">
+          <div className="text-center relative z-10 flex flex-col items-center">
             <h1 className="text-7xl sm:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-400 drop-shadow-[0_0_40px_rgba(45,212,191,0.5)] tracking-tighter">
               {timeBalance}
               <span className="text-3xl sm:text-4xl text-emerald-500/80 ml-2">m</span>
