@@ -4,6 +4,8 @@ const CACHE_NAME = 'drive-os-cache-v1';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
+  '/icon-192.png',
+  '/icon-512.png',
   '/icon.svg',
   '/manifest.json'
 ];
