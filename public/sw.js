@@ -1,6 +1,6 @@
 // Service Worker for Elite Productivity OS (Supports PWA offline caching & reliable background Push Notifications)
 
-const CACHE_NAME = 'drive-os-cache-v1';
+const CACHE_NAME = 'drive-os-cache-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -19,6 +19,8 @@ self.addEventListener('install', function(event) {
         }).then(() => {
             console.log('[Service Worker] Active PWA assets pre-cached successfully.');
             return self.skipWaiting();
+        }).catch(err => {
+            console.error('[Service Worker] Pre-caching failed:', err);
         })
     );
 });
@@ -77,8 +79,10 @@ self.addEventListener('fetch', function(event) {
                         return cachedResponse;
                     }
                     // For document navigation request (like direct page URL refresh), fallback to /index.html (SPA shell)
-                    if (request.mode === 'navigate') {
-                        return caches.match('/index.html');
+                    if (request.mode === 'navigate' || request.headers.get('accept')?.includes('text/html')) {
+                        return caches.match('/index.html').then(htmlRes => {
+                            return htmlRes || caches.match('/');
+                        });
                     }
                 });
             })
