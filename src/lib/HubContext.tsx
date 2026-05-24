@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Goal, Task, Habit, Subtask, Reflection, FocusSession, Automation } from './types';
 import { db, auth } from './firebase';
 import { collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, query, where, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore';
-import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { getReflectionInsight, smartTaskPrioritization } from './gemini';
 import confetti from 'canvas-confetti';
 
@@ -223,6 +223,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       provider.setCustomParameters({
         prompt: 'select_account'
       });
+      await setPersistence(auth, browserLocalPersistence);
       await signInWithPopup(auth, provider);
     } catch (error: any) {
       console.error("Sign-in error:", error);
