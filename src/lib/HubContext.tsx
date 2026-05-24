@@ -142,6 +142,7 @@ export const addTimeBankBalance = async (amount: number, reason: string = "Syste
 
 interface HubContextType {
   user: User | null;
+  authLoading: boolean;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
   
@@ -197,6 +198,7 @@ const HubContext = createContext<HubContextType | undefined>(undefined);
 
 export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   
   const [goals, setGoals] = useState<Goal[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -210,6 +212,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => {
       setUser(u);
+      setAuthLoading(false);
     });
     return () => unsub();
   }, []);
@@ -1103,7 +1106,7 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   return (
     <HubContext.Provider value={{ 
-      user, signIn, signOut: signOutUser,
+      user, authLoading, signIn, signOut: signOutUser,
       goals, tasks, habits, selectedMood, setSelectedMood, reflections, addReflection,
       focusTaskId, setFocusTaskId, focusSessions, addFocusSession, smartPrioritizeTasks,
       automations, addAutomation, updateAutomation, deleteAutomation,
