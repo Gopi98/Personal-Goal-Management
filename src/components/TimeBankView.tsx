@@ -1,11 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Wallet, Clock, Lock, Unlock, Play, Square, BellRing, Target, CheckSquare, BookOpen, Flame, AlertCircle, History } from 'lucide-react';
 import { addTimeBankBalance, updateUserMetadata } from '../lib/HubContext';
 import { pushNotification, scheduleBackgroundNotification, cancelBackgroundNotification } from '../lib/notify';
 
+const SILENT_MP3 = "data:audio/mpeg;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExPQAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
+
 export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch<React.SetStateAction<string>> }) => {
+  const silentAudioRef = useRef<HTMLAudioElement | null>(null);
+
   const [timeBalance, setTimeBalance] = useState(() => {
     try {
       const saved = localStorage.getItem('timeBankBalance');
@@ -179,6 +183,12 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
     setTimerFinished(true);
     pushNotification("Time's up!", "Close your apps and get back to work.");
     
+    // Stop the wake lock sound
+    if (silentAudioRef.current) {
+      silentAudioRef.current.pause();
+      silentAudioRef.current.currentTime = 0;
+    }
+    
     // Vibrate phone to alert in pocket
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
       navigator.vibrate([400, 150, 400, 150, 400]);
@@ -203,28 +213,9 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
       
       scheduleBackgroundNotification("Time's up!", "Your break has ended. Close your apps and get back to work.", targetTimeMs, 'timebank-timer');
 
-      // Native Android Clock Integration (Offline & Ironclad)
-      if (typeof window !== 'undefined' && /android/i.test(navigator.userAgent)) {
-        try {
-          const timeInSecs = minutes * 60;
-          const msg = encodeURIComponent("Break's Over! Close apps & focus.");
-          const intentUrl = `intent://#Intent;action=android.intent.action.SET_TIMER;i.android.intent.extra.alarm.LENGTH=${timeInSecs};S.android.intent.extra.alarm.MESSAGE=${msg};B.android.intent.extra.alarm.SKIP_UI=true;end`;
-          
-          // Using a hidden anchor tag to trigger the intent seamlessly
-          const anchor = document.createElement('a');
-          anchor.href = intentUrl;
-          // Note: Android intents from Chrome usually require _top or self, _blank sometimes gets blocked by popup blockers depending on Chrome version
-          anchor.target = '_top'; 
-          document.body.appendChild(anchor);
-          anchor.click();
-          setTimeout(() => {
-            if (document.body.contains(anchor)) {
-              document.body.removeChild(anchor);
-            }
-          }, 100);
-        } catch (error) {
-          console.warn("Could not trigger Android Clock intent:", error);
-        }
+      // Start the wake lock silent audio to keep the browser alive and timer running on Android/iOS
+      if (silentAudioRef.current) {
+        silentAudioRef.current.play().catch(e => console.warn("Could not start silent wake-lock audio:", e));
       }
     } else {
       setAlertMessage("Not enough screen time balance.");
@@ -250,6 +241,10 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
     setTimerFinished(false);
     localStorage.removeItem('timeBankEndTime');
     cancelBackgroundNotification('timebank-timer');
+    if (silentAudioRef.current) {
+      silentAudioRef.current.pause();
+      silentAudioRef.current.currentTime = 0;
+    }
   };
 
   const formatTime = (seconds: number) => {
@@ -634,6 +629,14 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
           </motion.div>
         )}
       </AnimatePresence>
+
+      <audio 
+        ref={silentAudioRef} 
+        src={SILENT_MP3} 
+        loop 
+        playsInline 
+        className="hidden"
+      />
 
     </div>
   );
