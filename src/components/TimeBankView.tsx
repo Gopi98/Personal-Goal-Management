@@ -1,14 +1,67 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Wallet, Clock, Lock, Unlock, Play, Square, BellRing, Target, CheckSquare, BookOpen, Flame, AlertCircle, History } from 'lucide-react';
+import { Wallet, Clock, Lock, Unlock, Play, Square, BellRing, Target, CheckSquare, BookOpen, Flame, AlertCircle, History, Music, Sparkles, Volume2 } from 'lucide-react';
 import { addTimeBankBalance, updateUserMetadata } from '../lib/HubContext';
 import { pushNotification, scheduleBackgroundNotification, cancelBackgroundNotification } from '../lib/notify';
 
-const SILENT_MP3 = "data:audio/mpeg;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExPQAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
+let timeBankAudio: HTMLAudioElement | null = null;
+
+const SILENT_WAV_URL = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==";
+
+const playTimeBankLock = (type: "silent" | "rain" | "birds") => {
+  if (timeBankAudio) {
+    try {
+      timeBankAudio.pause();
+    } catch (e) {}
+    timeBankAudio = null;
+  }
+
+  const url = type === "rain"
+    ? "https://actions.google.com/sounds/v1/weather/rain_heavy_loud.ogg"
+    : type === "birds"
+    ? "https://actions.google.com/sounds/v1/animals/birds_forest_afternoon.ogg"
+    : SILENT_WAV_URL;
+
+  try {
+    timeBankAudio = new Audio(url);
+    timeBankAudio.loop = true;
+    timeBankAudio.volume = type === "silent" ? 0.0 : 0.4;
+    timeBankAudio.play().catch(e => {
+      console.warn("TimeBank wake-lock audio autoplay was blocked:", e);
+    });
+  } catch (err) {
+    console.warn("Failed to initialize TimeBank wake-lock audio:", err);
+  }
+};
+
+const stopTimeBankLock = () => {
+  if (timeBankAudio) {
+    try {
+      timeBankAudio.pause();
+    } catch (e) {}
+    timeBankAudio = null;
+  }
+};
 
 export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch<React.SetStateAction<string>> }) => {
-  const silentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [ambientMode, setAmbientMode] = useState<"silent" | "rain" | "birds" >(() => {
+    try {
+      const saved = localStorage.getItem('timeBankAmbientMode');
+      return (saved as "silent" | "rain" | "birds") || "silent";
+    } catch {
+      return "silent";
+    }
+  });
+
+  const handleAmbientChange = (mode: "silent" | "rain" | "birds") => {
+    setAmbientMode(mode);
+    localStorage.setItem('timeBankAmbientMode', mode);
+    // If timer is already running, switch live
+    if (activeTimer !== null && !timerFinished) {
+      playTimeBankLock(mode);
+    }
+  };
 
   const [timeBalance, setTimeBalance] = useState(() => {
     try {
@@ -184,10 +237,7 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
     pushNotification("Time's up!", "Close your apps and get back to work.");
     
     // Stop the wake lock sound
-    if (silentAudioRef.current) {
-      silentAudioRef.current.pause();
-      silentAudioRef.current.currentTime = 0;
-    }
+    stopTimeBankLock();
     
     // Vibrate phone to alert in pocket
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
@@ -199,6 +249,9 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
 
   const startTimer = (minutes: number) => {
     if (timeBalance >= minutes) {
+      // Start the wake lock silent/selected ambient audio IMMEDIATELY within user click gesture context
+      playTimeBankLock(ambientMode);
+
       if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
         Notification.requestPermission().then(permission => {
           setNotificationState(permission);
@@ -212,11 +265,6 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
       localStorage.setItem('timeBankEndTime', targetTimeMs.toString());
       
       scheduleBackgroundNotification("Time's up!", "Your break has ended. Close your apps and get back to work.", targetTimeMs, 'timebank-timer');
-
-      // Start the wake lock silent audio to keep the browser alive and timer running on Android/iOS
-      if (silentAudioRef.current) {
-        silentAudioRef.current.play().catch(e => console.warn("Could not start silent wake-lock audio:", e));
-      }
     } else {
       setAlertMessage("Not enough screen time balance.");
       setTimeout(() => setAlertMessage(null), 4000);
@@ -241,10 +289,7 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
     setTimerFinished(false);
     localStorage.removeItem('timeBankEndTime');
     cancelBackgroundNotification('timebank-timer');
-    if (silentAudioRef.current) {
-      silentAudioRef.current.pause();
-      silentAudioRef.current.currentTime = 0;
-    }
+    stopTimeBankLock();
   };
 
   const formatTime = (seconds: number) => {
@@ -448,6 +493,41 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
                   </div>
                 </motion.div>
               )}
+
+              {/* Break Atmosphere / Wake Lock selector */}
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-slate-950/40 p-5 rounded-2xl border border-slate-800/40 space-y-4 text-left"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div className="flex items-center space-x-2 text-slate-300">
+                    <Music className="w-4 h-4 text-cyan-400" />
+                    <h3 className="text-xs font-bold tracking-wider uppercase">Background Wake-Lock Atmosphere</h3>
+                  </div>
+                  <span className="self-start sm:self-auto text-[10px] bg-cyan-500/15 text-cyan-400 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 animate-pulse" /> Offline Active Timer Keep-Alive
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 leading-normal">
+                  To prevent mobile operating systems from sleeping your PWA when you close your screen or leave the app, we loop a background audio controller. Choose your preferred wake-lock tone:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                  {(["silent", "rain", "birds"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => handleAmbientChange(mode)}
+                      className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition-all duration-300 flex items-center justify-center gap-2
+                        ${ambientMode === mode
+                          ? "bg-cyan-500/10 border-cyan-500/30 text-white shadow-lg shadow-cyan-500/5 font-black"
+                          : "bg-slate-900/40 border-slate-800/40 text-slate-400 hover:text-slate-200 hover:border-slate-700/60"}`}
+                    >
+                      {mode === "silent" && <Volume2 className="w-3.5 h-3.5 opacity-50" />}
+                      {mode === "silent" ? "Silent Guard" : mode === "rain" ? "Rain Shower" : "Forest Birds"}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
             </div>
           ) : (
             <motion.div 
@@ -498,13 +578,29 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
                   </button>
                 </div>
               ) : (
-                <button 
-                  onClick={endBreak}
-                  className="flex items-center space-x-2 px-6 py-3 rounded-full border border-slate-700 bg-slate-800/50 hover:bg-slate-700 text-slate-300 transition-colors"
-                >
-                  <Square className="w-4 h-4" />
-                  <span className="font-bold text-sm tracking-wide uppercase">Stop Timer</span>
-                </button>
+                <div className="flex flex-col items-center space-y-4">
+                  <button 
+                    onClick={endBreak}
+                    className="flex items-center space-x-2 px-6 py-3 rounded-full border border-slate-700 bg-slate-800/50 hover:bg-slate-700 text-slate-300 transition-colors"
+                  >
+                    <Square className="w-4 h-4" />
+                    <span className="font-bold text-sm tracking-wide uppercase">Stop Timer</span>
+                  </button>
+
+                  <div className="flex flex-col items-center space-y-2 pt-2">
+                    <div className="flex items-center gap-1.5 text-xs text-cyan-400 font-bold bg-cyan-500/10 px-4 py-1.5 rounded-full border border-cyan-500/20 shadow-md">
+                      <span className="flex space-x-0.5 items-center justify-center h-3 w-4">
+                        <span className="w-0.5 bg-cyan-400 rounded-full h-1 animate-[pulse_0.4s_infinite_alternate]" />
+                        <span className="w-0.5 bg-cyan-400 rounded-full h-3 animate-[pulse_0.6s_infinite_alternate_0.1s]" />
+                        <span className="w-0.5 bg-cyan-400 rounded-full h-2 animate-[pulse_0.5s_infinite_alternate_0.2s]" />
+                      </span>
+                      <span>Wake-Lock Active: {ambientMode === "silent" ? "Silent Guard" : ambientMode === "rain" ? "Rain Shower" : "Forest Birds"}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 text-center max-w-[280px]">
+                      Keeping PWA background timer alive offline. You can safely close or switch applications!
+                    </p>
+                  </div>
+                </div>
               )}
             </motion.div>
           )}
@@ -629,14 +725,6 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
           </motion.div>
         )}
       </AnimatePresence>
-
-      <audio 
-        ref={silentAudioRef} 
-        src={SILENT_MP3} 
-        loop 
-        playsInline 
-        className="hidden"
-      />
 
     </div>
   );
