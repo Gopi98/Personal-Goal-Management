@@ -26,10 +26,34 @@ const playTimeBankLock = (type: "silent" | "rain" | "birds") => {
   try {
     timeBankAudio = new Audio(url);
     timeBankAudio.loop = true;
-    // Set a tiny, barely-audible volume like 0.001 for silent mode so the browser and OS media channel
-    // remains active under power-saving rules, while being completely silent to the human ear.
-    timeBankAudio.volume = type === "silent" ? 0.001 : 0.4;
-    timeBankAudio.play().catch(e => {
+    timeBankAudio.setAttribute("playsinline", "true");
+
+    // Set volume to 1.0 for silent mode because the MP3 file itself is completely silent.
+    // Keeping the playback mechanism active with full volume prevents iOS/Android from
+    // suspending the browser tab under aggressive power-saving or "zero-volume" heuristic rules.
+    timeBankAudio.volume = type === "silent" ? 1.0 : 0.4;
+    
+    // Background ticking: rely on the active audio stream to process time updates even when the page is backgrounded on mobile browsers.
+    timeBankAudio.addEventListener('timeupdate', () => {
+      const endStr = localStorage.getItem('timeBankEndTime');
+      if (endStr) {
+        const end = Number(endStr);
+        if (end && Date.now() >= end) {
+          window.dispatchEvent(new CustomEvent('timeBankTimerComplete'));
+        }
+      }
+    });
+
+    timeBankAudio.play().then(() => {
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: type === "rain" ? "Rain Focus" : type === "birds" ? "Bird Focus" : "Deep Focus",
+          artist: "Vault Generator",
+          album: "Drive Productivity OS"
+        });
+        navigator.mediaSession.playbackState = "playing";
+      }
+    }).catch(e => {
       console.warn("TimeBank wake-lock audio autoplay was blocked:", e);
     });
   } catch (err) {
@@ -194,24 +218,32 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
+
+    const checkTimer = () => {
+      const expectedEndTime = Number(localStorage.getItem('timeBankEndTime'));
+      if (expectedEndTime) {
+         const now = Date.now();
+         const remaining = Math.max(0, Math.round((expectedEndTime - now) / 1000));
+         if (remaining <= 0 && activeTimer !== null && !timerFinished) {
+           handleTimerComplete();
+           setTimerRemaining(0);
+           setActiveTimer(null);
+         } else {
+           setTimerRemaining(remaining);
+         }
+      }
+    };
+
     if (activeTimer !== null) {
-      interval = setInterval(() => {
-        const expectedEndTime = Number(localStorage.getItem('timeBankEndTime'));
-        if (expectedEndTime) {
-           const now = Date.now();
-           const remaining = Math.max(0, Math.round((expectedEndTime - now) / 1000));
-           if (remaining <= 0) {
-             handleTimerComplete();
-             setTimerRemaining(0);
-             setActiveTimer(null);
-           } else {
-             setTimerRemaining(remaining);
-           }
-        }
-      }, 1000);
+      interval = setInterval(checkTimer, 1000);
+      window.addEventListener('timeBankTimerComplete', checkTimer);
     }
-    return () => clearInterval(interval);
-  }, [activeTimer]);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('timeBankTimerComplete', checkTimer);
+    };
+  }, [activeTimer, timerFinished]);
   
   // Handle visibility change specifically for mobile background resumption
   useEffect(() => {
