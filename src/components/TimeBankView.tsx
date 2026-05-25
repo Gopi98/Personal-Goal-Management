@@ -7,7 +7,7 @@ import { pushNotification, scheduleBackgroundNotification, cancelBackgroundNotif
 
 let timeBankAudio: HTMLAudioElement | null = null;
 
-const SILENT_MP3_URL = "https://raw.githubusercontent.com/anars/blank-audio/master/10-seconds-of-silence.mp3";
+const SILENT_MP3_URL = "https://raw.githubusercontent.com/anars/blank-audio/master/1-hour-of-silence.mp3";
 
 const playTimeBankLock = (type: "silent" | "rain" | "birds") => {
   if (timeBankAudio) {

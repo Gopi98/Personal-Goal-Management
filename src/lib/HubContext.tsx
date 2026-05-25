@@ -83,6 +83,48 @@ export const updateUserMetadata = async (updates: Record<string, any>) => {
   }
 };
 
+export const resetTimeBankBalance = async (reason: string = "Manual Reset") => {
+  lastLocalWriteTime = Date.now();
+  try {
+    const balance = 0;
+    localStorage.setItem('timeBankBalance', balance.toString());
+
+    // Update History
+    const historySaved = localStorage.getItem('timeBankHistory');
+    let history = historySaved ? JSON.parse(historySaved) : [];
+    
+    // Create new log entry
+    const log = {
+      id: Math.random().toString(36).substr(2, 9),
+      amount: 0,
+      reason,
+      date: new Date().toISOString()
+    };
+    
+    history.unshift(log);
+    history = history.slice(0, 50);
+    localStorage.setItem('timeBankHistory', JSON.stringify(history));
+
+    window.dispatchEvent(new CustomEvent('timeBankUpdated', { detail: { balance, history } }));
+
+    // Firebase Sync
+    const user = auth.currentUser;
+    if (user) {
+      const userRef = doc(db, 'users', user.uid);
+      try {
+        await setDoc(userRef, { 
+          timeBankBalance: balance,
+          timeBankHistory: history,
+        }, { merge: true });
+      } catch (fbErr) {
+        console.warn('Firebase time bank sync error:', fbErr);
+      }
+    }
+  } catch (e) {
+    console.warn('Could not reset time bank balance', e);
+  }
+};
+
 export const addTimeBankBalance = async (amount: number, reason: string = "System Adjustment") => {
   lastLocalWriteTime = Date.now();
   try {
@@ -341,6 +383,10 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (lastWeekStart !== currentWeekStart) {
           localStorage.setItem('timeBankWeekStart', currentWeekStart);
           updateUserMetadata({ timeBankWeekStart: currentWeekStart });
+          
+          if (lastWeekStart !== null) {
+             resetTimeBankBalance("Weekly Vault Reset (Sunday)");
+          }
         }
 
         // 2. Daily Login Bonus check-in
