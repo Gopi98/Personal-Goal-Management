@@ -202,6 +202,30 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
       localStorage.setItem('timeBankEndTime', targetTimeMs.toString());
       
       scheduleBackgroundNotification("Time's up!", "Your break has ended. Close your apps and get back to work.", targetTimeMs, 'timebank-timer');
+
+      // Native Android Clock Integration (Offline & Ironclad)
+      if (typeof window !== 'undefined' && /android/i.test(navigator.userAgent)) {
+        try {
+          const timeInSecs = minutes * 60;
+          const msg = encodeURIComponent("Break's Over! Close apps & focus.");
+          const intentUrl = `intent://#Intent;action=android.intent.action.SET_TIMER;i.android.intent.extra.alarm.LENGTH=${timeInSecs};S.android.intent.extra.alarm.MESSAGE=${msg};B.android.intent.extra.alarm.SKIP_UI=true;end`;
+          
+          // Using a hidden anchor tag to trigger the intent seamlessly
+          const anchor = document.createElement('a');
+          anchor.href = intentUrl;
+          // Note: Android intents from Chrome usually require _top or self, _blank sometimes gets blocked by popup blockers depending on Chrome version
+          anchor.target = '_top'; 
+          document.body.appendChild(anchor);
+          anchor.click();
+          setTimeout(() => {
+            if (document.body.contains(anchor)) {
+              document.body.removeChild(anchor);
+            }
+          }, 100);
+        } catch (error) {
+          console.warn("Could not trigger Android Clock intent:", error);
+        }
+      }
     } else {
       setAlertMessage("Not enough screen time balance.");
       setTimeout(() => setAlertMessage(null), 4000);
@@ -331,7 +355,7 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
               <h2 className="text-lg font-bold text-white tracking-wide">Redemption Center</h2>
             </div>
             
-            <div className="flex items-center">
+            <div className="flex items-center space-x-2">
               {notificationState === "granted" && (
                 <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />

@@ -400,6 +400,9 @@ export const HubProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const todayStr = toLocalDateStr(now);
 
         if (lastCheck !== todayStr) {
+            // pre-emptively set to prevent double execution in StrictMode or rapid re-renders
+            localStorage.setItem('lastHabitDeductionCheck', todayStr);
+
             let missedCount = 0;
             const yesterdayDate = new Date(now);
             yesterdayDate.setDate(yesterdayDate.getDate() - 1);
