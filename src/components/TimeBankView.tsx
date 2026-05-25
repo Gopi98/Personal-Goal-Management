@@ -7,7 +7,7 @@ import { pushNotification, scheduleBackgroundNotification, cancelBackgroundNotif
 
 let timeBankAudio: HTMLAudioElement | null = null;
 
-const SILENT_WAV_URL = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==";
+const SILENT_MP3_URL = "https://raw.githubusercontent.com/anars/blank-audio/master/10-seconds-of-silence.mp3";
 
 const playTimeBankLock = (type: "silent" | "rain" | "birds") => {
   if (timeBankAudio) {
@@ -21,12 +21,14 @@ const playTimeBankLock = (type: "silent" | "rain" | "birds") => {
     ? "https://actions.google.com/sounds/v1/weather/rain_heavy_loud.ogg"
     : type === "birds"
     ? "https://actions.google.com/sounds/v1/animals/birds_forest_afternoon.ogg"
-    : SILENT_WAV_URL;
+    : SILENT_MP3_URL;
 
   try {
     timeBankAudio = new Audio(url);
     timeBankAudio.loop = true;
-    timeBankAudio.volume = type === "silent" ? 0.0 : 0.4;
+    // Set a tiny, barely-audible volume like 0.001 for silent mode so the browser and OS media channel
+    // remains active under power-saving rules, while being completely silent to the human ear.
+    timeBankAudio.volume = type === "silent" ? 0.001 : 0.4;
     timeBankAudio.play().catch(e => {
       console.warn("TimeBank wake-lock audio autoplay was blocked:", e);
     });
@@ -231,6 +233,13 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [activeTimer]);
+
+  // Handle auto-resumption of wake lock audio on mount/load if timer is already running
+  useEffect(() => {
+    if (activeTimer !== null && !timerFinished) {
+      playTimeBankLock(ambientMode);
+    }
+  }, []);
 
   const handleTimerComplete = () => {
     setTimerFinished(true);
