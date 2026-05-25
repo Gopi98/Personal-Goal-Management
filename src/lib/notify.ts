@@ -133,8 +133,7 @@ export const subscribeToWebPush = async (): Promise<any> => {
   // Retrieve the public key from our server
   const res = await fetch('/api/notifications/vapid-key');
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error('Failed to retrieve the server push configuration. Status: ' + res.status + ' - ' + text.substring(0, 100));
+    throw new Error('Failed to retrieve the server push configuration.');
   }
   const { publicKey } = await res.json();
 
@@ -175,6 +174,5 @@ export const syncPushNotifications = async (
     console.warn('Network error while syncing push notifications:', error);
   }
 };
-
 
 

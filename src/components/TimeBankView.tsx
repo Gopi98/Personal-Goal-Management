@@ -2,11 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Wallet, Clock, Lock, Unlock, Play, Square, BellRing, Target, CheckSquare, BookOpen, Flame, AlertCircle, History } from 'lucide-react';
-import { addTimeBankBalance, updateUserMetadata, useHub } from '../lib/HubContext';
-import { pushNotification, scheduleBackgroundNotification, cancelBackgroundNotification, subscribeToWebPush, syncPushNotifications } from '../lib/notify';
+import { addTimeBankBalance, updateUserMetadata } from '../lib/HubContext';
+import { pushNotification, scheduleBackgroundNotification, cancelBackgroundNotification } from '../lib/notify';
 
 export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch<React.SetStateAction<string>> }) => {
-  const { user } = useHub();
   const [timeBalance, setTimeBalance] = useState(() => {
     try {
       const saved = localStorage.getItem('timeBankBalance');
@@ -79,17 +78,6 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
     if (typeof Notification !== 'undefined') {
       const permission = await Notification.requestPermission();
       setNotificationState(permission);
-      
-      if (permission === 'granted' && user) {
-        try {
-          const sub = await subscribeToWebPush();
-          console.log("Web Push Subscription Success", sub);
-          await syncPushNotifications(user.uid, sub, []);
-          setAlertMessage("Web Push Alarms Configured!");
-        } catch (e: any) {
-          console.warn("Failed to subscribe to Web Push:", e);
-        }
-      }
     }
   };
 
@@ -202,7 +190,9 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
   const startTimer = (minutes: number) => {
     if (timeBalance >= minutes) {
       if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-        requestNotificationPermission();
+        Notification.requestPermission().then(permission => {
+          setNotificationState(permission);
+        });
       }
       addTimeBankBalance(-minutes, `Started Break Timer (${minutes}m)`);
       setActiveTimer(minutes * 60);
@@ -315,7 +305,7 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
           
           <Lock className="w-6 h-6 text-cyan-400/50 mb-6 relative z-10" />
           
-          <div className="text-center relative z-10 flex flex-col items-center">
+          <div className="text-center relative z-10">
             <h1 className="text-7xl sm:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-400 drop-shadow-[0_0_40px_rgba(45,212,191,0.5)] tracking-tighter">
               {timeBalance}
               <span className="text-3xl sm:text-4xl text-emerald-500/80 ml-2">m</span>
