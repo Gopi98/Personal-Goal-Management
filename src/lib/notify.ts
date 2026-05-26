@@ -49,7 +49,7 @@ export const scheduleBackgroundNotification = async (title: string, body: string
   // Fallback to Server-Side Web Push (ensures reliable mobile background delivery even when device sleeps/ignores triggers)
   try {
     const { auth, db } = await import('./firebase');
-    const { doc, setDoc } = await import('firebase/firestore');
+    const { doc, setDoc, Timestamp } = await import('firebase/firestore');
     const userId = auth.currentUser?.uid;
     if (userId) {
       const response = await fetch('/api/notifications/schedule-timer', {
@@ -61,14 +61,14 @@ export const scheduleBackgroundNotification = async (title: string, body: string
         console.log(`Scheduled server-side fallback timer push for tag: ${tag}`);
       }
       
-      // Also write to Firestore 'active_timers' collection for the GitHub Action CRON
+      // Also write to Firestore 'active_timers' collection for the Apps Script CRON
       const docRef = doc(db, 'active_timers', tag);
       await setDoc(docRef, {
         userId,
         title,
         body,
         targetTimeMs,
-        endTime: targetTimeMs,
+        endTime: Timestamp.fromMillis(targetTimeMs),
         status: "running"
       });
       console.log(`Saved active_timer document to Firestore: ${tag}`);
