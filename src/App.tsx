@@ -4948,8 +4948,25 @@ const NotificationEngine = () => {
 };
 
 const AutomationEngine = () => {
-  const { automations, updateAutomation, addGoal, addTask, goals, updateGoal } = useHub();
+  const { automations, updateAutomation, addGoal, addTask, goals, updateGoal, deleteGoal } = useHub();
   
+  useEffect(() => {
+    // Cleanup any existing identical duplicate weekly goals
+    if (goals && goals.length > 0) {
+      const weeklyGoals = goals.filter(g => g.type === 'weekly' && !g.completed);
+      const seen = new Set();
+      const toRemove: string[] = [];
+      for (const g of weeklyGoals) {
+          if (seen.has(g.title)) {
+              toRemove.push(g.id);
+          } else {
+              seen.add(g.title);
+          }
+      }
+      toRemove.forEach(id => deleteGoal(id));
+    }
+  }, [goals.length]);
+
   useEffect(() => {
     if (!automations || automations.length === 0 || goals.length === 0) return;
     
@@ -5003,14 +5020,18 @@ const AutomationEngine = () => {
               
               toCreate.forEach(item => {
                  if (auto.targetType === 'weekly_goal') {
-                     addGoal({
-                        title: item.title,
-                        type: 'weekly',
-                        priority: 'B',
-                        completed: false,
-                        fromGoalId: src.id,
-                        fromSubtaskId: item.fromSubtaskId
-                     });
+                     // Deduplicate by checking if a weekly goal with same title already exists
+                     const exists = goals.some(g => g.type === 'weekly' && g.title === item.title && !g.completed);
+                     if (!exists) {
+                         addGoal({
+                            title: item.title,
+                            type: 'weekly',
+                            priority: 'B',
+                            completed: false,
+                            fromGoalId: src.id,
+                            fromSubtaskId: item.fromSubtaskId
+                         });
+                     }
                  } else {
                      addTask({
                         title: item.title,
