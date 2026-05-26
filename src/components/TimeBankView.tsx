@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Wallet, Clock, Lock, Unlock, Play, Square, BellRing, Target, CheckSquare, BookOpen, Flame, AlertCircle, History, Music, Sparkles, Volume2 } from 'lucide-react';
-import { addTimeBankBalance, updateUserMetadata } from '../lib/HubContext';
+import { useHub, addTimeBankBalance, updateUserMetadata } from '../lib/HubContext';
 import { pushNotification, scheduleBackgroundNotification, cancelBackgroundNotification } from '../lib/notify';
+import { doc, setDoc, updateDoc, Timestamp } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 let timeBankAudio: HTMLAudioElement | null = null;
 
@@ -71,6 +73,7 @@ const stopTimeBankLock = () => {
 };
 
 export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch<React.SetStateAction<string>> }) => {
+  const { user } = useHub();
   const [ambientMode, setAmbientMode] = useState<"silent" | "rain" | "birds" >(() => {
     try {
       const saved = localStorage.getItem('timeBankAmbientMode');
@@ -273,7 +276,7 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
     }
   }, []);
 
-  const handleTimerComplete = () => {
+  const handleTimerComplete = async () => {
     setTimerFinished(true);
     pushNotification("Time's up!", "Close your apps and get back to work.");
     
@@ -286,9 +289,18 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
     }
     
     playLoudChime();
+
+    if (user) {
+      try {
+        const docRef = doc(db, 'active_timers', user.uid);
+        await updateDoc(docRef, { status: "done" });
+      } catch (err) {
+        // Ignore if document not found
+      }
+    }
   };
 
-  const startTimer = (minutes: number) => {
+  const startTimer = async (minutes: number) => {
     if (timeBalance >= minutes) {
       // Start the wake lock silent/selected ambient audio IMMEDIATELY within user click gesture context
       playTimeBankLock(ambientMode);
@@ -306,6 +318,20 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
       localStorage.setItem('timeBankEndTime', targetTimeMs.toString());
       
       scheduleBackgroundNotification("Time's up!", "Your break has ended. Close your apps and get back to work.", targetTimeMs, 'timebank-timer');
+
+      if (user) {
+        try {
+          const docRef = doc(db, 'active_timers', user.uid);
+          await setDoc(docRef, {
+            userId: user.uid,
+            endTime: Timestamp.fromMillis(targetTimeMs),
+            status: "running"
+          });
+          console.log("Saved active_timer document for user:", user.uid);
+        } catch (err) {
+          console.error("Error setting active_timer doc:", err);
+        }
+      }
     } else {
       setAlertMessage("Not enough screen time balance.");
       setTimeout(() => setAlertMessage(null), 4000);
@@ -320,7 +346,7 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
     }
   };
 
-  const endBreak = () => {
+  const endBreak = async () => {
     if (timerRemaining > 0 && !timerFinished) {
       const minutesToRefund = Math.ceil(timerRemaining / 60);
       addTimeBankBalance(minutesToRefund, `Refunded early end of break (${minutesToRefund}m)`);
@@ -331,6 +357,15 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
     localStorage.removeItem('timeBankEndTime');
     cancelBackgroundNotification('timebank-timer');
     stopTimeBankLock();
+
+    if (user) {
+      try {
+        const docRef = doc(db, 'active_timers', user.uid);
+        await updateDoc(docRef, { status: "cancelled" });
+      } catch (err) {
+        // Ignore if document not found
+      }
+    }
   };
 
   const formatTime = (seconds: number) => {

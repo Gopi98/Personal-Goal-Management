@@ -48,8 +48,7 @@ export const scheduleBackgroundNotification = async (title: string, body: string
 
   // Fallback to Server-Side Web Push (ensures reliable mobile background delivery even when device sleeps/ignores triggers)
   try {
-    const { auth, db } = await import('./firebase');
-    const { doc, setDoc, Timestamp } = await import('firebase/firestore');
+    const { auth } = await import('./firebase');
     const userId = auth.currentUser?.uid;
     if (userId) {
       const response = await fetch('/api/notifications/schedule-timer', {
@@ -60,18 +59,6 @@ export const scheduleBackgroundNotification = async (title: string, body: string
       if (response.ok) {
         console.log(`Scheduled server-side fallback timer push for tag: ${tag}`);
       }
-      
-      // Also write to Firestore 'active_timers' collection for the Apps Script CRON
-      const docRef = doc(db, 'active_timers', tag);
-      await setDoc(docRef, {
-        userId,
-        title,
-        body,
-        targetTimeMs,
-        endTime: Timestamp.fromMillis(targetTimeMs),
-        status: "running"
-      });
-      console.log(`Saved active_timer document to Firestore: ${tag}`);
     }
   } catch (err) {
     console.warn("Server notification timer scheduling failed:", err);
@@ -93,8 +80,7 @@ export const cancelBackgroundNotification = async (tag: string) => {
   }
 
   try {
-    const { auth, db } = await import('./firebase');
-    const { doc, updateDoc } = await import('firebase/firestore');
+    const { auth } = await import('./firebase');
     const userId = auth.currentUser?.uid;
     if (userId) {
       await fetch('/api/notifications/cancel-timer', {
@@ -103,13 +89,6 @@ export const cancelBackgroundNotification = async (tag: string) => {
         body: JSON.stringify({ timerId: tag, userId })
       });
       console.log(`Canceled server-side fallback timer push for tag: ${tag}`);
-      
-      const docRef = doc(db, 'active_timers', tag);
-      try {
-         await updateDoc(docRef, { status: "canceled" });
-      } catch (e) {
-         // ignore if document does not exist
-      }
     }
   } catch (err) {
     console.warn("Server notification timer cancellation failed:", err);
