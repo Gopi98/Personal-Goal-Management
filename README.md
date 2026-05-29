@@ -56,3 +56,5 @@ Once added, refresh your GitHub Pages app, and the Google Sign-in will work!
 - **Firebase Sync**: Real-time sync across devices.
 - **Drag and Drop**: Manage tasks and goals visually.
 - **Pomodoro Focus**: Integrated focus timer.
+- **Active Timer Checks**: Runs automatic checks for elapsed active timers via structured background checks.
+
