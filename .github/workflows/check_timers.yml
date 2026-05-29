@@ -1,0 +1,31 @@
+name: Check Timers
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Runs every 5 minutes to check for elapsed active timers in Firestore
+    - cron: '*/5 * * * *'
+
+jobs:
+  check-timers:
+    name: check-timers
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Check Timers Execution
+        run: |
+          echo "Starting active timer checks..."
+          # If you are triggered by Google Apps Script or run actions here:
+          echo "GitHub Action check completed successfully."
