@@ -46,23 +46,7 @@ export const scheduleBackgroundNotification = async (title: string, body: string
     }
   }
 
-  // Fallback to Server-Side Web Push (ensures reliable mobile background delivery even when device sleeps/ignores triggers)
-  try {
-    const { auth } = await import('./firebase');
-    const userId = auth.currentUser?.uid;
-    if (userId) {
-      const response = await fetch('/api/notifications/schedule-timer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ timerId: tag, userId, title, body, targetTimeMs })
-      });
-      if (response.ok) {
-        console.log(`Scheduled server-side fallback timer push for tag: ${tag}`);
-      }
-    }
-  } catch (err) {
-    console.warn("Server notification timer scheduling failed:", err);
-  }
+  // Fallback removed because handled by App Script directly via Firestore write in startTimer
 
   return localScheduled;
 };
@@ -79,20 +63,7 @@ export const cancelBackgroundNotification = async (tag: string) => {
     }
   }
 
-  try {
-    const { auth } = await import('./firebase');
-    const userId = auth.currentUser?.uid;
-    if (userId) {
-      await fetch('/api/notifications/cancel-timer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ timerId: tag, userId })
-      });
-      console.log(`Canceled server-side fallback timer push for tag: ${tag}`);
-    }
-  } catch (err) {
-    console.warn("Server notification timer cancellation failed:", err);
-  }
+  // Fallback removed.
 };
 
 function urlBase64ToUint8Array(base64String: string) {
