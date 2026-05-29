@@ -321,15 +321,17 @@ export const TimeBankView = ({ setActiveView }: { setActiveView?: React.Dispatch
 
       if (user) {
         try {
+          console.log("Current user:", user);
+          console.log("Writing to Firestore...");
           const docRef = doc(db, 'active_timers', user.uid);
           await setDoc(docRef, {
             userId: user.uid,
             endTime: Timestamp.fromMillis(targetTimeMs),
             status: "running"
           });
-          console.log("Saved active_timer document for user:", user.uid);
+          console.log("Firestore write success");
         } catch (err) {
-          console.error("Error setting active_timer doc:", err);
+          console.log("Firestore write error:", err);
         }
       }
     } else {
